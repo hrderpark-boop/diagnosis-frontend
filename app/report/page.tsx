@@ -6,6 +6,7 @@ import apiClient from '@/lib/api';
 import { getKeyToNameMap, getSubCompetenciesMap, fetchFramework, FrameworkCompetency } from '@/lib/framework';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { NOTO_SANS_KR_BASE64, hasKoreanFont } from '@/lib/notoSansKR-base64';
 
 // ----------------------------------------------------------------------
 // [ICONS]
@@ -360,18 +361,35 @@ function ReportContent() {
     if (!reportRef.current) return;
     const originalOpenState = openDetail;
     setOpenDetail("ALL");
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise(resolve => setTimeout(resolve, 1200));
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210; const pageHeight = 297; const margin = 10;
       const contentWidth = pageWidth - margin * 2;
       let currentHeight = margin;
+
+      // 한글 폰트 등록 (base64 데이터가 채워진 경우에만)
+      if (hasKoreanFont()) {
+        pdf.addFileToVFS('NotoSansKR.ttf', NOTO_SANS_KR_BASE64);
+        pdf.addFont('NotoSansKR.ttf', 'NotoSansKR', 'normal');
+        pdf.setFont('NotoSansKR');
+      } else {
+        console.warn('⚠️ 한글 폰트 미등록 — PDF 한글이 □□□ 으로 표시될 수 있음');
+      }
+
       pdf.setFillColor(255, 255, 255);
       pdf.rect(0, 0, pageWidth, pageHeight, 'F');
       const sections = reportRef.current.querySelectorAll('.print-section');
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i] as HTMLElement;
-        const canvas = await html2canvas(section, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+        const canvas = await html2canvas(section, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          allowTaint: true,
+          foreignObject: true,
+          logging: false,
+        });
         const imgData = canvas.toDataURL('image/png');
         const imgHeight = (canvas.height * contentWidth) / canvas.width;
         if (currentHeight + imgHeight > pageHeight - margin) {
@@ -382,7 +400,8 @@ function ReportContent() {
         currentHeight += imgHeight + 5;
       }
       pdf.save(`Leadership_Report.pdf`);
-    } catch {
+    } catch (error) {
+      console.error('PDF 생성 실패:', error);
       alert("PDF 저장 중 오류가 발생했습니다.");
     } finally {
       setOpenDetail(originalOpenState);
