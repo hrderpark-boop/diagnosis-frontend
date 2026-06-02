@@ -323,13 +323,13 @@ export default function ChatPage() {
                 </div>
               ))}
               
-              {/* 통통 튀는 애니메이션 */}
+              {/* 물결 wave 애니메이션 */}
               {(isLoading || isAnalyzing) && (
                 <div className="flex justify-start pl-11">
                   <div className="bg-white/5 px-4 py-3 rounded-full flex gap-1.5 items-center border border-white/5 w-fit">
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-150"></span>
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-300"></span>
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0s' }}></span>
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.2s' }}></span>
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.4s' }}></span>
                   </div>
                 </div>
               )}
