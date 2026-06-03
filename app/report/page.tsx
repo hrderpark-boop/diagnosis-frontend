@@ -362,7 +362,8 @@ function ReportContent() {
     if (!reportRef.current) return;
     const originalOpenState = openDetail;
     setOpenDetail("ALL");
-    // React 렌더 2사이클 대기 후 추가 1500ms (collapsed 섹션 DOM 업데이트 보장)
+    document.body.classList.add('pdf-mode');
+    // React 렌더 2사이클 대기 + pdf-mode 트랜지션 안정화
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     await new Promise(resolve => setTimeout(resolve, 2500));
     try {
@@ -475,6 +476,7 @@ function ReportContent() {
       alert("PDF 저장 중 오류가 발생했습니다.");
     } finally {
       setOpenDetail(originalOpenState);
+      document.body.classList.remove('pdf-mode');
     }
   };
 
