@@ -361,7 +361,9 @@ function ReportContent() {
     if (!reportRef.current) return;
     const originalOpenState = openDetail;
     setOpenDetail("ALL");
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    // React 렌더 2사이클 대기 후 추가 1500ms (collapsed 섹션 DOM 업데이트 보장)
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210; const pageHeight = 297; const margin = 10;
@@ -380,17 +382,38 @@ function ReportContent() {
       pdf.setFillColor(255, 255, 255);
       pdf.rect(0, 0, pageWidth, pageHeight, 'F');
       const sections = reportRef.current.querySelectorAll('.print-section');
+      console.log(`[PDF] 총 ${sections.length}개 섹션 발견`);
+
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i] as HTMLElement;
+        console.log(`[PDF] 섹션 ${i + 1}/${sections.length} — offsetSize: ${section.offsetWidth}×${section.offsetHeight}`);
+
         const canvas = await html2canvas(section, {
           scale: 2,
           backgroundColor: "#ffffff",
           useCORS: true,
-          allowTaint: true,
-          foreignObject: true,
           logging: false,
         });
+
         const imgData = canvas.toDataURL('image/png');
+        console.log(`[PDF] 섹션 ${i + 1} canvas: ${canvas.width}×${canvas.height}, imgData(60): ${imgData.substring(0, 60)}, len: ${imgData.length}`);
+
+        // 안전장치: 빈 canvas 건너뜀
+        if (canvas.width === 0 || canvas.height === 0) {
+          console.warn(`⚠️ 섹션 ${i + 1} 빈 canvas — 건너뜀`);
+          continue;
+        }
+        // 안전장치: 잘못된 PNG signature 건너뜀
+        if (!imgData.startsWith('data:image/png;base64,')) {
+          console.error(`❌ 섹션 ${i + 1} 잘못된 PNG signature — 건너뜀: ${imgData.substring(0, 100)}`);
+          continue;
+        }
+        // 안전장치: imgData 너무 짧으면 건너뜀 (정상 PNG 는 수천 자 이상)
+        if (imgData.length < 1000) {
+          console.warn(`⚠️ 섹션 ${i + 1} imgData 너무 짧음 (${imgData.length}자) — 건너뜀`);
+          continue;
+        }
+
         const imgHeight = (canvas.height * contentWidth) / canvas.width;
         if (currentHeight + imgHeight > pageHeight - margin) {
           pdf.addPage(); currentHeight = margin;
