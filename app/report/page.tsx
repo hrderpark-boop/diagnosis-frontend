@@ -396,6 +396,7 @@ function ReportContent() {
       const sections = reportRef.current.querySelectorAll('.print-section');
       console.log(`[PDF] 총 ${sections.length}개 섹션 발견`);
       let currentY = margin;
+      let isFirstSection = true;
 
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i] as HTMLElement;
@@ -428,7 +429,11 @@ function ReportContent() {
         const imgFullHeightMM = (canvas.height * contentWidth) / canvas.width;
 
         if (imgFullHeightMM > usableHeight) {
-          // 한 페이지보다 큰 섹션 → 슬라이스 분할
+          // 한 페이지보다 큰 섹션 → 새 페이지에서 슬라이스 분할
+          if (!isFirstSection) {
+            pdf.addPage(); currentY = margin;
+          }
+
           const pxPerMM = canvas.height / imgFullHeightMM;
           const slicePx = Math.floor(usableHeight * pxPerMM);
           let yPx = 0;
@@ -439,28 +444,29 @@ function ReportContent() {
             const sliceHeightMM = (thisPx * contentWidth) / canvas.width;
             const sliceData = cropCanvas(canvas, yPx, thisPx).toDataURL('image/png');
 
-            if (firstSlice) {
-              // 현재 페이지 남은 공간 부족하면 새 페이지
-              if (currentY + sliceHeightMM > pageHeight - margin) {
-                pdf.addPage(); currentY = margin;
-              }
-              firstSlice = false;
-            } else {
+            if (!firstSlice) {
               pdf.addPage(); currentY = margin;
             }
+            firstSlice = false;
 
             pdf.addImage(sliceData, 'PNG', margin, currentY, contentWidth, sliceHeightMM);
             currentY += sliceHeightMM + 4;
             yPx += thisPx;
           }
+
+          // 큰 섹션 이후 다음 섹션은 새 페이지로 (어색한 잔여 공간 방지)
+          currentY = pageHeight;
+
         } else {
           // 한 페이지 이하 섹션 → 남은 공간에 패킹, 없으면 새 페이지
-          if (currentY + imgFullHeightMM > pageHeight - margin) {
+          if (!isFirstSection && currentY + imgFullHeightMM > pageHeight - margin) {
             pdf.addPage(); currentY = margin;
           }
           pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgFullHeightMM);
-          currentY += imgFullHeightMM + 4;
+          currentY += imgFullHeightMM + 8;
         }
+
+        isFirstSection = false;
       }
       pdf.save('Leadership_Report.pdf');
     } catch (error) {
@@ -486,6 +492,15 @@ function ReportContent() {
                       ? "박기진"
                       : report.user_name;
 
+  // TODO: 출시 전 백엔드 연결
+  const respondentInfo = {
+    company: "압닛컴퍼니",
+    department: "R&D 본부",
+    team: "AI 플랫폼팀",
+    position: "팀장",
+    diagnosisDate: report.created_at || new Date().toISOString().slice(0, 10),
+  };
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-800 pb-24">
       {/* 상단 액션 바 */}
@@ -501,25 +516,50 @@ function ReportContent() {
 
       <div ref={reportRef} className="max-w-6xl mx-auto px-4 md:px-8 pt-28 pb-8 bg-slate-50">
 
-        {/* ── [섹션 1] 타이틀 & 아키타입 ── */}
-        <div className="print-section mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-black uppercase tracking-widest mb-4">
-              Advanced Analytics Report
+        {/* ── [섹션 1] 타이틀 & 아키타입 & 응답자 정보 ── */}
+        <div className="print-section mb-12">
+          <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-6">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-black uppercase tracking-widest mb-4">
+                Advanced Analytics Report
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-2 leading-tight">
+                <span className="text-blue-600">{displayName} 님</span>의<br />리더십 분석 리포트
+              </h1>
+              <p className="text-slate-500 font-medium">행동사건면접(BEI) 기반 심층 역량 진단 결과 · {report.created_at}</p>
             </div>
-            <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-2 leading-tight">
-              <span className="text-blue-600">{displayName} 님</span>의<br />리더십 분석 리포트
-            </h1>
-            <p className="text-slate-500 font-medium">행동사건면접(BEI) 기반 심층 역량 진단 결과 · {report.created_at}</p>
+
+            {report.archetype && (
+              <div className="bg-slate-900 text-white p-6 rounded-3xl md:w-[400px] shadow-lg shrink-0 border border-slate-700">
+                <p className="text-xs text-blue-400 font-black uppercase tracking-widest mb-1">Leadership Archetype</p>
+                <h2 className="text-2xl font-black mb-2">{report.archetype.name}</h2>
+                <p className="text-slate-300 text-sm leading-relaxed">{report.archetype.description}</p>
+              </div>
+            )}
           </div>
-          
-          {report.archetype && (
-            <div className="bg-slate-900 text-white p-6 rounded-3xl md:w-[400px] shadow-lg shrink-0 border border-slate-700">
-              <p className="text-xs text-blue-400 font-black uppercase tracking-widest mb-1">Leadership Archetype</p>
-              <h2 className="text-2xl font-black mb-2">{report.archetype.name}</h2>
-              <p className="text-slate-300 text-sm leading-relaxed">{report.archetype.description}</p>
+
+          {/* 응답자 정보 */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <div className="text-xs text-slate-500 font-semibold mb-1">소속</div>
+                <div className="text-sm text-slate-800 font-bold">{respondentInfo.company}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 font-semibold mb-1">부서</div>
+                <div className="text-sm text-slate-800 font-bold">{respondentInfo.department}</div>
+                <div className="text-xs text-slate-600">{respondentInfo.team}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 font-semibold mb-1">직급</div>
+                <div className="text-sm text-slate-800 font-bold">{respondentInfo.position}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 font-semibold mb-1">진단일</div>
+                <div className="text-sm text-slate-800 font-bold">{respondentInfo.diagnosisDate}</div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* ── [섹션 2] 3단 대시보드 ── */}
