@@ -368,7 +368,6 @@ function ReportContent() {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210; const pageHeight = 297; const margin = 10;
       const contentWidth = pageWidth - margin * 2;
-      let currentHeight = margin;
 
       // 한글 폰트 등록 (base64 데이터가 채워진 경우에만)
       if (hasKoreanFont()) {
@@ -379,10 +378,24 @@ function ReportContent() {
         console.warn('⚠️ 한글 폰트 미등록 — PDF 한글이 □□□ 으로 표시될 수 있음');
       }
 
-      pdf.setFillColor(255, 255, 255);
-      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+      const usableHeight = pageHeight - margin * 2;
+
+      // 캔버스를 세로 픽셀 범위로 잘라 새 캔버스 반환
+      const cropCanvas = (
+        src: HTMLCanvasElement, yPx: number, hPx: number
+      ): HTMLCanvasElement => {
+        const out = document.createElement('canvas');
+        out.width = src.width;
+        out.height = hPx;
+        (out.getContext('2d') as CanvasRenderingContext2D).drawImage(
+          src, 0, yPx, src.width, hPx, 0, 0, src.width, hPx
+        );
+        return out;
+      };
+
       const sections = reportRef.current.querySelectorAll('.print-section');
       console.log(`[PDF] 총 ${sections.length}개 섹션 발견`);
+      let currentY = margin;
 
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i] as HTMLElement;
@@ -390,39 +403,66 @@ function ReportContent() {
 
         const canvas = await html2canvas(section, {
           scale: 2,
-          backgroundColor: "#ffffff",
+          backgroundColor: '#ffffff',
           useCORS: true,
           logging: false,
         });
 
         const imgData = canvas.toDataURL('image/png');
-        console.log(`[PDF] 섹션 ${i + 1} canvas: ${canvas.width}×${canvas.height}, imgData(60): ${imgData.substring(0, 60)}, len: ${imgData.length}`);
+        console.log(`[PDF] 섹션 ${i + 1} canvas: ${canvas.width}×${canvas.height}, len: ${imgData.length}`);
 
-        // 안전장치: 빈 canvas 건너뜀
+        // 안전장치
         if (canvas.width === 0 || canvas.height === 0) {
           console.warn(`⚠️ 섹션 ${i + 1} 빈 canvas — 건너뜀`);
           continue;
         }
-        // 안전장치: 잘못된 PNG signature 건너뜀
         if (!imgData.startsWith('data:image/png;base64,')) {
-          console.error(`❌ 섹션 ${i + 1} 잘못된 PNG signature — 건너뜀: ${imgData.substring(0, 100)}`);
+          console.error(`❌ 섹션 ${i + 1} 잘못된 PNG — 건너뜀`);
           continue;
         }
-        // 안전장치: imgData 너무 짧으면 건너뜀 (정상 PNG 는 수천 자 이상)
         if (imgData.length < 1000) {
-          console.warn(`⚠️ 섹션 ${i + 1} imgData 너무 짧음 (${imgData.length}자) — 건너뜀`);
+          console.warn(`⚠️ 섹션 ${i + 1} imgData 짧음 — 건너뜀`);
           continue;
         }
 
-        const imgHeight = (canvas.height * contentWidth) / canvas.width;
-        if (currentHeight + imgHeight > pageHeight - margin) {
-          pdf.addPage(); currentHeight = margin;
-          pdf.setFillColor(255, 255, 255); pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+        const imgFullHeightMM = (canvas.height * contentWidth) / canvas.width;
+
+        if (imgFullHeightMM > usableHeight) {
+          // 한 페이지보다 큰 섹션 → 슬라이스 분할
+          const pxPerMM = canvas.height / imgFullHeightMM;
+          const slicePx = Math.floor(usableHeight * pxPerMM);
+          let yPx = 0;
+          let firstSlice = true;
+
+          while (yPx < canvas.height) {
+            const thisPx = Math.min(slicePx, canvas.height - yPx);
+            const sliceHeightMM = (thisPx * contentWidth) / canvas.width;
+            const sliceData = cropCanvas(canvas, yPx, thisPx).toDataURL('image/png');
+
+            if (firstSlice) {
+              // 현재 페이지 남은 공간 부족하면 새 페이지
+              if (currentY + sliceHeightMM > pageHeight - margin) {
+                pdf.addPage(); currentY = margin;
+              }
+              firstSlice = false;
+            } else {
+              pdf.addPage(); currentY = margin;
+            }
+
+            pdf.addImage(sliceData, 'PNG', margin, currentY, contentWidth, sliceHeightMM);
+            currentY += sliceHeightMM + 4;
+            yPx += thisPx;
+          }
+        } else {
+          // 한 페이지 이하 섹션 → 남은 공간에 패킹, 없으면 새 페이지
+          if (currentY + imgFullHeightMM > pageHeight - margin) {
+            pdf.addPage(); currentY = margin;
+          }
+          pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgFullHeightMM);
+          currentY += imgFullHeightMM + 4;
         }
-        pdf.addImage(imgData, 'PNG', margin, currentHeight, contentWidth, imgHeight);
-        currentHeight += imgHeight + 5;
       }
-      pdf.save(`Leadership_Report.pdf`);
+      pdf.save('Leadership_Report.pdf');
     } catch (error) {
       console.error('PDF 생성 실패:', error);
       alert("PDF 저장 중 오류가 발생했습니다.");
@@ -588,7 +628,7 @@ function ReportContent() {
                     </div>
                     <div>
                       <span className="block text-xl font-black text-slate-900 mb-1">{label}</span>
-                      <span className="text-sm text-slate-500 font-medium line-clamp-1">{strengthPoint || "역량 상세 분석 클릭"}</span>
+                      <span className="text-sm text-slate-500 font-medium leading-snug">{strengthPoint || "역량 상세 분석 클릭"}</span>
                     </div>
                   </div>
                   <ChevronIcon className={`w-6 h-6 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
