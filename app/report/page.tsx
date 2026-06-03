@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
 import { getKeyToNameMap, getSubCompetenciesMap, fetchFramework, FrameworkCompetency } from '@/lib/framework';
@@ -363,7 +363,7 @@ function ReportContent() {
     setOpenDetail("ALL");
     // React 렌더 2사이클 대기 후 추가 1500ms (collapsed 섹션 DOM 업데이트 보장)
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 2500));
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210; const pageHeight = 297; const margin = 10;
@@ -657,72 +657,89 @@ function ReportContent() {
             const isOpen = openDetail === "ALL" || openDetail === key;
 
             return (
-              <div key={idx} className={`print-section bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${isOpen ? 'border-blue-300 shadow-lg' : 'border-slate-200 shadow-sm hover:border-blue-100'}`}>
-                
-                {/* 헤더 */}
-                <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
-                  className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
-                  <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex flex-col items-center justify-center shrink-0">
-                      <span className="text-2xl font-black text-blue-600">{Number(score).toFixed(1)}</span>
+              <React.Fragment key={idx}>
+
+                {/* ① 헤더 + 코치 피드백 + 세부 역량 */}
+                <div className={`print-section bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${isOpen ? 'border-blue-300 shadow-lg' : 'border-slate-200 shadow-sm hover:border-blue-100'}`}>
+
+                  {/* 헤더 */}
+                  <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
+                    className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
+                    <div className="flex items-center gap-6">
+                      <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex flex-col items-center justify-center shrink-0">
+                        <span className="text-2xl font-black text-blue-600">{Number(score).toFixed(1)}</span>
+                      </div>
+                      <div>
+                        <span className="block text-xl font-black text-slate-900 mb-1">{label}</span>
+                        <span className="text-sm text-slate-500 font-medium leading-snug">{strengthPoint || "역량 상세 분석 클릭"}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="block text-xl font-black text-slate-900 mb-1">{label}</span>
-                      <span className="text-sm text-slate-500 font-medium leading-snug">{strengthPoint || "역량 상세 분석 클릭"}</span>
+                    <ChevronIcon className={`w-6 h-6 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* 펼침 Part 1: 코치 피드백 + 세부역량 */}
+                  {isOpen && (
+                    <div className="px-8 pb-8 border-t border-slate-100 pt-6 bg-slate-50/30">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                        {/* 좌: 코치 피드백 */}
+                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">💬 코치 피드백</h4>
+                          <p className="text-slate-700 text-sm leading-relaxed mb-4">{comment}</p>
+
+                          {(strengthPoint || growthPoint) && (
+                            <div className="space-y-2 mt-auto">
+                              {strengthPoint && (
+                                <div className="flex gap-2 items-start p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                                  <span className="text-emerald-500 text-xs font-black shrink-0 mt-0.5">✅ 강점</span>
+                                  <p className="text-xs text-emerald-800 leading-relaxed">{strengthPoint}</p>
+                                </div>
+                              )}
+                              {growthPoint && (
+                                <div className="flex gap-2 items-start p-3 bg-orange-50 rounded-xl border border-orange-100">
+                                  <span className="text-orange-500 text-xs font-black shrink-0 mt-0.5">🔺 개선</span>
+                                  <p className="text-xs text-orange-800 leading-relaxed">{growthPoint}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <ScoreBreakdown breakdown={scoreBreakdown} maxScore={maxScore} />
+                        </div>
+
+                        {/* 우: 세부 역량 스파이더맵 + 점수 테이블 */}
+                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                          <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3 w-full text-center">세부 역량 분석</h4>
+                          <div className="w-full flex justify-center mb-4">
+                            <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
+                          </div>
+                          <SubScoresTable subScores={subScores} totalScore={Number(score)} maxScore={maxScore} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ② 심층 평가 (별도 print-section) */}
+                {isOpen && (
+                  <div className="print-section bg-white rounded-3xl border border-blue-100 shadow-sm overflow-hidden mt-3">
+                    <div className="px-8 py-6 bg-slate-50/30">
+                      <div className="text-xs text-slate-400 font-semibold mb-4 uppercase tracking-wider">
+                        {label} — 심층 분석
+                      </div>
+                      <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} />
                     </div>
                   </div>
-                  <ChevronIcon className={`w-6 h-6 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
-                </button>
+                )}
 
-                {/* 펼침 영역 */}
-                {isOpen && (
-                  <div className="px-8 pb-8 border-t border-slate-100 pt-6 bg-slate-50/30">
-
-                    {/* 코치 피드백 + 세부역량 */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-
-                      {/* 좌: 코치 피드백 */}
-                      <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                        <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">💬 코치 피드백</h4>
-                        <p className="text-slate-700 text-sm leading-relaxed mb-4">{comment}</p>
-
-                        {/* 강점 & 개선점 배지 */}
-                        {(strengthPoint || growthPoint) && (
-                          <div className="space-y-2 mt-auto">
-                            {strengthPoint && (
-                              <div className="flex gap-2 items-start p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                                <span className="text-emerald-500 text-xs font-black shrink-0 mt-0.5">✅ 강점</span>
-                                <p className="text-xs text-emerald-800 leading-relaxed">{strengthPoint}</p>
-                              </div>
-                            )}
-                            {growthPoint && (
-                              <div className="flex gap-2 items-start p-3 bg-orange-50 rounded-xl border border-orange-100">
-                                <span className="text-orange-500 text-xs font-black shrink-0 mt-0.5">🔺 개선</span>
-                                <p className="text-xs text-orange-800 leading-relaxed">{growthPoint}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <ScoreBreakdown breakdown={scoreBreakdown} maxScore={maxScore} />
+                {/* ③ 판단 근거 (별도 print-section, 있을 때만) */}
+                {isOpen && evidenceList.length > 0 && (
+                  <div className="print-section bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-3">
+                    <div className="px-8 py-6 bg-slate-50/30">
+                      <div className="text-xs text-slate-400 font-semibold mb-4 uppercase tracking-wider">
+                        {label} — 판단 근거
                       </div>
-
-                      {/* 우: 세부 역량 스파이더맵 + 점수 테이블 */}
-                      <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                        <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3 w-full text-center">세부 역량 분석</h4>
-                        <div className="w-full flex justify-center mb-4">
-                          <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
-                        </div>
-                        <SubScoresTable subScores={subScores} totalScore={Number(score)} maxScore={maxScore} />
-                      </div>
-                    </div>
-
-                    {/* STAR+R 심층 평가 논리 + Gap Analysis */}
-                    <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} />
-
-                    {/* 판단 근거 (대화 발췌) */}
-                    {evidenceList.length > 0 && (
-                      <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                      <div className="p-5 bg-white rounded-2xl border border-slate-100">
                         <h4 className="text-base font-black text-slate-900 mb-4">🎤 판단 근거 (대화 발췌)</h4>
                         <div className="space-y-3">
                           {evidenceList.map((ev: string, i: number) => (
@@ -730,11 +747,11 @@ function ReportContent() {
                           ))}
                         </div>
                       </div>
-                    )}
-
+                    </div>
                   </div>
                 )}
-              </div>
+
+              </React.Fragment>
             );
           })}
         </div>
