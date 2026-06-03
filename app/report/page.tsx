@@ -523,10 +523,9 @@ function ReportContent() {
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-black uppercase tracking-widest mb-4">
                 Advanced Analytics Report
               </div>
-              <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-2 leading-tight">
-                <span className="text-blue-600">{displayName} 님</span>의<br />리더십 분석 리포트
+              <h1 className="text-3xl md:text-4xl font-black text-slate-900 mb-2 leading-tight">
+                <span className="text-blue-600">{displayName} 님</span>의 리더십 역량 심층 분석 리포트
               </h1>
-              <p className="text-slate-500 font-medium">행동사건면접(BEI) 기반 심층 역량 진단 결과 · {report.created_at}</p>
             </div>
 
             {report.archetype && (
@@ -547,8 +546,7 @@ function ReportContent() {
               </div>
               <div>
                 <div className="text-xs text-slate-500 font-semibold mb-1">부서</div>
-                <div className="text-sm text-slate-800 font-bold">{respondentInfo.department}</div>
-                <div className="text-xs text-slate-600">{respondentInfo.team}</div>
+                <div className="text-sm text-slate-800 font-bold">{respondentInfo.department} / {respondentInfo.team}</div>
               </div>
               <div>
                 <div className="text-xs text-slate-500 font-semibold mb-1">직급</div>
@@ -589,16 +587,24 @@ function ReportContent() {
         </div>
 
         {/* ── [섹션 3] 종합 피드백 & 키워드 ── */}
-        <div className="print-section grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="md:col-span-2 bg-blue-50/50 rounded-3xl border border-blue-100 p-8">
+        <div className="print-section mb-8">
+          {/* 종합 피드백 — 전체 너비 */}
+          <div className="bg-blue-50/50 rounded-3xl border border-blue-100 p-8 mb-4">
             <h3 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">💡 종합 피드백</h3>
             <p className="text-slate-700 text-base leading-relaxed">
               {report.summary || report.feedback_summary || "종합 피드백이 없습니다."}
             </p>
           </div>
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
-            <h3 className="text-xl font-black text-slate-900 mb-4">🏷️ 핵심 키워드</h3>
-            <KeywordTags keywords={report.top_keywords} />
+          {/* 핵심 키워드 — 전체 너비, 가로 배치 */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+            <h3 className="text-lg font-black text-slate-900 mb-3">🏷️ 핵심 키워드</h3>
+            <div className="flex flex-wrap gap-2">
+              {(report.top_keywords || []).map((kw: string, i: number) => (
+                <span key={i} className="px-4 py-2 rounded-full text-sm font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                  {kw}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
