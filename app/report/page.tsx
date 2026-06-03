@@ -231,19 +231,21 @@ const ReasoningProcess = ({ reasoning, gapAnalysis }: { reasoning: any, gapAnaly
   if (!reasoning) return null;
 
   const steps = [
-    { key: "1_situation",    label: "상황 (Situation)", bg: "bg-slate-50",        border: "border-slate-200",  icon: "📍" },
-    { key: "2_action",       label: "행동 (Action)",    bg: "bg-blue-50/60",      border: "border-blue-100",   icon: "⚡" },
-    { key: "3_result",       label: "결과 (Result)",    bg: "bg-emerald-50/60",   border: "border-emerald-100",icon: "📈" },
-    { key: "4_rubric_mapping", label: "기준 매핑 (Rubric)", bg: "bg-violet-50/60", border: "border-violet-100", icon: "🎯" },
-    { key: "5_tone_analysis",  label: "어조 분석 (Tone)",  bg: "bg-rose-50/60",   border: "border-rose-100",   icon: "🔍" },
+    { key: "1_situation",     label: "상황 (Situation)", bg: "bg-slate-50",       border: "border-slate-200",  icon: "📍" },
+    { key: "2_action",        label: "행동 (Action)",    bg: "bg-blue-50/60",     border: "border-blue-100",   icon: "⚡" },
+    { key: "3_result",        label: "결과 (Result)",    bg: "bg-emerald-50/60",  border: "border-emerald-100",icon: "📈" },
+    { key: "4_rubric_mapping",label: "기준 매핑 (Rubric)",bg: "bg-violet-50/60", border: "border-violet-100", icon: "🎯" },
+    { key: "5_tone_analysis", label: "어조 분석 (Tone)", bg: "bg-rose-50/60",    border: "border-rose-100",   icon: "🔍" },
   ];
 
   return (
     <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
-      <h4 className="text-base font-black text-slate-900 mb-4">⚙️ 심층 평가 논리</h4>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {steps.map((item) => (
-          reasoning[item.key] && (
+      <h4 className="text-base font-black text-slate-900 mb-4">⚙️ 심층 평가 근거</h4>
+
+      {/* 5개 세로 1열 */}
+      <div className="space-y-3 mb-4">
+        {steps.map((item) =>
+          reasoning[item.key] ? (
             <div key={item.key} className={`p-4 rounded-xl border ${item.border} ${item.bg}`}>
               <span className="text-xs font-black text-slate-500 mb-2 flex items-center gap-1">
                 <span>{item.icon}</span>
@@ -251,18 +253,17 @@ const ReasoningProcess = ({ reasoning, gapAnalysis }: { reasoning: any, gapAnaly
               </span>
               <p className="text-sm text-slate-700 leading-relaxed">{reasoning[item.key]}</p>
             </div>
-          )
-        ))}
+          ) : null
+        )}
       </div>
 
-      {/* Gap Analysis */}
+      {/* Gap Analysis — 구분선 + 제목 + 텍스트 */}
       {gapAnalysis && (
-        <div className="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200">
-          <span className="text-xs font-black text-amber-700 mb-2 flex items-center gap-1">
-            <span>🎯</span>
-            <span>Gap Analysis — 5.0 도달을 위한 조건</span>
-          </span>
-          <p className="text-sm text-amber-900 leading-relaxed">{gapAnalysis}</p>
+        <div className="pt-4 border-t border-slate-200">
+          <h5 className="text-base font-black text-slate-900 mb-2 flex items-center gap-1">
+            <span>🎯</span><span>Gap Analysis</span>
+          </h5>
+          <p className="text-sm text-slate-700 leading-relaxed">{gapAnalysis}</p>
         </div>
       )}
     </div>
@@ -287,7 +288,7 @@ const SubScoresTable = ({ subScores, totalScore, maxScore }: { subScores: any, t
         const isLow  = score === min;
         return (
           <div key={label} className="flex items-center gap-3">
-            <span className="text-xs text-slate-600 font-medium w-32 shrink-0 truncate" title={label}>{label}</span>
+            <span className="text-xs text-slate-600 font-medium min-w-[120px] flex-shrink-0">{label}</span>
             <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${isHigh ? 'bg-emerald-400' : isLow ? 'bg-rose-300' : 'bg-blue-300'}`}
@@ -683,44 +684,51 @@ function ReportContent() {
                     <ChevronIcon className={`w-6 h-6 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {/* 펼침 Part 1: 코치 피드백 + 세부역량 */}
+                  {/* 펼침 Part 1: 2x2 그리드 */}
                   {isOpen && (
                     <div className="px-8 pb-8 border-t border-slate-100 pt-6 bg-slate-50/30">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                        {/* 좌: 코치 피드백 */}
-                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                        {/* 좌상: 코치 피드백 */}
+                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
                           <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">💬 코치 피드백</h4>
-                          <p className="text-slate-700 text-sm leading-relaxed mb-4">{comment}</p>
+                          <p className="text-slate-700 text-sm leading-relaxed">{comment}</p>
+                        </div>
 
-                          {(strengthPoint || growthPoint) && (
-                            <div className="space-y-2 mt-auto">
-                              {strengthPoint && (
-                                <div className="flex gap-2 items-start p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                                  <span className="text-emerald-500 text-xs font-black shrink-0 mt-0.5">✅ 강점</span>
-                                  <p className="text-xs text-emerald-800 leading-relaxed">{strengthPoint}</p>
-                                </div>
-                              )}
-                              {growthPoint && (
-                                <div className="flex gap-2 items-start p-3 bg-orange-50 rounded-xl border border-orange-100">
-                                  <span className="text-orange-500 text-xs font-black shrink-0 mt-0.5">🔺 개선</span>
-                                  <p className="text-xs text-orange-800 leading-relaxed">{growthPoint}</p>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                        {/* 우상: 강점 & 개선 */}
+                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">🎯 강점 &amp; 개선</h4>
+                          <div className="space-y-2">
+                            {strengthPoint && (
+                              <div className="flex gap-2 items-start p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                                <span className="text-emerald-500 text-xs font-black shrink-0 mt-0.5">✅ 강점</span>
+                                <p className="text-xs text-emerald-800 leading-relaxed">{strengthPoint}</p>
+                              </div>
+                            )}
+                            {growthPoint && (
+                              <div className="flex gap-2 items-start p-3 bg-orange-50 rounded-xl border border-orange-100">
+                                <span className="text-orange-500 text-xs font-black shrink-0 mt-0.5">🔺 개선</span>
+                                <p className="text-xs text-orange-800 leading-relaxed">{growthPoint}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
+                        {/* 좌하: 점수 산출 근거 */}
+                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">📊 점수 산출 근거</h4>
                           <ScoreBreakdown breakdown={scoreBreakdown} maxScore={maxScore} />
                         </div>
 
-                        {/* 우: 세부 역량 스파이더맵 + 점수 테이블 */}
-                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                          <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3 w-full text-center">세부 역량 분석</h4>
-                          <div className="w-full flex justify-center mb-4">
+                        {/* 우하: 세부 역량 분석 */}
+                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2 justify-center">📈 세부 역량 분석</h4>
+                          <div className="w-full flex justify-center mb-3">
                             <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
                           </div>
                           <SubScoresTable subScores={subScores} totalScore={Number(score)} maxScore={maxScore} />
                         </div>
+
                       </div>
                     </div>
                   )}
@@ -730,9 +738,6 @@ function ReportContent() {
                 {isOpen && (
                   <div className="print-section bg-white rounded-3xl border border-blue-100 shadow-sm overflow-hidden mt-3">
                     <div className="px-8 py-6 bg-slate-50/30">
-                      <div className="text-xs text-slate-400 font-semibold mb-4 uppercase tracking-wider">
-                        {label} — 심층 분석
-                      </div>
                       <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} />
                     </div>
                   </div>
@@ -742,9 +747,6 @@ function ReportContent() {
                 {isOpen && evidenceList.length > 0 && (
                   <div className="print-section bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-3">
                     <div className="px-8 py-6 bg-slate-50/30">
-                      <div className="text-xs text-slate-400 font-semibold mb-4 uppercase tracking-wider">
-                        {label} — 판단 근거
-                      </div>
                       <div className="p-5 bg-white rounded-2xl border border-slate-100">
                         <h4 className="text-base font-black text-slate-900 mb-4">🎤 판단 근거 (대화 발췌)</h4>
                         <div className="space-y-3">
