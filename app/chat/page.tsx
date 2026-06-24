@@ -184,7 +184,9 @@ export default function ChatPage() {
       const completedList = res.data.completed_topics || [];
 
       setMessages(prev => [...prev, { role: 'model', content: aiText }]);
-      setCompletedTopics(completedList);
+      // 배지는 절대 사라지면 안 됨 — 기존 획득분과 합집합으로 누적 유지
+      // (백엔드가 일시적으로 빈 배열을 줘도 이전 달성 상태를 보존)
+      setCompletedTopics(prev => Array.from(new Set([...prev, ...completedList])));
       
       // 🚨 [수정] 무단 납치(자동 종료) 금지! 모달 순서대로 띄우기
       if (rewardData) {
