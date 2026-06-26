@@ -182,17 +182,24 @@ export default function ChatPage() {
       const aiText = res.data.coach_response_message;
       const rewardData = res.data.reward;
       const completedList = res.data.completed_topics || [];
+      // 백엔드의 명시적 진단 종료 신호 (마지막 챕터 Grand Wrap-up 시 true)
+      const sessionCompleted = res.data.is_session_completed === true;
 
       setMessages(prev => [...prev, { role: 'model', content: aiText }]);
       // 배지는 절대 사라지면 안 됨 — 기존 획득분과 합집합으로 누적 유지
       // (백엔드가 일시적으로 빈 배열을 줘도 이전 달성 상태를 보존)
       setCompletedTopics(prev => Array.from(new Set([...prev, ...completedList])));
-      
+
+      // 진단 종료 판정: 명시적 완료 플래그 OR 모든 역량 배지 충족
+      const allDone =
+        sessionCompleted ||
+        (allTopics.length > 0 && completedList.length === allTopics.length);
+
       // 🚨 [수정] 무단 납치(자동 종료) 금지! 모달 순서대로 띄우기
       if (rewardData) {
         setTimeout(() => setReward(rewardData), 1200);
-      } else if (allTopics.length > 0 && completedList.length === allTopics.length) {
-        // 보상은 없는데 모든 역량이 다 찼다면 바로 피날레 모달 띄우기
+      } else if (allDone) {
+        // 보상은 없는데 진단이 종료됐다면 피날레 모달 띄우기
         setTimeout(() => setShowFinale(true), 1200);
       }
 
