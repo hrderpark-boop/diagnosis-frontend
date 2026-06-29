@@ -31,12 +31,19 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      await axios.post(`${API_BASE_URL}/participants/token`, {
+      const res = await axios.post(`${API_BASE_URL}/participants/token`, {
         email: formData.email,
         password: "password",
         group_code: formData.groupCode,
         name: formData.name
       });
+
+      // 로그인 성공 → 실제 사용자 ID/토큰을 저장 (이후 진단 시작 등에서 사용)
+      const { access_token, participant_id, name } = res.data;
+      localStorage.setItem('accessToken', access_token);   // lib/api 인터셉터가 사용
+      localStorage.setItem('participant_id', participant_id);
+      localStorage.setItem('participant_name', name ?? formData.name);
+
       router.push('/start');
     } catch (error) {
       alert("접속에 실패했습니다. 입력 정보를 확인해주세요.");
