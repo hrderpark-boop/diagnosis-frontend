@@ -88,7 +88,7 @@ const KeywordNetworkChart = () => {
           return (
             <g key={`node-${i}`}>
               {/* ✅ [수정] 노드 원 크기(r)와 폰트 크기 증가 */}
-              <circle cx={x} cy={y} r={14 + node.weight * 3} fill="#0f172a" stroke="#a78bfa" strokeWidth="2.5" shadow="lg" />
+              <circle cx={x} cy={y} r={14 + node.weight * 3} fill="#0f172a" stroke="#a78bfa" strokeWidth="2.5" className="drop-shadow-lg" />
               <text x={x} y={y} dy="4" textAnchor="middle" fill="white" fontSize="12" fontWeight="medium">{node.text}</text>
             </g>
           );
