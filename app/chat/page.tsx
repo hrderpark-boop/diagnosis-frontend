@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
 import { getTopicNames } from '@/lib/framework';
@@ -81,7 +81,7 @@ const FinaleModal = ({ onAnalyze }: { onAnalyze: () => void }) => {
 // ----------------------------------------------------------------------
 // [메인 컴포넌트] ChatPage
 // ----------------------------------------------------------------------
-export default function ChatPage() {
+function ChatContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -391,5 +391,13 @@ export default function ChatPage() {
         />
       )}
     </main>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center text-white">로딩 중...</div>}>
+      <ChatContent />
+    </Suspense>
   );
 }

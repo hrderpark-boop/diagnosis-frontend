@@ -410,7 +410,7 @@ function ReportContent() {
           useCORS: true,
           logging: false,
         } as any);
-        
+
         const imgData = canvas.toDataURL('image/png');
         console.log(`[PDF] 섹션 ${i + 1} canvas: ${canvas.width}×${canvas.height}, len: ${imgData.length}`);
 
