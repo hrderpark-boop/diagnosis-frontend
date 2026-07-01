@@ -106,6 +106,13 @@ function ChatContent() {
   
   const [completedTopics, setCompletedTopics] = useState<string[]>([]);
 
+  // 세션 상태 재동기화(Sync) / 단계 인지용
+  const [sessionStatus, setSessionStatus] = useState<string>('in_progress');
+  const [hasNextChapter, setHasNextChapter] = useState(false);
+  const [nextTopic, setNextTopic] = useState<string | null>(null);
+  const [justCompletedTopic, setJustCompletedTopic] = useState(false);
+  const [connError, setConnError] = useState(false); // 네트워크 오류 → '다시 시도(Sync)'
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -117,37 +124,52 @@ function ChatContent() {
     });
   }, []);
 
+  // 서버에서 세션 상태를 한 번에 다시 불러오는 동기화(Sync) 함수.
+  //  - 세션 복구 시, 그리고 네트워크 오류 후 '다시 시도' 버튼에서 재사용.
+  //  - status/paused/다음역량 정보까지 받아 현재 단계를 명확히 반영한다.
+  const syncState = async (opts?: { silent?: boolean }): Promise<boolean> => {
+    if (!sessionId) return false;
+    if (!opts?.silent) setIsLoading(true);
+    try {
+      const res = await apiClient.get(`/diagnoses/${sessionId}/state`);
+      const d = res.data;
+
+      if (d.messages && d.messages.length > 0) {
+        setMessages(d.messages);
+      } else if (initialMsg) {
+        setMessages([{ role: 'model', content: initialMsg }]);
+      }
+      // 배지는 합집합으로 누적 (덮어쓰기로 사라지는 것 방지)
+      setCompletedTopics(prev => Array.from(new Set([...prev, ...(d.completed_topics || [])])));
+      setSessionStatus(d.status || 'in_progress');
+      setHasNextChapter(!!d.has_next_chapter);
+      setNextTopic(d.next_topic || null);
+      setConnError(false); // 동기화 성공 → 오류 상태 해제
+      return true;
+    } catch (error: any) {
+      console.error("Failed to sync session:", error);
+      if (error.response && error.response.status === 404) {
+        alert("존재하지 않거나 만료된 대화입니다. 처음부터 다시 시작합니다.");
+        localStorage.removeItem('diagnosis_id');
+        localStorage.removeItem('session_id');
+        router.push('/start');
+        return false;
+      }
+      // 네트워크/서버 오류 → '다시 시도(Sync)' 버튼 노출
+      setConnError(true);
+      if (initialMsg && messages.length === 0) {
+        setMessages([{ role: 'model', content: initialMsg }]);
+      }
+      return false;
+    } finally {
+      if (!opts?.silent) setIsLoading(false);
+    }
+  };
+
   // 1. 세션 복구 및 초기 메시지 설정
   useEffect(() => {
     if (!sessionId) return;
-    const restoreSession = async () => {
-      try {
-        const res = await apiClient.get(`/diagnoses/${sessionId}/state`);
-        const { messages: savedMessages, completed_topics } = res.data;
-
-        if (savedMessages && savedMessages.length > 0) {
-          setMessages(savedMessages);
-        } else if (initialMsg) {
-          setMessages([{ role: 'model', content: initialMsg }]);
-        }
-        setCompletedTopics(completed_topics || []);
-      } catch (error: any) {
-        console.error("Failed to restore session:", error);
-        
-        if (error.response && error.response.status === 404) {
-          alert("존재하지 않거나 만료된 대화입니다. 처음부터 다시 시작합니다.");
-          localStorage.removeItem('diagnosis_id');
-          localStorage.removeItem('session_id');
-          router.push('/start');
-          return; 
-        }
-
-        if (initialMsg && messages.length === 0) {
-          setMessages([{ role: 'model', content: initialMsg }]);
-        }
-      }
-    };
-    restoreSession();
+    syncState({ silent: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
@@ -164,13 +186,15 @@ function ChatContent() {
     }
   }, [input]);
 
-  // 4. 메시지 전송
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-    const userMsg = input;
+  // 4. 메시지 전송 (override 를 주면 입력창 대신 그 텍스트로 전송 — 계속하기/다음챕터 버튼용)
+  const sendMessage = async (override?: string) => {
+    const userMsg = (override ?? input).trim();
+    if (!userMsg || isLoading) return;
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setInput("");
+    if (override === undefined) setInput("");
     setIsLoading(true);
+    setConnError(false);
+    setJustCompletedTopic(false);
 
     try {
       const res = await apiClient.post(`/diagnoses/submit_message`, {
@@ -178,40 +202,63 @@ function ChatContent() {
         diagnosis_id: diagnosisId,
         content: userMsg
       });
-      
+
       const aiText = res.data.coach_response_message;
       const rewardData = res.data.reward;
       const completedList = res.data.completed_topics || [];
       // 백엔드의 명시적 진단 종료 신호 (마지막 챕터 Grand Wrap-up 시 true)
       const sessionCompleted = res.data.is_session_completed === true;
+      // 세션 단계 신호 (일시중지 / 남은 역량) — 버튼 노출 판단에 사용
+      const isPaused = res.data.is_session_paused === true;
+      const nextExists = res.data.has_next_chapter === true;
+      const topicDone = res.data.is_topic_completed === true;
 
       setMessages(prev => [...prev, { role: 'model', content: aiText }]);
       // 배지는 절대 사라지면 안 됨 — 기존 획득분과 합집합으로 누적 유지
-      // (백엔드가 일시적으로 빈 배열을 줘도 이전 달성 상태를 보존)
       setCompletedTopics(prev => Array.from(new Set([...prev, ...completedList])));
 
-      // 진단 종료 판정: 명시적 완료 플래그 OR 모든 역량 배지 충족
-      const allDone =
-        sessionCompleted ||
-        (allTopics.length > 0 && completedList.length === allTopics.length);
+      // 현재 단계 반영
+      setSessionStatus(isPaused ? 'paused' : (sessionCompleted ? 'completed' : 'in_progress'));
+      setHasNextChapter(nextExists);
+      setNextTopic(res.data.next_topic || null);
+      // 챕터를 방금 마쳤고(=전진 지점) 다음 역량이 남았으면 '다음 챕터로 이동' 노출
+      setJustCompletedTopic(topicDone && nextExists && !sessionCompleted);
 
-      // 🚨 [수정] 무단 납치(자동 종료) 금지! 모달 순서대로 띄우기
+      // 진단 종료 판정: 명시적 완료 플래그 OR 모든 역량 배지 충족.
+      // 🛡️ 단, 남은 역량(has_next_chapter)이 있으면 절대 피날레를 띄우지 않는다
+      //    ('끝난 거 아니야?' 오판 방어 — 백엔드 조기종료 차단과 정합).
+      const allDone =
+        !nextExists &&
+        (sessionCompleted ||
+          (allTopics.length > 0 && completedList.length === allTopics.length));
+
       if (rewardData) {
         setTimeout(() => setReward(rewardData), 1200);
       } else if (allDone) {
-        // 보상은 없는데 진단이 종료됐다면 피날레 모달 띄우기
         setTimeout(() => setShowFinale(true), 1200);
       }
 
     } catch (error: any) {
       console.error("Chat Error:", error);
-      const errorMsg = error.response?.status === 500 
-        ? "서버 내부 오류가 발생했습니다. 'sql_app.db' 파일을 삭제하고 서버를 재시작한 뒤 처음부터 다시 시도해주세요."
-        : "네트워크 통신 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
-      setMessages(prev => [...prev, { role: 'model', content: errorMsg }]);
+      if (error.response?.status === 500) {
+        setMessages(prev => [...prev, { role: 'model', content: "서버 내부 오류가 발생했습니다. 잠시 후 아래 '다시 시도'로 상태를 동기화해 주세요." }]);
+      }
+      // 네트워크 통신 오류 → 상태 동기화(Sync)를 유도하는 '다시 시도' 배너 노출
+      setConnError(true);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // '진단 계속하기' / '다음 챕터로 이동' — 계속 진행 의사를 전송해 흐름 재개
+  const resumeDiagnosis = () => {
+    setSessionStatus('in_progress');
+    setJustCompletedTopic(false);
+    sendMessage("네, 계속 진행할게요.");
+  };
+  const goNextChapter = () => {
+    setJustCompletedTopic(false);
+    sendMessage("네, 다음으로 이어가 주세요.");
   };
 
   // 5. 진단 종료
@@ -345,19 +392,59 @@ function ChatContent() {
               <div ref={messagesEndRef} />
             </div>
             
+            {/* 상태 인지 액션바 — 오류(Sync) / 일시중지 / 다음 챕터 (항상 활성) */}
+            {connError && (
+              <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3">
+                <span className="text-sm text-red-300">⚠️ 네트워크 통신 오류가 발생했어요. 대화는 안전하게 저장돼 있어요.</span>
+                <button
+                  onClick={() => syncState()}
+                  disabled={isLoading}
+                  className="shrink-0 rounded-xl bg-red-500 hover:bg-red-400 px-4 py-2 text-sm font-bold text-white transition-colors disabled:opacity-50"
+                >
+                  🔄 다시 시도 (상태 동기화)
+                </button>
+              </div>
+            )}
+            {!connError && sessionStatus === 'paused' && (
+              <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3">
+                <span className="text-sm text-amber-200">⏸ 진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.</span>
+                <button
+                  onClick={resumeDiagnosis}
+                  disabled={isLoading}
+                  className="shrink-0 rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-sm font-bold text-black transition-colors disabled:opacity-50"
+                >
+                  ▶ 진단 계속하기
+                </button>
+              </div>
+            )}
+            {!connError && sessionStatus !== 'paused' && justCompletedTopic && (
+              <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-3">
+                <span className="text-sm text-blue-200">
+                  ✅ 이 영역을 마쳤어요{nextTopic ? ` — 다음은 '${nextTopic}'` : ''}. 이어서 진행할 수 있어요.
+                </span>
+                <button
+                  onClick={goNextChapter}
+                  disabled={isLoading}
+                  className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-sm font-bold text-white transition-colors disabled:opacity-50"
+                >
+                  ➡ 다음 챕터로 이동
+                </button>
+              </div>
+            )}
+
             {/* 입력창 */}
-            <div className="p-6">
+            <div className="p-6 pt-2">
               <div className="relative group bg-white border border-gray-200 rounded-[24px] flex items-end shadow-xl">
-                <textarea 
-                  ref={textareaRef} 
-                  value={input} 
-                  onChange={(e) => setInput(e.target.value)} 
-                  onKeyDown={handleKeyDown} 
-                  placeholder="대화를 입력하세요..." 
-                  rows={1} 
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="대화를 입력하세요..."
+                  rows={1}
                   className="w-full bg-transparent text-gray-900 px-6 py-4 focus:outline-none resize-none max-h-[150px] custom-scrollbar"
                 />
-                <button onClick={sendMessage} disabled={isLoading || !input.trim()} className="mb-2 mr-2 p-2.5 bg-blue-600 rounded-full disabled:opacity-50">
+                <button onClick={() => sendMessage()} disabled={isLoading || !input.trim()} className="mb-2 mr-2 p-2.5 bg-blue-600 rounded-full disabled:opacity-50">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
                     <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
                   </svg>
