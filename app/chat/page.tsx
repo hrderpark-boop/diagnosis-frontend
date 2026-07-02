@@ -286,7 +286,11 @@ function ChatContent() {
       router.push(`/report?session_id=${sessionId}`);
     } catch (error) {
       console.error("Analysis failed:", error);
-      alert("분석 중 오류가 발생했습니다.");
+      // 딱딱한 alert 대신 대화 안에서 친절히 안내 + 버튼 재시도 유도
+      setMessages(prev => [...prev, {
+        role: 'model',
+        content: "리포트를 생성하는 중에 문제가 발생했어요. 대화 내용은 안전하게 저장돼 있으니, 잠시 후 '진단 완료 및 결과 보기' 버튼을 다시 눌러주세요."
+      }]);
       setIsAnalyzing(false);
     }
   };
