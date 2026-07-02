@@ -111,6 +111,7 @@ function ChatContent() {
   const [hasNextChapter, setHasNextChapter] = useState(false);
   const [nextTopic, setNextTopic] = useState<string | null>(null);
   const [justCompletedTopic, setJustCompletedTopic] = useState(false);
+  const [awaitingContinue, setAwaitingContinue] = useState(false); // 챕터 경계 '계속/휴식' 대기
   const [connError, setConnError] = useState(false); // 네트워크 오류 → '다시 시도(Sync)'
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -144,6 +145,7 @@ function ChatContent() {
       setSessionStatus(d.status || 'in_progress');
       setHasNextChapter(!!d.has_next_chapter);
       setNextTopic(d.next_topic || null);
+      setAwaitingContinue(!!d.is_awaiting_continue);
       setConnError(false); // 동기화 성공 → 오류 상태 해제
       return true;
     } catch (error: any) {
@@ -195,6 +197,7 @@ function ChatContent() {
     setIsLoading(true);
     setConnError(false);
     setJustCompletedTopic(false);
+    setAwaitingContinue(false);
 
     try {
       const res = await apiClient.post(`/diagnoses/submit_message`, {
@@ -221,6 +224,8 @@ function ChatContent() {
       setSessionStatus(isPaused ? 'paused' : (sessionCompleted ? 'completed' : 'in_progress'));
       setHasNextChapter(nextExists);
       setNextTopic(res.data.next_topic || null);
+      // 챕터 경계 '계속/휴식' 선택 대기 — 선택 버튼 노출
+      setAwaitingContinue(res.data.is_awaiting_continue === true);
       // 챕터를 방금 마쳤고(=전진 지점) 다음 역량이 남았으면 '다음 챕터로 이동' 노출
       setJustCompletedTopic(topicDone && nextExists && !sessionCompleted);
 
@@ -259,6 +264,11 @@ function ChatContent() {
   const goNextChapter = () => {
     setJustCompletedTopic(false);
     sendMessage("네, 다음으로 이어가 주세요.");
+  };
+  // 챕터 경계에서 '잠시 쉬기' 선택 — 백엔드 pause 키워드("쉴게")에 매칭되는 문구 전송
+  const takeBreak = () => {
+    setAwaitingContinue(false);
+    sendMessage("오늘은 여기까지 하고 잠시 쉴게요.");
   };
 
   // 5. 진단 종료
@@ -417,7 +427,30 @@ function ChatContent() {
                 </button>
               </div>
             )}
-            {!connError && sessionStatus !== 'paused' && justCompletedTopic && (
+            {!connError && sessionStatus !== 'paused' && awaitingContinue && (
+              <div className="mx-6 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-3">
+                <span className="text-sm text-emerald-200">
+                  🌿 이 영역을 마쳤어요. 어떻게 할까요?{nextTopic ? ` (다음: '${nextTopic}')` : ''}
+                </span>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={resumeDiagnosis}
+                    disabled={isLoading}
+                    className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2 text-sm font-bold text-black transition-colors disabled:opacity-50"
+                  >
+                    ▶ 계속 진행
+                  </button>
+                  <button
+                    onClick={takeBreak}
+                    disabled={isLoading}
+                    className="rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 px-4 py-2 text-sm font-bold text-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    ⏸ 잠시 쉬기
+                  </button>
+                </div>
+              </div>
+            )}
+            {!connError && sessionStatus !== 'paused' && !awaitingContinue && justCompletedTopic && (
               <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-3">
                 <span className="text-sm text-blue-200">
                   ✅ 이 영역을 마쳤어요{nextTopic ? ` — 다음은 '${nextTopic}'` : ''}. 이어서 진행할 수 있어요.
