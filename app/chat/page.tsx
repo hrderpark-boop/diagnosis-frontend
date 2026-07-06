@@ -112,6 +112,7 @@ function ChatContent() {
   const [nextTopic, setNextTopic] = useState<string | null>(null);
   const [justCompletedTopic, setJustCompletedTopic] = useState(false);
   const [awaitingContinue, setAwaitingContinue] = useState(false); // 챕터 경계 '계속/휴식' 대기
+  const [needsDecision, setNeedsDecision] = useState(false); // 코치의 조기 종료 '제안' — 선택 버튼
   const [connError, setConnError] = useState(false); // 네트워크 오류 → '다시 시도(Sync)'
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -146,6 +147,7 @@ function ChatContent() {
       setHasNextChapter(!!d.has_next_chapter);
       setNextTopic(d.next_topic || null);
       setAwaitingContinue(!!d.is_awaiting_continue);
+      setNeedsDecision(!!d.needs_user_decision);
       setConnError(false); // 동기화 성공 → 오류 상태 해제
       return true;
     } catch (error: any) {
@@ -198,6 +200,7 @@ function ChatContent() {
     setConnError(false);
     setJustCompletedTopic(false);
     setAwaitingContinue(false);
+    setNeedsDecision(false);
 
     try {
       const res = await apiClient.post(`/diagnoses/submit_message`, {
@@ -226,6 +229,8 @@ function ChatContent() {
       setNextTopic(res.data.next_topic || null);
       // 챕터 경계 '계속/휴식' 선택 대기 — 선택 버튼 노출
       setAwaitingContinue(res.data.is_awaiting_continue === true);
+      // 코치의 조기 종료 '제안' — '다음에 하기/계속 진행하기' 버튼 노출
+      setNeedsDecision(res.data.needs_user_decision === true);
       // 챕터를 방금 마쳤고(=전진 지점) 다음 역량이 남았으면 '다음 챕터로 이동' 노출
       setJustCompletedTopic(topicDone && nextExists && !sessionCompleted);
 
@@ -431,7 +436,30 @@ function ChatContent() {
                 </button>
               </div>
             )}
-            {!connError && sessionStatus !== 'paused' && awaitingContinue && (
+            {!connError && sessionStatus !== 'paused' && needsDecision && (
+              <div className="mx-6 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-purple-500/30 bg-purple-500/10 px-5 py-3">
+                <span className="text-sm text-purple-200">
+                  💜 코치가 오늘은 쉬어가는 것을 제안했어요. 어떻게 할까요?
+                </span>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => { setNeedsDecision(false); sendMessage("괜찮아요, 계속 진행할게요."); }}
+                    disabled={isLoading}
+                    className="rounded-xl bg-purple-500 hover:bg-purple-400 px-4 py-2 text-sm font-bold text-white transition-colors disabled:opacity-50"
+                  >
+                    ▶ 계속 진행하기
+                  </button>
+                  <button
+                    onClick={() => { setNeedsDecision(false); sendMessage("오늘은 여기까지 하고 다음에 이어서 할게요."); }}
+                    disabled={isLoading}
+                    className="rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 px-4 py-2 text-sm font-bold text-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    🌙 다음에 하기
+                  </button>
+                </div>
+              </div>
+            )}
+            {!connError && sessionStatus !== 'paused' && !needsDecision && awaitingContinue && (
               <div className="mx-6 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-3">
                 <span className="text-sm text-emerald-200">
                   🌿 이 영역을 마쳤어요. 어떻게 할까요?{nextTopic ? ` (다음: '${nextTopic}')` : ''}
