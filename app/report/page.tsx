@@ -196,7 +196,7 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
   if (!breakdown) return null;
   const safeMax = maxScore || 5;
   const items = [
-    { label: "루브릭 기준", value: breakdown.rubric_base, max: 4.0, color: "bg-blue-400" },
+    { label: "행동 지표 평가", value: breakdown.rubric_base, max: 4.0, color: "bg-blue-400" },
     { label: "STAR 깊이",  value: breakdown.star_depth_bonus, max: 0.5, color: "bg-emerald-400", prefix: "+" },
     { label: "확신도",     value: breakdown.confidence_adj, max: 0.5, color: breakdown.confidence_adj >= 0 ? "bg-violet-400" : "bg-rose-400", prefix: breakdown.confidence_adj >= 0 ? "+" : "" },
   ];
@@ -225,24 +225,24 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
 };
 
 // ----------------------------------------------------------------------
-// [REASONING PROCESS] — STAR+R 5단계 + Gap Analysis
+// [REASONING PROCESS] — SAR 심층 평가 + 실제 대화 발췌문 + Gap Analysis
+//  (기준 매핑(Rubric)·어조 분석(Tone)은 고객 혼란 방지를 위해 리포트에서 제거,
+//   대신 SAR 분석 바로 아래에 평가 근거인 실제 대화 발췌문을 통합)
 // ----------------------------------------------------------------------
-const ReasoningProcess = ({ reasoning, gapAnalysis }: { reasoning: any, gapAnalysis?: string }) => {
+const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning: any, gapAnalysis?: string, evidenceList?: string[] }) => {
   if (!reasoning) return null;
 
   const steps = [
     { key: "1_situation",     label: "상황 (Situation)", bg: "bg-slate-50",       border: "border-slate-200",  icon: "📍" },
     { key: "2_action",        label: "행동 (Action)",    bg: "bg-blue-50/60",     border: "border-blue-100",   icon: "⚡" },
     { key: "3_result",        label: "결과 (Result)",    bg: "bg-emerald-50/60",  border: "border-emerald-100",icon: "📈" },
-    { key: "4_rubric_mapping",label: "기준 매핑 (Rubric)",bg: "bg-violet-50/60", border: "border-violet-100", icon: "🎯" },
-    { key: "5_tone_analysis", label: "어조 분석 (Tone)", bg: "bg-rose-50/60",    border: "border-rose-100",   icon: "🔍" },
   ];
 
   return (
     <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
       <h4 className="text-base font-black text-slate-900 mb-4">⚙️ 심층 평가 근거</h4>
 
-      {/* 5개 세로 1열 */}
+      {/* SAR 세로 1열 */}
       <div className="space-y-3 mb-4">
         {steps.map((item) =>
           reasoning[item.key] ? (
@@ -256,6 +256,20 @@ const ReasoningProcess = ({ reasoning, gapAnalysis }: { reasoning: any, gapAnaly
           ) : null
         )}
       </div>
+
+      {/* 실제 대화 발췌문 — SAR 분석 바로 아래, 평가의 절대적 근거 */}
+      {evidenceList && evidenceList.length > 0 && (
+        <div className="pt-4 border-t border-slate-200 mb-4">
+          <h5 className="text-base font-black text-slate-900 mb-3 flex items-center gap-1">
+            <span>🎤</span><span>실제 대화 발췌문</span>
+          </h5>
+          <div className="space-y-3">
+            {evidenceList.map((ev: string, i: number) => (
+              <p key={i} className="text-slate-600 text-sm font-medium italic border-l-4 border-slate-300 pl-4 py-1">"{ev}"</p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Gap Analysis — 구분선 + 제목 + 텍스트 */}
       {gapAnalysis && (
@@ -598,15 +612,25 @@ function ReportContent() {
               {report.summary || report.feedback_summary || "종합 피드백이 없습니다."}
             </p>
           </div>
-          {/* 핵심 키워드 — 전체 너비, 가로 배치 */}
+          {/* 핵심 키워드 — {keyword, meaning} 구조 (구버전 문자열 배열도 호환) */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-lg font-black text-slate-900 mb-3">🏷️ 핵심 키워드</h3>
-            <div className="flex flex-wrap gap-2">
-              {(report.top_keywords || []).map((kw: string, i: number) => (
-                <span key={i} className="px-4 py-2 rounded-full text-sm font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                  {kw}
-                </span>
-              ))}
+            <div className="space-y-3">
+              {(report.top_keywords || []).map((kw: any, i: number) => {
+                const keyword = typeof kw === 'string' ? kw : kw?.keyword;
+                const meaning = typeof kw === 'object' ? kw?.meaning : null;
+                if (!keyword) return null;
+                return (
+                  <div key={i} className="flex flex-wrap items-start gap-3">
+                    <span className="px-4 py-2 rounded-full text-sm font-bold bg-blue-50 text-blue-700 border border-blue-100 shrink-0">
+                      {keyword}
+                    </span>
+                    {meaning && (
+                      <p className="text-sm text-slate-600 leading-relaxed pt-2 flex-1 min-w-[200px]">{meaning}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -697,9 +721,9 @@ function ReportContent() {
                           <p className="text-slate-700 text-sm leading-relaxed">{comment}</p>
                         </div>
 
-                        {/* 우상: 강점 & 개선 */}
+                        {/* 우상: 강점 & 개선 필요점 */}
                         <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">🎯 강점 &amp; 개선</h4>
+                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">🎯 강점 &amp; 개선 필요점</h4>
                           <div className="space-y-2">
                             {strengthPoint && (
                               <div className="flex gap-2 items-start p-3 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -736,27 +760,11 @@ function ReportContent() {
                   )}
                 </div>
 
-                {/* ② 심층 평가 (별도 print-section) */}
+                {/* ② 심층 평가 — SAR 분석 바로 아래에 실제 대화 발췌문 통합 */}
                 {isOpen && (
                   <div className="print-section bg-white rounded-3xl border border-blue-100 shadow-sm overflow-hidden mt-3">
                     <div className="px-8 py-6 bg-slate-50/30">
-                      <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} />
-                    </div>
-                  </div>
-                )}
-
-                {/* ③ 판단 근거 (별도 print-section, 있을 때만) */}
-                {isOpen && evidenceList.length > 0 && (
-                  <div className="print-section bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-3">
-                    <div className="px-8 py-6 bg-slate-50/30">
-                      <div className="p-5 bg-white rounded-2xl border border-slate-100">
-                        <h4 className="text-base font-black text-slate-900 mb-4">🎤 판단 근거 (대화 발췌)</h4>
-                        <div className="space-y-3">
-                          {evidenceList.map((ev: string, i: number) => (
-                            <p key={i} className="text-slate-600 text-sm font-medium italic border-l-4 border-slate-300 pl-4 py-1">"{ev}"</p>
-                          ))}
-                        </div>
-                      </div>
+                      <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} evidenceList={evidenceList} />
                     </div>
                   </div>
                 )}
