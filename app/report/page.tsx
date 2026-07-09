@@ -142,48 +142,26 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
 // ----------------------------------------------------------------------
 const ComparisonChart = ({ myScore, maxScore }: { myScore: number, maxScore: number }) => {
   const safeMax = maxScore || 5;
+  // 시인성 높은 짙은 단색(Solid) — 흐릿한 파스텔 톤 배제
   const data = [
-    { label: "나의 점수", value: myScore, color: "bg-blue-600" },
-    { label: "팀 평균",   value: 3.8, color: "bg-slate-300" },
-    { label: "부문 평균", value: 3.6, color: "bg-slate-200" },
-    { label: "전사 평균", value: 3.5, color: "bg-slate-100 border border-slate-200" },
+    { label: "나의 점수", value: myScore, color: "bg-blue-700" },
+    { label: "팀 평균",   value: 3.8, color: "bg-slate-800" },
+    { label: "부문 평균", value: 3.6, color: "bg-slate-600" },
+    { label: "전사 평균", value: 3.5, color: "bg-slate-400" },
   ];
   return (
     <div className="w-full space-y-4 flex flex-col justify-center h-full">
       {data.map((item, idx) => (
         <div key={idx} className="space-y-1.5">
           <div className="flex justify-between text-sm">
-            <span className="text-slate-600 font-medium">{item.label}</span>
-            <span className="text-slate-900 font-bold">{Number(item.value).toFixed(1)}점</span>
+            <span className="text-slate-700 font-semibold">{item.label}</span>
+            <span className="text-slate-900 font-bold tabular-nums">{Number(item.value).toFixed(1)}점</span>
           </div>
           <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
             <div className={`h-full rounded-full ${item.color} transition-all duration-700`}
               style={{ width: `${(item.value / safeMax) * 100}%` }} />
           </div>
         </div>
-      ))}
-    </div>
-  );
-};
-
-// ----------------------------------------------------------------------
-// [KEYWORD TAGS]
-// ----------------------------------------------------------------------
-const KeywordTags = ({ keywords }: { keywords: string[] }) => {
-  const safeKeywords = keywords && keywords.length > 0 ? keywords : ["소통", "신뢰", "책임", "동기부여", "유연성"];
-  const colors = [
-    "bg-blue-50 text-blue-700 border-blue-200",
-    "bg-violet-50 text-violet-700 border-violet-200",
-    "bg-emerald-50 text-emerald-700 border-emerald-200",
-    "bg-amber-50 text-amber-700 border-amber-200",
-    "bg-rose-50 text-rose-700 border-rose-200",
-  ];
-  return (
-    <div className="flex flex-wrap gap-2 pt-2">
-      {safeKeywords.slice(0, 5).map((kw, i) => (
-        <span key={i} className={`px-4 py-2 rounded-full text-sm font-bold border ${colors[i % colors.length]}`}>
-          {kw}
-        </span>
       ))}
     </div>
   );
@@ -232,24 +210,24 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
 const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning: any, gapAnalysis?: string, evidenceList?: string[] }) => {
   if (!reasoning) return null;
 
+  // 미니멀리즘: 다색 파스텔 배경 대신 선(좌측 굵은 보더)과 타이포그래피로 위계 구분
   const steps = [
-    { key: "1_situation",     label: "상황 (Situation)", bg: "bg-slate-50",       border: "border-slate-200",  icon: "📍" },
-    { key: "2_action",        label: "행동 (Action)",    bg: "bg-blue-50/60",     border: "border-blue-100",   icon: "⚡" },
-    { key: "3_result",        label: "결과 (Result)",    bg: "bg-emerald-50/60",  border: "border-emerald-100",icon: "📈" },
+    { key: "1_situation", label: "상황 (Situation)" },
+    { key: "2_action",    label: "행동 (Action)" },
+    { key: "3_result",    label: "결과 (Result)" },
   ];
 
   return (
     <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
-      <h4 className="text-base font-black text-slate-900 mb-4">⚙️ 심층 평가 근거</h4>
+      <h4 className="text-base font-black text-slate-900 mb-4 pb-3 border-b border-slate-200">심층 평가 근거</h4>
 
       {/* SAR 세로 1열 */}
       <div className="space-y-3 mb-4">
         {steps.map((item) =>
           reasoning[item.key] ? (
-            <div key={item.key} className={`p-4 rounded-xl border ${item.border} ${item.bg}`}>
-              <span className="text-xs font-black text-slate-500 mb-2 flex items-center gap-1">
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
+            <div key={item.key} className="p-4 rounded-lg border-l-4 border-slate-800 bg-slate-50">
+              <span className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                {item.label}
               </span>
               <p className="text-sm text-slate-700 leading-relaxed">{reasoning[item.key]}</p>
             </div>
@@ -260,9 +238,7 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
       {/* 실제 대화 발췌문 — SAR 분석 바로 아래, 평가의 절대적 근거 */}
       {evidenceList && evidenceList.length > 0 && (
         <div className="pt-4 border-t border-slate-200 mb-4">
-          <h5 className="text-base font-black text-slate-900 mb-3 flex items-center gap-1">
-            <span>🎤</span><span>실제 대화 발췌문</span>
-          </h5>
+          <h5 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-3">실제 대화 발췌문</h5>
           <div className="space-y-3">
             {evidenceList.map((ev: string, i: number) => (
               <p key={i} className="text-slate-600 text-sm font-medium italic border-l-4 border-slate-300 pl-4 py-1">"{ev}"</p>
@@ -274,9 +250,7 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
       {/* Gap Analysis — 구분선 + 제목 + 텍스트 */}
       {gapAnalysis && (
         <div className="pt-4 border-t border-slate-200">
-          <h5 className="text-base font-black text-slate-900 mb-2 flex items-center gap-1">
-            <span>🎯</span><span>Gap Analysis</span>
-          </h5>
+          <h5 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-2">Gap Analysis</h5>
           <p className="text-sm text-slate-700 leading-relaxed">{gapAnalysis}</p>
         </div>
       )}
@@ -391,7 +365,7 @@ function ReportContent() {
         pdf.addFont('NotoSansKR.ttf', 'NotoSansKR', 'normal');
         pdf.setFont('NotoSansKR');
       } else {
-        console.warn('⚠️ 한글 폰트 미등록 — PDF 한글이 □□□ 으로 표시될 수 있음');
+        console.warn('한글 폰트 미등록 — PDF 한글이 □□□ 으로 표시될 수 있음');
       }
 
       const usableHeight = pageHeight - margin * 2;
@@ -430,15 +404,15 @@ function ReportContent() {
 
         // 안전장치
         if (canvas.width === 0 || canvas.height === 0) {
-          console.warn(`⚠️ 섹션 ${i + 1} 빈 canvas — 건너뜀`);
+          console.warn(`섹션 ${i + 1} 빈 canvas — 건너뜀`);
           continue;
         }
         if (!imgData.startsWith('data:image/png;base64,')) {
-          console.error(`❌ 섹션 ${i + 1} 잘못된 PNG — 건너뜀`);
+          console.error(`섹션 ${i + 1} 잘못된 PNG — 건너뜀`);
           continue;
         }
         if (imgData.length < 1000) {
-          console.warn(`⚠️ 섹션 ${i + 1} imgData 짧음 — 건너뜀`);
+          console.warn(`섹션 ${i + 1} imgData 짧음 — 건너뜀`);
           continue;
         }
 
@@ -526,8 +500,8 @@ function ReportContent() {
           <span className="text-sm font-bold text-slate-700">Leadership Analytics</span>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => window.print()} className="bg-white text-slate-700 border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all hidden md:block">🖨️ 인쇄</button>
-          <button onClick={handleDownloadPDF} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md">📥 PDF 저장</button>
+          <button onClick={() => window.print()} className="bg-white text-slate-700 border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all hidden md:block">인쇄</button>
+          <button onClick={handleDownloadPDF} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md">PDF 저장</button>
         </div>
       </div>
 
@@ -607,26 +581,27 @@ function ReportContent() {
         <div className="print-section mb-8">
           {/* 종합 피드백 — 전체 너비 */}
           <div className="bg-blue-50/50 rounded-3xl border border-blue-100 p-8 mb-4">
-            <h3 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">💡 종합 피드백</h3>
+            <h3 className="text-xl font-black text-slate-900 mb-4 border-l-4 border-slate-900 pl-3">종합 피드백</h3>
             <p className="text-slate-700 text-base leading-relaxed">
               {report.summary || report.feedback_summary || "종합 피드백이 없습니다."}
             </p>
           </div>
           {/* 핵심 키워드 — {keyword, meaning} 구조 (구버전 문자열 배열도 호환) */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-            <h3 className="text-lg font-black text-slate-900 mb-3">🏷️ 핵심 키워드</h3>
+            <h3 className="text-lg font-black text-slate-900 mb-3 border-l-4 border-slate-900 pl-3">핵심 키워드</h3>
             <div className="space-y-3">
               {(report.top_keywords || []).map((kw: any, i: number) => {
                 const keyword = typeof kw === 'string' ? kw : kw?.keyword;
                 const meaning = typeof kw === 'object' ? kw?.meaning : null;
                 if (!keyword) return null;
                 return (
-                  <div key={i} className="flex flex-wrap items-start gap-3">
-                    <span className="px-4 py-2 rounded-full text-sm font-bold bg-blue-50 text-blue-700 border border-blue-100 shrink-0">
+                  <div key={i} className="flex flex-wrap items-center gap-3">
+                    {/* 키워드 도형: 내부 텍스트 완전 중앙 정렬 */}
+                    <span className="inline-flex items-center justify-center text-center min-w-[120px] px-4 py-2 rounded-full text-sm font-bold bg-white text-slate-800 border-2 border-slate-800 shrink-0">
                       {keyword}
                     </span>
                     {meaning && (
-                      <p className="text-sm text-slate-600 leading-relaxed pt-2 flex-1 min-w-[200px]">{meaning}</p>
+                      <p className="text-sm text-slate-600 leading-relaxed flex-1 min-w-[200px]">{meaning}</p>
                     )}
                   </div>
                 );
@@ -639,14 +614,14 @@ function ReportContent() {
         <div className="print-section grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
           {report.blind_spot && report.blind_spot !== "-" && (
             <div className="bg-amber-50 rounded-3xl border border-amber-200 p-8">
-              <h3 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2">⚠️ 사각지대 (Blind Spot)</h3>
+              <h3 className="text-xl font-black text-slate-900 mb-4 border-l-4 border-amber-600 pl-3">사각지대 (Blind Spot)</h3>
               <p className="text-amber-900 text-base leading-relaxed">{report.blind_spot}</p>
             </div>
           )}
           
           {report.idp && report.idp.length > 0 && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
-              <h3 className="text-xl font-black text-slate-900 mb-5 flex items-center gap-2">🚀 개인 발전 계획 (IDP)</h3>
+              <h3 className="text-xl font-black text-slate-900 mb-5 border-l-4 border-slate-900 pl-3">개인 발전 계획 (IDP)</h3>
               <div className="space-y-4">
                 {report.idp.map((item: string, idx: number) => (
                   <div key={idx} className="flex gap-4">
@@ -699,8 +674,9 @@ function ReportContent() {
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
                     className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
                     <div className="flex items-center gap-6">
-                      <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex flex-col items-center justify-center shrink-0">
-                        <span className="text-2xl font-black text-blue-600">{Number(score).toFixed(1)}</span>
+                      {/* 점수 도형: 숫자 완전 중앙 정렬 */}
+                      <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 flex items-center justify-center text-center shrink-0">
+                        <span className="text-2xl font-black text-slate-900 leading-none tabular-nums">{Number(score).toFixed(1)}</span>
                       </div>
                       <div>
                         <span className="block text-xl font-black text-slate-900 mb-1">{label}</span>
@@ -717,24 +693,24 @@ function ReportContent() {
 
                         {/* 좌상: 코치 피드백 */}
                         <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">💬 코치 피드백</h4>
+                          <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200">코치 피드백</h4>
                           <p className="text-slate-700 text-sm leading-relaxed">{comment}</p>
                         </div>
 
                         {/* 우상: 강점 & 개선 필요점 */}
                         <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">🎯 강점 &amp; 개선 필요점</h4>
+                          <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200">강점 &amp; 개선 필요점</h4>
                           <div className="space-y-2">
                             {strengthPoint && (
-                              <div className="flex gap-2 items-start p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                                <span className="text-emerald-500 text-xs font-black shrink-0 mt-0.5">✅ 강점</span>
-                                <p className="text-xs text-emerald-800 leading-relaxed">{strengthPoint}</p>
+                              <div className="flex gap-3 items-start p-3 bg-white rounded-lg border-l-4 border-emerald-700 border-y border-r border-y-slate-100 border-r-slate-100">
+                                <span className="text-emerald-800 text-xs font-black shrink-0 mt-0.5 w-8">강점</span>
+                                <p className="text-xs text-slate-700 leading-relaxed">{strengthPoint}</p>
                               </div>
                             )}
                             {growthPoint && (
-                              <div className="flex gap-2 items-start p-3 bg-orange-50 rounded-xl border border-orange-100">
-                                <span className="text-orange-500 text-xs font-black shrink-0 mt-0.5">🔺 개선</span>
-                                <p className="text-xs text-orange-800 leading-relaxed">{growthPoint}</p>
+                              <div className="flex gap-3 items-start p-3 bg-white rounded-lg border-l-4 border-orange-700 border-y border-r border-y-slate-100 border-r-slate-100">
+                                <span className="text-orange-800 text-xs font-black shrink-0 mt-0.5 w-8">개선</span>
+                                <p className="text-xs text-slate-700 leading-relaxed">{growthPoint}</p>
                               </div>
                             )}
                           </div>
@@ -742,13 +718,13 @@ function ReportContent() {
 
                         {/* 좌하: 점수 산출 근거 */}
                         <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2">📊 점수 산출 근거</h4>
+                          <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200">점수 산출 근거</h4>
                           <ScoreBreakdown breakdown={scoreBreakdown} maxScore={maxScore} />
                         </div>
 
                         {/* 우하: 세부 역량 분석 */}
                         <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                          <h4 className="text-base font-black text-slate-900 mb-3 flex items-center gap-2 justify-center">📈 세부 역량 분석</h4>
+                          <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200 text-center">세부 역량 분석</h4>
                           <div className="w-full flex justify-center mb-3">
                             <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
                           </div>
