@@ -589,24 +589,21 @@ function ReportContent() {
           {/* 핵심 키워드 — {keyword, meaning} 구조 (구버전 문자열 배열도 호환) */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-lg font-black text-slate-900 mb-3 border-l-4 border-slate-900 pl-3">핵심 키워드</h3>
-            <div className="space-y-3">
+            {/* 도형 UI 폐지 → '1. 키워드명: 의미' 형태의 정갈한 번호 리스트 */}
+            <ol className="space-y-2.5">
               {(report.top_keywords || []).map((kw: any, i: number) => {
                 const keyword = typeof kw === 'string' ? kw : kw?.keyword;
                 const meaning = typeof kw === 'object' ? kw?.meaning : null;
                 if (!keyword) return null;
                 return (
-                  <div key={i} className="flex flex-wrap items-center gap-3">
-                    {/* 키워드 도형: 내부 텍스트 완전 중앙 정렬 */}
-                    <span className="inline-flex items-center justify-center text-center min-w-[120px] px-4 py-2 rounded-full text-sm font-bold bg-white text-slate-800 border-2 border-slate-800 shrink-0">
-                      {keyword}
-                    </span>
-                    {meaning && (
-                      <p className="text-sm text-slate-600 leading-relaxed flex-1 min-w-[200px]">{meaning}</p>
-                    )}
-                  </div>
+                  <li key={i} className="text-base text-slate-700 leading-relaxed">
+                    <span className="font-bold text-slate-500 tabular-nums mr-2">{i + 1}.</span>
+                    <span className="font-black text-slate-900">{keyword}</span>
+                    {meaning && <span className="text-slate-600">: {meaning}</span>}
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           </div>
         </div>
 
@@ -674,13 +671,17 @@ function ReportContent() {
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
                     className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
                     <div className="flex items-center gap-6">
-                      {/* 점수 도형: 숫자 완전 중앙 정렬 */}
-                      <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 flex items-center justify-center text-center shrink-0">
-                        <span className="text-2xl font-black text-slate-900 leading-none tabular-nums">{Number(score).toFixed(1)}</span>
+                      {/* 점수 도형: table-cell 수직 중앙 — flex 는 html2canvas(PDF)에서
+                          텍스트가 하단으로 쏠리므로 인쇄 안전 방식 사용 */}
+                      <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0 table table-fixed">
+                        <div className="table-cell align-middle text-center text-2xl font-black text-slate-900 tabular-nums">
+                          {Number(score).toFixed(1)}
+                        </div>
                       </div>
                       <div>
-                        <span className="block text-xl font-black text-slate-900 mb-1">{label}</span>
-                        <span className="text-sm text-slate-500 font-medium leading-snug">{strengthPoint || "역량 상세 분석 클릭"}</span>
+                        <span className="block text-xl font-black text-slate-900 mb-1.5">{label}</span>
+                        {/* 역량 요약 설명 — 시인성 극대화 (text-sm → text-lg, 톤 업) */}
+                        <span className="block text-lg text-slate-700 font-semibold leading-snug">{strengthPoint || "역량 상세 분석 클릭"}</span>
                       </div>
                     </div>
                     <ChevronIcon className={`w-6 h-6 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
