@@ -217,26 +217,46 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
     { key: "3_result",    label: "결과 (Result)" },
   ];
 
+  // 신규 포맷: 각 단계가 {description, evidence[]} 객체 (S/A/R ↔ 발췌문 1:1 매칭)
+  // 구 포맷(문자열)은 하단의 통합 발췌문 섹션으로 폴백
+  const isLegacyFormat = typeof reasoning["1_situation"] === "string";
+  const getStep = (key: string) => {
+    const raw = reasoning[key];
+    if (!raw) return null;
+    if (typeof raw === "string") return { description: raw, evidence: [] as string[] };
+    return { description: raw.description || "", evidence: (raw.evidence || []) as string[] };
+  };
+
   return (
     <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
       <h4 className="text-base font-black text-slate-900 mb-4 pb-3 border-b border-slate-200">심층 평가 근거</h4>
 
-      {/* SAR 세로 1열 */}
+      {/* SAR 세로 1열 — 각 블록 바로 아래에 매칭 발췌문 즉시 렌더 */}
       <div className="space-y-3 mb-4">
-        {steps.map((item) =>
-          reasoning[item.key] ? (
+        {steps.map((item) => {
+          const step = getStep(item.key);
+          if (!step || !step.description) return null;
+          return (
             <div key={item.key} className="p-4 rounded-lg border-l-4 border-slate-800 bg-slate-50">
               <span className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
                 {item.label}
               </span>
-              <p className="text-sm text-slate-700 leading-relaxed">{reasoning[item.key]}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{step.description}</p>
+              {step.evidence.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                  <span className="block text-[11px] font-black text-slate-400 uppercase tracking-wider">관련 대화 발췌</span>
+                  {step.evidence.map((ev: string, i: number) => (
+                    <p key={i} className="text-slate-600 text-sm font-medium italic border-l-2 border-slate-400 pl-3 py-0.5">"{ev}"</p>
+                  ))}
+                </div>
+              )}
             </div>
-          ) : null
-        )}
+          );
+        })}
       </div>
 
-      {/* 실제 대화 발췌문 — SAR 분석 바로 아래, 평가의 절대적 근거 */}
-      {evidenceList && evidenceList.length > 0 && (
+      {/* (구버전 리포트 전용) 통합 발췌문 — 신규 포맷은 단계별로 렌더되므로 생략 */}
+      {isLegacyFormat && evidenceList && evidenceList.length > 0 && (
         <div className="pt-4 border-t border-slate-200 mb-4">
           <h5 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-3">실제 대화 발췌문</h5>
           <div className="space-y-3">
@@ -588,22 +608,25 @@ function ReportContent() {
           </div>
           {/* 핵심 키워드 — {keyword, meaning} 구조 (구버전 문자열 배열도 호환) */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-            <h3 className="text-lg font-black text-slate-900 mb-3 border-l-4 border-slate-900 pl-3">핵심 키워드</h3>
-            {/* 도형 UI 폐지 → '1. 키워드명: 의미' 형태의 정갈한 번호 리스트 */}
-            <ol className="space-y-2.5">
+            <h3 className="text-lg font-black text-slate-900 mb-4 border-l-4 border-slate-900 pl-3">핵심 키워드</h3>
+            {/* 2단 격자 카드 — 상단 배지(키워드) + 하단 설명 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(report.top_keywords || []).map((kw: any, i: number) => {
                 const keyword = typeof kw === 'string' ? kw : kw?.keyword;
                 const meaning = typeof kw === 'object' ? kw?.meaning : null;
                 if (!keyword) return null;
                 return (
-                  <li key={i} className="text-base text-slate-700 leading-relaxed">
-                    <span className="font-bold text-slate-500 tabular-nums mr-2">{i + 1}.</span>
-                    <span className="font-black text-slate-900">{keyword}</span>
-                    {meaning && <span className="text-slate-600">: {meaning}</span>}
-                  </li>
+                  <div key={i} className="p-5 bg-slate-50 rounded-2xl border-2 border-slate-200">
+                    <span className="inline-block px-3.5 py-1.5 rounded-lg bg-slate-900 text-white text-sm font-black tracking-wide mb-3">
+                      {keyword}
+                    </span>
+                    {meaning && (
+                      <p className="text-sm text-slate-700 leading-relaxed">{meaning}</p>
+                    )}
+                  </div>
                 );
               })}
-            </ol>
+            </div>
           </div>
         </div>
 
@@ -671,12 +694,13 @@ function ReportContent() {
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
                     className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
                     <div className="flex items-center gap-6">
-                      {/* 점수 도형: table-cell 수직 중앙 — flex 는 html2canvas(PDF)에서
-                          텍스트가 하단으로 쏠리므로 인쇄 안전 방식 사용 */}
-                      <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0 table table-fixed">
-                        <div className="table-cell align-middle text-center text-2xl font-black text-slate-900 tabular-nums">
+                      {/* 점수 도형: CSS 절대 좌표 중앙 정렬 — flex/table-cell 은
+                          html2canvas(PDF) 렌더 시 텍스트가 하단으로 쏠리므로
+                          absolute + translate 하드코딩으로 강제 중앙 고정 */}
+                      <div className="relative w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0">
+                        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 leading-none text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
                           {Number(score).toFixed(1)}
-                        </div>
+                        </span>
                       </div>
                       <div>
                         <span className="block text-xl font-black text-slate-900 mb-1.5">{label}</span>
@@ -717,19 +741,20 @@ function ReportContent() {
                           </div>
                         </div>
 
-                        {/* 좌하: 점수 산출 근거 */}
-                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                          <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200">점수 산출 근거</h4>
-                          <ScoreBreakdown breakdown={scoreBreakdown} maxScore={maxScore} />
-                        </div>
-
-                        {/* 우하: 세부 역량 분석 */}
-                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                        {/* 하단(전폭): 세부 역량 분석 — 차트/테이블 바로 아래에
+                            '점수 산출 근거'를 통합 배치 */}
+                        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
                           <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200 text-center">세부 역량 분석</h4>
                           <div className="w-full flex justify-center mb-3">
                             <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
                           </div>
                           <SubScoresTable subScores={subScores} totalScore={Number(score)} maxScore={maxScore} />
+
+                          {/* 점수 산출 근거 — 세부 역량 분석 영역 바로 아래로 이동 */}
+                          <div className="mt-6 pt-4 border-t border-slate-200">
+                            <h4 className="text-base font-black text-slate-900 mb-3">점수 산출 근거</h4>
+                            <ScoreBreakdown breakdown={scoreBreakdown} maxScore={maxScore} />
+                          </div>
                         </div>
 
                       </div>
