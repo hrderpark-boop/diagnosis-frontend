@@ -173,6 +173,11 @@ const ComparisonChart = ({ myScore, maxScore }: { myScore: number, maxScore: num
 const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: number }) => {
   if (!breakdown) return null;
   const safeMax = maxScore || 5;
+  // 항목별 스케일 분리: 각 막대는 '해당 항목의 실제 최대치' 기준으로 채워진다.
+  // (예: STAR 깊이 +0.3 은 0.5 만점 기준 60% — 5.0 만점 기준이 아님)
+  // → 숫자 범위와 시각적 비율의 인지 부조화 해소
+  const fillRatio = (value: number, itemMax: number) =>
+    Math.min(100, Math.max(0, (Math.abs(value) / itemMax) * 100));
   const items = [
     { label: "행동 지표 평가", value: breakdown.rubric_base, max: 4.0, color: "bg-blue-400" },
     { label: "STAR 깊이",  value: breakdown.star_depth_bonus, max: 0.5, color: "bg-emerald-400", prefix: "+" },
@@ -185,8 +190,8 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
         {items.map((item, i) => (
           <div key={i} className="flex items-center gap-3">
             <span className="text-xs font-bold text-slate-500 w-20 shrink-0">{item.label}</span>
-            <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${item.color}`} style={{ width: `${Math.abs(item.value / item.max) * 100}%` }} />
+            <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${item.color}`} style={{ width: `${fillRatio(item.value, item.max)}%` }} />
             </div>
             <span className="text-xs font-black text-slate-700 w-10 text-right">
               {item.prefix}{Number(item.value).toFixed(1)}
@@ -197,6 +202,21 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
           <span className="text-xs font-bold text-slate-500">최종 점수</span>
           <span className="text-base font-black text-blue-600">{Number(breakdown.final).toFixed(1)} / {safeMax.toFixed(1)}</span>
         </div>
+      </div>
+      {/* 주석(Footnote): 각 산출 항목의 의미 — 막대는 항목별 최대치 기준 비율 */}
+      <div className="mt-4 pt-3 border-t border-slate-200 space-y-1">
+        <p className="text-[11px] text-slate-500 leading-relaxed">
+          <span className="font-bold text-slate-600">행동 지표 평가</span> — 역량 발현 정도에 따른 기본 점수 (1.0~4.0)
+        </p>
+        <p className="text-[11px] text-slate-500 leading-relaxed">
+          <span className="font-bold text-slate-600">STAR 깊이</span> — 답변의 구조적 완성도에 따른 가점 (최대 +0.5)
+        </p>
+        <p className="text-[11px] text-slate-500 leading-relaxed">
+          <span className="font-bold text-slate-600">확신도</span> — AI의 평가 신뢰도에 따른 가점 (최대 +0.5)
+        </p>
+        <p className="text-[10px] text-slate-400 leading-relaxed pt-1">
+          ※ 각 막대는 5.0 만점이 아닌 해당 항목의 최대치를 기준으로 표시됩니다.
+        </p>
       </div>
     </div>
   );
@@ -741,16 +761,20 @@ function ReportContent() {
                           </div>
                         </div>
 
-                        {/* 하단(전폭): 세부 역량 분석 — 차트/테이블 바로 아래에
-                            '점수 산출 근거'를 통합 배치 */}
+                        {/* 하단(전폭): 세부 역량 분석 — 좌: 방사형 차트 / 우: 가로 막대
+                            2단 그리드로 시각적 균형, 그 아래 '점수 산출 근거' 통합 */}
                         <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
                           <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200 text-center">세부 역량 분석</h4>
-                          <div className="w-full flex justify-center mb-3">
-                            <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                            <div className="w-full flex justify-center">
+                              <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
+                            </div>
+                            <div className="w-full">
+                              <SubScoresTable subScores={subScores} totalScore={Number(score)} maxScore={maxScore} />
+                            </div>
                           </div>
-                          <SubScoresTable subScores={subScores} totalScore={Number(score)} maxScore={maxScore} />
 
-                          {/* 점수 산출 근거 — 세부 역량 분석 영역 바로 아래로 이동 */}
+                          {/* 점수 산출 근거 — 세부 역량 분석 영역 바로 아래 */}
                           <div className="mt-6 pt-4 border-t border-slate-200">
                             <h4 className="text-base font-black text-slate-900 mb-3">점수 산출 근거</h4>
                             <ScoreBreakdown breakdown={scoreBreakdown} maxScore={maxScore} />
