@@ -204,17 +204,17 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
         </div>
       </div>
       {/* 주석(Footnote): 각 산출 항목의 의미 — 막대는 항목별 최대치 기준 비율 */}
-      <div className="mt-4 pt-3 border-t border-slate-200 space-y-1">
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          <span className="font-bold text-slate-600">행동 지표 평가</span> — 역량 발현 정도에 따른 기본 점수 (1.0~4.0)
+      <div className="mt-4 pt-3 border-t border-slate-200 space-y-1.5">
+        <p className="text-sm text-slate-600 leading-relaxed">
+          <span className="font-bold text-slate-700">행동 지표 평가</span> : 진단을 통해 분석한 해당 역량의 발현이 행동으로 증명된 정도를 나타냅니다. (점수 범위 : 1.0~4.0)
         </p>
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          <span className="font-bold text-slate-600">STAR 깊이</span> — 답변의 구조적 완성도에 따른 가점 (최대 +0.5)
+        <p className="text-sm text-slate-600 leading-relaxed">
+          <span className="font-bold text-slate-700">STAR 깊이</span> : 답변의 구조적 완성도에 따라 부여되는 가점을 나타냅니다. (최대 +0.5)
         </p>
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          <span className="font-bold text-slate-600">확신도</span> — AI의 평가 신뢰도에 따른 가점 (최대 +0.5)
+        <p className="text-sm text-slate-600 leading-relaxed">
+          <span className="font-bold text-slate-700">확신도</span> : AI의 평가 신뢰도에 따라 부여되는 가점을 나타냅니다. (최대 +0.5)
         </p>
-        <p className="text-[10px] text-slate-400 leading-relaxed pt-1">
+        <p className="text-sm text-slate-500 leading-relaxed pt-1">
           ※ 각 막대는 5.0 만점이 아닌 해당 항목의 최대치를 기준으로 표시됩니다.
         </p>
       </div>
@@ -765,11 +765,12 @@ function ReportContent() {
                             2단 그리드로 시각적 균형, 그 아래 '점수 산출 근거' 통합 */}
                         <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
                           <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200 text-center">세부 역량 분석</h4>
+                          {/* 좌: 방사형(Radar) / 우: 가로 막대 — order 로 배치 확정 */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                            <div className="w-full flex justify-center">
+                            <div className="w-full flex justify-center md:order-1">
                               <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
                             </div>
-                            <div className="w-full">
+                            <div className="w-full md:order-2">
                               <SubScoresTable subScores={subScores} totalScore={Number(score)} maxScore={maxScore} />
                             </div>
                           </div>
