@@ -361,7 +361,9 @@ function ReportContent() {
 
   const [report, setReport] = useState<any>(null);
   const [statusMsg, setStatusMsg] = useState("데이터 분석 중...");
-  const [openDetail, setOpenDetail] = useState<string | null>(null);
+  // 기본 상태 '항상 펼침(Always Expanded)': 리포트 진입 즉시 5개 역량 상세가
+  // 모두 열려 있어야 인쇄·PDF 저장 시 내용 누락 없이 전체가 출력된다.
+  const [openDetail, setOpenDetail] = useState<string | null>("ALL");
 
   const [competencyLabels, setCompetencyLabels] = useState<Record<string, string>>({});
   const [subCompetencies, setSubCompetencies] = useState<Record<string, string[]>>({});
@@ -644,13 +646,11 @@ function ReportContent() {
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
                     className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
                     <div className="flex items-center gap-6">
-                      {/* 점수 도형: 부모 flex 중앙 정렬 + 텍스트 margin/padding 0,
-                          line-height 1 강제 → html2canvas 렌더에서도 정중앙 고정 */}
-                      <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0 flex items-center justify-center">
-                        <span
-                          className="m-0 p-0 leading-none text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap"
-                          style={{ margin: 0, padding: 0, lineHeight: 1 }}
-                        >
+                      {/* 점수 도형: absolute 좌표 하드코딩 중앙 정렬 — flex 는
+                          폰트 베이스라인 여백 탓에 html2canvas 캡처 시 텍스트가
+                          아래로 쏠리므로, translate(-50%,-50%) 로 강제 정중앙 고정 */}
+                      <div className="relative w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0">
+                        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 leading-none m-0 p-0 text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
                           {Number(score).toFixed(1)}
                         </span>
                       </div>
