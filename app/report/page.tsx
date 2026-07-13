@@ -6,7 +6,6 @@ import apiClient from '@/lib/api';
 import { getKeyToNameMap, getSubCompetenciesMap, fetchFramework, FrameworkCompetency } from '@/lib/framework';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { NOTO_SANS_KR_BASE64, hasKoreanFont } from '@/lib/notoSansKR-base64';
 
 // ----------------------------------------------------------------------
 // [ICONS]
@@ -407,123 +406,35 @@ function ReportContent() {
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
-    const originalOpenState = openDetail;
-    setOpenDetail("ALL");
-    document.body.classList.add('pdf-mode');
-    // React 렌더 2사이클 대기 + pdf-mode 트랜지션 안정화
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    await new Promise(resolve => setTimeout(resolve, 2500));
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = 210; const pageHeight = 297; const margin = 10;
-      const contentWidth = pageWidth - margin * 2;
+      // 캡처 직전/직후 상태(State)·DOM 변경 일절 없음 — 화면에 보이는 그대로
+      // 단 1회 캡처한다. ('Unable to find element in cloned iframe' 은 캡처
+      // 도중 DOM 이 변하며 클론과 원본이 어긋날 때 발생하므로 원천 차단)
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+      } as any);
 
-      // 한글 폰트 등록 (base64 데이터가 채워진 경우에만)
-      if (hasKoreanFont()) {
-        pdf.addFileToVFS('NotoSansKR.ttf', NOTO_SANS_KR_BASE64);
-        pdf.addFont('NotoSansKR.ttf', 'NotoSansKR', 'normal');
-        pdf.setFont('NotoSansKR');
-      } else {
-        console.warn('한글 폰트 미등록 — PDF 한글이 □□□ 으로 표시될 수 있음');
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('빈 캔버스가 생성되었습니다.');
       }
 
-      const usableHeight = pageHeight - margin * 2;
-
-      // 캔버스를 세로 픽셀 범위로 잘라 새 캔버스 반환
-      const cropCanvas = (
-        src: HTMLCanvasElement, yPx: number, hPx: number
-      ): HTMLCanvasElement => {
-        const out = document.createElement('canvas');
-        out.width = src.width;
-        out.height = hPx;
-        (out.getContext('2d') as CanvasRenderingContext2D).drawImage(
-          src, 0, yPx, src.width, hPx, 0, 0, src.width, hPx
-        );
-        return out;
-      };
-
-      const sections = reportRef.current.querySelectorAll('.print-section');
-      console.log(`[PDF] 총 ${sections.length}개 섹션 발견`);
-      let currentY = margin;
-      let isFirstSection = true;
-
-      for (let i = 0; i < sections.length; i++) {
-        const section = sections[i] as HTMLElement;
-        console.log(`[PDF] 섹션 ${i + 1}/${sections.length} — offsetSize: ${section.offsetWidth}×${section.offsetHeight}`);
-
-        const canvas = await html2canvas(section, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-        } as any);
-
-        const imgData = canvas.toDataURL('image/png');
-        console.log(`[PDF] 섹션 ${i + 1} canvas: ${canvas.width}×${canvas.height}, len: ${imgData.length}`);
-
-        // 안전장치
-        if (canvas.width === 0 || canvas.height === 0) {
-          console.warn(`섹션 ${i + 1} 빈 canvas — 건너뜀`);
-          continue;
-        }
-        if (!imgData.startsWith('data:image/png;base64,')) {
-          console.error(`섹션 ${i + 1} 잘못된 PNG — 건너뜀`);
-          continue;
-        }
-        if (imgData.length < 1000) {
-          console.warn(`섹션 ${i + 1} imgData 짧음 — 건너뜀`);
-          continue;
-        }
-
-        const imgFullHeightMM = (canvas.height * contentWidth) / canvas.width;
-
-        if (imgFullHeightMM > usableHeight) {
-          // 한 페이지보다 큰 섹션 → 새 페이지에서 슬라이스 분할
-          if (!isFirstSection) {
-            pdf.addPage(); currentY = margin;
-          }
-
-          const pxPerMM = canvas.height / imgFullHeightMM;
-          const slicePx = Math.floor(usableHeight * pxPerMM);
-          let yPx = 0;
-          let firstSlice = true;
-
-          while (yPx < canvas.height) {
-            const thisPx = Math.min(slicePx, canvas.height - yPx);
-            const sliceHeightMM = (thisPx * contentWidth) / canvas.width;
-            const sliceData = cropCanvas(canvas, yPx, thisPx).toDataURL('image/png');
-
-            if (!firstSlice) {
-              pdf.addPage(); currentY = margin;
-            }
-            firstSlice = false;
-
-            pdf.addImage(sliceData, 'PNG', margin, currentY, contentWidth, sliceHeightMM);
-            currentY += sliceHeightMM + 4;
-            yPx += thisPx;
-          }
-
-          // 큰 섹션 이후 다음 섹션은 새 페이지로 (어색한 잔여 공간 방지)
-          currentY = pageHeight;
-
-        } else {
-          // 한 페이지 이하 섹션 → 남은 공간에 패킹, 없으면 새 페이지
-          if (!isFirstSection && currentY + imgFullHeightMM > pageHeight - margin) {
-            pdf.addPage(); currentY = margin;
-          }
-          pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgFullHeightMM);
-          currentY += imgFullHeightMM + 8;
-        }
-
-        isFirstSection = false;
-      }
+      // 단일 연속 페이지(Single Continuous Page):
+      // A4 여러 장으로 자르지 않고, 캔버스 전체 크기에 딱 맞춘 1장짜리
+      // PDF 를 생성 → 웹 화면처럼 처음부터 끝까지 끊김 없이 이어진다.
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'l' : 'p',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+        hotfixes: ['px_scaling'], // px 단위를 1:1 로 매핑 (기본은 96→72dpi 오차 발생)
+      });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
       pdf.save('Leadership_Report.pdf');
     } catch (error) {
       console.error('PDF 생성 실패:', error);
       alert("PDF 저장 중 오류가 발생했습니다.");
-    } finally {
-      setOpenDetail(originalOpenState);
-      document.body.classList.remove('pdf-mode');
     }
   };
 
@@ -589,7 +500,7 @@ function ReportContent() {
 
           {/* 응답자 정보 */}
           <div className="print:break-inside-avoid p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-4">
               <div>
                 <div className="text-xs text-slate-500 font-semibold mb-1">소속</div>
                 <div className="text-sm text-slate-800 font-bold">{respondentInfo.company}</div>
@@ -611,7 +522,7 @@ function ReportContent() {
         </div>
 
         {/* ── [섹션 2] 3단 대시보드 ── */}
-        <div className="print-section grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="print-section grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-6 mb-8">
           <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col justify-between">
             <h3 className="text-xl font-black text-slate-900 mb-6">종합 리더십 점수</h3>
             <div className="text-center my-auto">
@@ -649,7 +560,7 @@ function ReportContent() {
           <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-lg font-black text-slate-900 mb-4 border-l-4 border-slate-900 pl-3">핵심 키워드</h3>
             {/* 2단 격자 카드 — 상단 배지(키워드) + 하단 설명 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4">
               {(report.top_keywords || []).map((kw: any, i: number) => {
                 const keyword = typeof kw === 'string' ? kw : kw?.keyword;
                 const meaning = typeof kw === 'object' ? kw?.meaning : null;
@@ -670,7 +581,7 @@ function ReportContent() {
         </div>
 
         {/* ── [섹션 4] 사각지대 & IDP ── */}
-        <div className="print-section grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
+        <div className="print-section grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 mb-16">
           {report.blind_spot && report.blind_spot !== "-" && (
             <div className="print:break-inside-avoid bg-amber-50 rounded-3xl border border-amber-200 p-8">
               <h3 className="text-xl font-black text-slate-900 mb-4 border-l-4 border-amber-600 pl-3">사각지대 (Blind Spot)</h3>
@@ -733,11 +644,13 @@ function ReportContent() {
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
                     className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
                     <div className="flex items-center gap-6">
-                      {/* 점수 도형: CSS 절대 좌표 중앙 정렬 — flex/table-cell 은
-                          html2canvas(PDF) 렌더 시 텍스트가 하단으로 쏠리므로
-                          absolute + translate 하드코딩으로 강제 중앙 고정 */}
-                      <div className="relative w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0">
-                        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 leading-none text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
+                      {/* 점수 도형: 부모 flex 중앙 정렬 + 텍스트 margin/padding 0,
+                          line-height 1 강제 → html2canvas 렌더에서도 정중앙 고정 */}
+                      <div className="w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0 flex items-center justify-center">
+                        <span
+                          className="m-0 p-0 leading-none text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap"
+                          style={{ margin: 0, padding: 0, lineHeight: 1 }}
+                        >
                           {Number(score).toFixed(1)}
                         </span>
                       </div>
@@ -753,7 +666,7 @@ function ReportContent() {
                   {/* 펼침 Part 1: 2x2 그리드 */}
                   {isOpen && (
                     <div className="px-8 pb-8 border-t border-slate-100 pt-6 bg-slate-50/30">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4">
 
                         {/* 좌상: 코치 피드백 */}
                         <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
@@ -785,7 +698,7 @@ function ReportContent() {
                         <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
                           <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200 text-center">세부 역량 분석</h4>
                           {/* 좌: 방사형(Radar) / 우: 가로 막대 — order 로 배치 확정 */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                          <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 items-center">
                             <div className="w-full flex justify-center md:order-1">
                               <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
                             </div>
