@@ -646,11 +646,13 @@ function ReportContent() {
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
                     className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
                     <div className="flex items-center gap-6">
-                      {/* 점수 도형: absolute 좌표 하드코딩 중앙 정렬 — flex 는
-                          폰트 베이스라인 여백 탓에 html2canvas 캡처 시 텍스트가
-                          아래로 쏠리므로, translate(-50%,-50%) 로 강제 정중앙 고정 */}
-                      <div className="relative w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0">
-                        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 leading-none m-0 p-0 text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
+                      {/* 점수 도형: inset-0 오버레이 + flex 중앙 정렬 —
+                          html2canvas 는 translate 연산 렌더링 오차로 텍스트가
+                          바닥으로 쏠리는 고질 버그가 있어 translate 조합을 폐기.
+                          inset-0 으로 부모를 1:1 로 덮은 뒤 그 안에서 flex 정렬
+                          → translate 없이 정중앙 보장 */}
+                      <div className="relative overflow-hidden w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0">
+                        <span className="absolute inset-0 flex items-center justify-center leading-none m-0 p-0 text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
                           {Number(score).toFixed(1)}
                         </span>
                       </div>
@@ -695,7 +697,7 @@ function ReportContent() {
 
                         {/* 하단(전폭): 세부 역량 분석 — 좌: 방사형 차트 / 우: 가로 막대
                             2단 그리드로 시각적 균형, 그 아래 '점수 산출 근거' 통합 */}
-                        <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
+                        <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm md:col-span-2 print:col-span-full print:w-full">
                           <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200 text-center">세부 역량 분석</h4>
                           {/* 좌: 방사형(Radar) / 우: 가로 막대 — order 로 배치 확정 */}
                           <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 items-center">
