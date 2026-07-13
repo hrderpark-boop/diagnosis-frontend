@@ -115,6 +115,28 @@ body {
 /* 8. pt-28 (상단 고정바 여백) 압축 */
 .pdf-mode .pt-28 { padding-top: 1rem !important; }
 
+/* 9. PDF 캡처 시 고정 헤더 숨김 — 콘텐츠와 겹침 원천 차단 */
+.pdf-mode .pdf-hide { display: none !important; }
+
+/* 10. 페이지 분할 안전 규칙
+   - break-inside-avoid: 카드 중간에서 페이지가 잘리지 않도록 강제
+     (Tailwind 유틸이 purge 되어도 동작하도록 전역 정의)
+   - html2canvas 스마트 슬라이싱도 이 클래스를 '절단 금지 블록' 마커로 사용 */
+.break-inside-avoid {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media print {
+  .pdf-hide { display: none !important; }
+  .print-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  body { background: #fff !important; }
+  .pt-28 { padding-top: 0.5rem !important; }
+}
+
 @keyframes wave {
   0%, 60%, 100% {
     transform: translateY(0);
