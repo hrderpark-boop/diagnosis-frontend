@@ -184,7 +184,7 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
     { label: "확신도",     value: breakdown.confidence_adj, max: 0.5, color: breakdown.confidence_adj >= 0 ? "bg-violet-400" : "bg-rose-400", prefix: breakdown.confidence_adj >= 0 ? "+" : "" },
   ];
   return (
-    <div className="break-inside-avoid mt-3 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+    <div className="print:break-inside-avoid mt-3 p-5 bg-slate-50 rounded-2xl border border-slate-100">
       <h5 className="text-sm text-slate-900 font-bold mb-4">점수 산출 근거</h5>
       <div className="space-y-3">
         {items.map((item, i) => (
@@ -267,7 +267,7 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
   };
 
   return (
-    <div className="break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
+    <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
       <h4 className="text-base font-black text-slate-900 mb-4 pb-3 border-b border-slate-200">심층 평가 근거</h4>
 
       {/* SAR 세로 1열 — 각 블록 바로 아래에 매칭 발췌문 즉시 렌더 */}
@@ -276,7 +276,7 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
           const step = getStep(item.key);
           if (!step || !step.description) return null;
           return (
-            <div key={item.key} className="break-inside-avoid p-4 rounded-lg border-l-4 border-slate-800 bg-slate-50">
+            <div key={item.key} className="print:break-inside-avoid p-4 rounded-lg border-l-4 border-slate-800 bg-slate-50">
               <span className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
                 {item.label}
               </span>
@@ -485,37 +485,11 @@ function ReportContent() {
 
           const pxPerMM = canvas.height / imgFullHeightMM;
           const slicePx = Math.floor(usableHeight * pxPerMM);
-
-          // 🛡️ 스마트 슬라이싱: 섹션 내부의 '.break-inside-avoid' 블록 시작
-          // 지점(캔버스 px)을 수집해, 컷이 블록 '중간'에 떨어지면 가장 가까운
-          // 블록 경계로 끌어올린다 → 카드가 페이지 사이에서 허무하게 잘리는
-          // 현상 차단. (html2canvas 는 CSS break 규칙을 모르므로 직접 계산)
-          const sectionRect = section.getBoundingClientRect();
-          const canvasScale = canvas.height / Math.max(1, section.offsetHeight);
-          const safeBoundaries = Array.from(
-            section.querySelectorAll<HTMLElement>('.break-inside-avoid')
-          )
-            .map(el => (el.getBoundingClientRect().top - sectionRect.top) * canvasScale)
-            .filter(v => v > 0 && v < canvas.height)
-            .sort((a, b) => a - b);
-
-          const snapCut = (startPx: number, targetEndPx: number): number => {
-            if (targetEndPx >= canvas.height) return canvas.height;
-            // 너무 짧은 슬라이스(페이지 낭비) 방지: 최소 35% 는 전진해야 스냅
-            const minAdvance = slicePx * 0.35;
-            let cut = targetEndPx;
-            for (const b of safeBoundaries) {
-              if (b > startPx + minAdvance && b <= targetEndPx) cut = b;
-            }
-            return Math.floor(cut);
-          };
-
           let yPx = 0;
           let firstSlice = true;
 
           while (yPx < canvas.height) {
-            const cutEnd = snapCut(yPx, yPx + slicePx);
-            const thisPx = Math.max(1, Math.min(cutEnd - yPx, canvas.height - yPx));
+            const thisPx = Math.min(slicePx, canvas.height - yPx);
             const sliceHeightMM = (thisPx * contentWidth) / canvas.width;
             const sliceData = cropCanvas(canvas, yPx, thisPx).toDataURL('image/png');
 
@@ -579,8 +553,8 @@ function ReportContent() {
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-800 pb-24">
-      {/* 상단 액션 바 — PDF 캡처/인쇄 시 콘텐츠와 겹치지 않도록 숨김(pdf-hide) */}
-      <div className="pdf-hide print:hidden fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-3 flex items-center justify-between shadow-sm">
+      {/* 상단 액션 바 — 브라우저 인쇄 시 인쇄물에 나오지 않도록 숨김(print:hidden) */}
+      <div className="print:hidden fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold text-slate-700">Leadership Analytics</span>
         </div>
@@ -614,7 +588,7 @@ function ReportContent() {
           </div>
 
           {/* 응답자 정보 */}
-          <div className="break-inside-avoid p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div className="print:break-inside-avoid p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <div className="text-xs text-slate-500 font-semibold mb-1">소속</div>
@@ -638,7 +612,7 @@ function ReportContent() {
 
         {/* ── [섹션 2] 3단 대시보드 ── */}
         <div className="print-section grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col justify-between">
+          <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col justify-between">
             <h3 className="text-xl font-black text-slate-900 mb-6">종합 리더십 점수</h3>
             <div className="text-center my-auto">
               <span className="text-7xl font-black text-blue-600">{Number(report.total_score).toFixed(1)}</span>
@@ -647,14 +621,14 @@ function ReportContent() {
             <p className="text-center text-sm font-semibold text-slate-500 mt-6">{frameworkCompetencies.length || 5}개 역량 심층 평가 평균치</p>
           </div>
 
-          <div className="break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
+          <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
             <h3 className="text-xl font-black text-slate-900 w-full mb-2">역량 밸런스</h3>
             <div className="w-full h-full flex-1 min-h-[220px]">
               <RadarChart data={report.radar_chart} competencies={frameworkCompetencies} maxScore={maxScore} />
             </div>
           </div>
 
-          <div className="break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col">
+          <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col">
             <h3 className="text-xl font-black text-slate-900 mb-6">상대적 비교 분석</h3>
             <div className="flex-1">
               <ComparisonChart myScore={report.total_score} maxScore={maxScore} />
@@ -672,7 +646,7 @@ function ReportContent() {
             </p>
           </div>
           {/* 핵심 키워드 — {keyword, meaning} 구조 (구버전 문자열 배열도 호환) */}
-          <div className="break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+          <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-lg font-black text-slate-900 mb-4 border-l-4 border-slate-900 pl-3">핵심 키워드</h3>
             {/* 2단 격자 카드 — 상단 배지(키워드) + 하단 설명 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -681,7 +655,7 @@ function ReportContent() {
                 const meaning = typeof kw === 'object' ? kw?.meaning : null;
                 if (!keyword) return null;
                 return (
-                  <div key={i} className="break-inside-avoid p-5 bg-slate-50 rounded-2xl border-2 border-slate-200">
+                  <div key={i} className="print:break-inside-avoid p-5 bg-slate-50 rounded-2xl border-2 border-slate-200">
                     <span className="inline-block px-3.5 py-1.5 rounded-lg bg-slate-900 text-white text-sm font-black tracking-wide mb-3">
                       {keyword}
                     </span>
@@ -698,14 +672,14 @@ function ReportContent() {
         {/* ── [섹션 4] 사각지대 & IDP ── */}
         <div className="print-section grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
           {report.blind_spot && report.blind_spot !== "-" && (
-            <div className="break-inside-avoid bg-amber-50 rounded-3xl border border-amber-200 p-8">
+            <div className="print:break-inside-avoid bg-amber-50 rounded-3xl border border-amber-200 p-8">
               <h3 className="text-xl font-black text-slate-900 mb-4 border-l-4 border-amber-600 pl-3">사각지대 (Blind Spot)</h3>
               <p className="text-amber-900 text-base leading-relaxed">{report.blind_spot}</p>
             </div>
           )}
           
           {report.idp && report.idp.length > 0 && (
-            <div className="break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
+            <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
               <h3 className="text-xl font-black text-slate-900 mb-5 border-l-4 border-slate-900 pl-3">개인 발전 계획 (IDP)</h3>
               <div className="space-y-4">
                 {report.idp.map((item: string, idx: number) => (
@@ -782,13 +756,13 @@ function ReportContent() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                         {/* 좌상: 코치 피드백 */}
-                        <div className="break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
                           <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200">코치 피드백</h4>
                           <p className="text-slate-700 text-sm leading-relaxed">{comment}</p>
                         </div>
 
                         {/* 우상: 강점 & 개선 필요점 */}
-                        <div className="break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
                           <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200">강점 &amp; 개선 필요점</h4>
                           <div className="space-y-2">
                             {strengthPoint && (
@@ -808,7 +782,7 @@ function ReportContent() {
 
                         {/* 하단(전폭): 세부 역량 분석 — 좌: 방사형 차트 / 우: 가로 막대
                             2단 그리드로 시각적 균형, 그 아래 '점수 산출 근거' 통합 */}
-                        <div className="break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
+                        <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm md:col-span-2">
                           <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200 text-center">세부 역량 분석</h4>
                           {/* 좌: 방사형(Radar) / 우: 가로 막대 — order 로 배치 확정 */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
