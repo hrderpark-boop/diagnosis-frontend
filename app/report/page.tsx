@@ -94,7 +94,8 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
 
   if (stats.length === 0) return <div className="text-xs text-slate-400">데이터가 없습니다.</div>;
 
-  const size = 160; const center = size / 2; const radius = 40;
+  // 시인성 상향: 차트 크기 160→220, 반경 40→80 (컨테이너 여백 없이 꽉 차게)
+  const size = 220; const center = size / 2; const radius = 80;
   const angleStep = (Math.PI * 2) / stats.length;
 
   const getPoint = (value: number, index: number) => {
@@ -116,17 +117,18 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
           const p = getPoint(safeMax, i);
           return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#f1f5f9" strokeWidth="1" />;
         })}
-        <polygon points={points} fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" strokeWidth="1.5" />
+        <polygon points={points} fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" strokeWidth="2" />
         {stats.map((stat, i) => {
           const p = getPoint(stat.value, i);
-          return <circle key={i} cx={p.x} cy={p.y} r="3" fill="#10b981" />;
+          return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#10b981" />;
         })}
         {stats.map((stat, i) => {
-          const pLabel = getPoint(7.5, i); 
+          // 라벨 위치 배율 축소(7.5→6.5): 반경 확대분만큼 라벨이 밖으로 밀리지 않게 보정
+          const pLabel = getPoint(6.5, i);
           return (
             <g key={i}>
-              <text x={pLabel.x} y={pLabel.y - 6} textAnchor="middle" dominantBaseline="middle" fill="#64748b" fontSize="9" fontWeight="700">{stat.label}</text>
-              <text x={pLabel.x} y={pLabel.y + 6} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize="9" fontWeight="800">{Number(stat.value).toFixed(1)}</text>
+              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill="#475569" fontSize="13" fontWeight="800">{stat.label}</text>
+              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize="12" fontWeight="800">{Number(stat.value).toFixed(1)}</text>
             </g>
           );
         })}
@@ -646,13 +648,11 @@ function ReportContent() {
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
                     className="w-full flex items-center justify-between px-8 py-6 text-left focus:outline-none">
                     <div className="flex items-center gap-6">
-                      {/* 점수 도형: inset-0 오버레이 + flex 중앙 정렬 —
-                          html2canvas 는 translate 연산 렌더링 오차로 텍스트가
-                          바닥으로 쏠리는 고질 버그가 있어 translate 조합을 폐기.
-                          inset-0 으로 부모를 1:1 로 덮은 뒤 그 안에서 flex 정렬
-                          → translate 없이 정중앙 보장 */}
-                      <div className="relative overflow-hidden w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0">
-                        <span className="absolute inset-0 flex items-center justify-center leading-none m-0 p-0 text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
+                      {/* 점수 도형: grid place-items-center 중앙 정렬 +
+                          Mac(Safari/Webkit) 폰트 베이스라인 시각 오차를
+                          mt-[-2px] 음수 마진으로 픽셀 단위 보정 */}
+                      <div className="grid place-items-center w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0">
+                        <span className="leading-none mt-[-2px] p-0 text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
                           {Number(score).toFixed(1)}
                         </span>
                       </div>
