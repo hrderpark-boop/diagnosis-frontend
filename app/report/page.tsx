@@ -273,22 +273,24 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
     <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm mb-6">
       <h4 className="text-base font-black text-slate-900 mb-4 pb-3 border-b border-slate-200">심층 평가 근거</h4>
 
-      {/* SAR 세로 1열 — 각 블록 바로 아래에 매칭 발췌문 즉시 렌더 */}
-      <div className="space-y-3 mb-4">
+      {/* SAR 세로 1열 — 각 블록 바로 아래에 매칭 발췌문 즉시 렌더
+          [역량 블록 2 전용 페이지] 텍스트 확대(text-base)·줄간격 확장(leading-loose)으로
+          A4 한 페이지를 텍스트만으로 시원하게 채우는 구성 */}
+      <div className="space-y-6 mb-6">
         {steps.map((item) => {
           const step = getStep(item.key);
           if (!step || !step.description) return null;
           return (
-            <div key={item.key} className="print:break-inside-avoid p-4 rounded-lg border-l-4 border-slate-800 bg-slate-50">
-              <span className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+            <div key={item.key} className="print:break-inside-avoid p-6 rounded-lg border-l-4 border-slate-800 bg-slate-50">
+              <span className="block text-sm font-black text-slate-500 uppercase tracking-wider mb-3">
                 {item.label}
               </span>
-              <p className="text-sm text-slate-700 leading-relaxed">{step.description}</p>
+              <p className="text-base text-slate-700 leading-loose">{step.description}</p>
               {step.evidence.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
-                  <span className="block text-[11px] font-black text-slate-400 uppercase tracking-wider">관련 대화 발췌</span>
+                <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                  <span className="block text-xs font-black text-slate-400 uppercase tracking-wider">관련 대화 발췌</span>
                   {step.evidence.map((ev: string, i: number) => (
-                    <p key={i} className="text-slate-600 text-sm font-medium italic border-l-2 border-slate-400 pl-3 py-0.5">"{ev}"</p>
+                    <p key={i} className="text-slate-600 text-base font-medium italic leading-loose border-l-2 border-slate-400 pl-4 py-0.5">"{ev}"</p>
                   ))}
                 </div>
               )}
@@ -313,7 +315,7 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
       {gapText && (
         <div className="pt-4 border-t border-slate-200">
           <h5 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-2">Gap Analysis</h5>
-          <p className="text-sm text-slate-700 leading-relaxed">{gapText}</p>
+          <p className="text-base text-slate-700 leading-loose">{gapText}</p>
         </div>
       )}
     </div>
@@ -332,20 +334,21 @@ const SubScoresTable = ({ subScores, totalScore, maxScore }: { subScores: any, t
   const min = Math.min(...entries.map(([, v]) => v));
 
   return (
-    <div className="mt-4 space-y-2">
+    // A4 한 페이지를 채우는 여유로운 구성: 세로 간격 대폭 확대 + 역량명 폰트 상향
+    <div className="mt-4 space-y-6">
       {entries.map(([label, score]) => {
         const isHigh = score === max;
         const isLow  = score === min;
         return (
-          <div key={label} className="flex items-center gap-3">
-            <span className="text-xs text-slate-600 font-medium min-w-[120px] flex-shrink-0">{label}</span>
-            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div key={label} className="flex items-center gap-4">
+            <span className="text-lg text-slate-700 font-bold min-w-[150px] flex-shrink-0">{label}</span>
+            <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${isHigh ? 'bg-emerald-400' : isLow ? 'bg-rose-300' : 'bg-blue-300'}`}
                 style={{ width: `${(score / safeMax) * 100}%` }}
               />
             </div>
-            <span className={`text-xs font-black w-8 text-right ${isHigh ? 'text-emerald-600' : isLow ? 'text-rose-500' : 'text-slate-600'}`}>
+            <span className={`text-base font-black w-12 text-right ${isHigh ? 'text-emerald-600' : isLow ? 'text-rose-500' : 'text-slate-600'}`}>
               {Number(score).toFixed(1)}
             </span>
           </div>
@@ -413,42 +416,49 @@ function ReportContent() {
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
     try {
-      // 캡처 직전/직후 상태(State)·DOM 변경 일절 없음 — 화면에 보이는 그대로
-      // 단 1회 캡처한다. windowHeight 를 명시해 브라우저 뷰포트 높이와 무관하게
-      // 리포트 DOM 전체 높이를 온전히 캡처 ('일관리' 이후 섹션 유실 방지)
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false,
-        windowHeight: reportRef.current.scrollHeight,
-      } as any);
-
-      if (canvas.width === 0 || canvas.height === 0) {
-        throw new Error('빈 캔버스가 생성되었습니다.');
+      // 블록 단위 독립 캡처(Block-by-Block Capture):
+      // 거대 캔버스를 297mm 씩 기계적으로 자르던 방식은 중간 잘림·억지 여백을
+      // 유발하므로 폐기. 문서에 배치된 '.pdf-page-block' 래퍼들을 각각 독립
+      // 캡처해 1블록 = 1페이지(A4)로 담는다 → 페이지 경계가 항상 블록 경계.
+      const blocks = Array.from(
+        reportRef.current.querySelectorAll<HTMLElement>('.pdf-page-block')
+      );
+      if (blocks.length === 0) {
+        throw new Error('pdf-page-block 요소를 찾을 수 없습니다.');
       }
 
-      // 표준 A4 다중 페이지 분할:
-      // 거대한 단일 페이지 PDF 는 브라우저 캔버스 한계·PDF 뷰어 규격 초과로
-      // 후반부가 유실될 수 있어 폐기. 전체 이미지를 A4 폭에 맞춰 축척한 뒤,
-      // 같은 이미지를 페이지마다 음수 y 오프셋으로 얹어 여러 장에 나눠 담는다.
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210;
       const pageHeight = 297;
-      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      const margin = 8;
+      const contentWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2;
 
-      let heightLeft = imgHeight;
-      let position = 0;
+      let isFirstPage = true;
 
-      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
-      heightLeft -= pageHeight;
+      for (const block of blocks) {
+        const canvas = await html2canvas(block, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+        } as any);
 
-      while (heightLeft > 0) {
-        position -= pageHeight; // 다음 페이지에 보일 구간만큼 이미지를 위로 올림
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
-        heightLeft -= pageHeight;
+        if (canvas.width === 0 || canvas.height === 0) continue;
+
+        // A4 폭 기준 환산 높이. 한 페이지를 넘으면 비율을 유지한 채 축소해
+        // 어떤 블록도 절대 잘리지 않고 한 장 안에 온전히 수납되게 한다.
+        const imgHeight = (canvas.height * contentWidth) / canvas.width;
+        const drawHeight = Math.min(imgHeight, maxHeight);
+        const drawWidth = imgHeight > maxHeight
+          ? contentWidth * (maxHeight / imgHeight)
+          : contentWidth;
+        const x = margin + (contentWidth - drawWidth) / 2;
+
+        if (!isFirstPage) pdf.addPage();
+        isFirstPage = false;
+
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, margin, drawWidth, drawHeight);
       }
 
       pdf.save('Leadership_Report.pdf');
@@ -485,7 +495,7 @@ function ReportContent() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-800 pb-24">
       {/* 상단 액션 바 — 브라우저 인쇄 시 인쇄물에 나오지 않도록 숨김(print:hidden) */}
-      <div className="print:hidden fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-3 flex items-center justify-between shadow-sm">
+      <div data-html2canvas-ignore="true" className="print:hidden fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold text-slate-700">Leadership Analytics</span>
         </div>
@@ -496,6 +506,9 @@ function ReportContent() {
       </div>
 
       <div ref={reportRef} className="max-w-6xl mx-auto px-4 md:px-8 pt-28 pb-8 bg-slate-50">
+
+        {/* ══ [PDF 페이지 1] 타이틀 & 응답자 정보 & 3단 대시보드 ══ */}
+        <div className="pdf-page-block print:break-after-page">
 
         {/* ── [섹션 1] 타이틀 & 아키타입 & 응답자 정보 ── */}
         <div className="print-section mb-12">
@@ -567,8 +580,12 @@ function ReportContent() {
           </div>
         </div>
 
+        </div>
+        {/* ══ [PDF 페이지 1] 끝 ══ */}
+
+        {/* ══ [PDF 페이지 2] 종합 피드백 & 키워드 ══ */}
         {/* ── [섹션 3] 종합 피드백 & 키워드 ── */}
-        <div className="print-section mb-8">
+        <div className="pdf-page-block print:break-after-page print-section mb-8">
           {/* 종합 피드백 — 전체 너비 */}
           <div className="bg-blue-50/50 rounded-3xl border border-blue-100 p-8 mb-4">
             <h3 className="text-xl font-black text-slate-900 mb-4 border-l-4 border-slate-900 pl-3">종합 피드백</h3>
@@ -600,8 +617,9 @@ function ReportContent() {
           </div>
         </div>
 
+        {/* ══ [PDF 페이지 3] 사각지대 & IDP ══ */}
         {/* ── [섹션 4] 사각지대 & IDP ── */}
-        <div className="print-section grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 mb-16">
+        <div className="pdf-page-block print:break-after-page print-section grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 mb-16">
           {report.blind_spot && report.blind_spot !== "-" && (
             <div className="print:break-inside-avoid bg-amber-50 rounded-3xl border border-amber-200 p-8">
               <h3 className="text-xl font-black text-slate-900 mb-4 border-l-4 border-amber-600 pl-3">사각지대 (Blind Spot)</h3>
@@ -629,7 +647,8 @@ function ReportContent() {
           <div className="flex items-center justify-between mb-6 px-2">
             <h2 className="text-2xl font-black text-slate-900">역량별 심층 진단서</h2>
             <button onClick={() => setOpenDetail(openDetail === "ALL" ? null : "ALL")}
-              className="text-sm text-slate-600 font-bold border border-slate-300 bg-white px-4 py-2 rounded-full hover:bg-slate-100 transition-colors shadow-sm">
+              data-html2canvas-ignore="true"
+              className="print:hidden text-sm text-slate-600 font-bold border border-slate-300 bg-white px-4 py-2 rounded-full hover:bg-slate-100 transition-colors shadow-sm">
               {openDetail === "ALL" ? "전체 닫기" : "전체 펼치기"}
             </button>
           </div>
@@ -657,8 +676,8 @@ function ReportContent() {
             return (
               <React.Fragment key={idx}>
 
-                {/* ① 헤더 + 코치 피드백 + 세부 역량 */}
-                <div className={`print-section print:break-inside-avoid bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${isOpen ? 'border-blue-300 shadow-lg' : 'border-slate-200 shadow-sm hover:border-blue-100'}`}>
+                {/* ① [역량 블록 1: 요약 및 차트] 헤더 + 코치 피드백 + 세부 역량 + 산출 근거 */}
+                <div className={`pdf-page-block print:break-after-page print-section print:break-inside-avoid bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${isOpen ? 'border-blue-300 shadow-lg' : 'border-slate-200 shadow-sm hover:border-blue-100'}`}>
 
                   {/* 헤더 */}
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
@@ -737,9 +756,9 @@ function ReportContent() {
                   )}
                 </div>
 
-                {/* ② 심층 평가 — SAR 분석 바로 아래에 실제 대화 발췌문 통합 */}
+                {/* ② [역량 블록 2: 심층 평가 근거] STAR 분석 + 실제 대화 발췌문 전용 페이지 */}
                 {isOpen && (
-                  <div className="print-section print:break-inside-avoid bg-white rounded-3xl border border-blue-100 shadow-sm overflow-hidden mt-3">
+                  <div className="pdf-page-block print:break-after-page print-section print:break-inside-avoid bg-white rounded-3xl border border-blue-100 shadow-sm overflow-hidden mt-3">
                     <div className="px-8 py-6 bg-slate-50/30">
                       <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} evidenceList={evidenceList} />
                     </div>
@@ -752,8 +771,8 @@ function ReportContent() {
         </div>
       </div>
       
-      {/* 홈으로 돌아가기 버튼 */}
-      <div className="flex justify-center mt-16 relative z-20 pb-16">
+      {/* 홈으로 돌아가기 버튼 — 인쇄물·PDF 캡처에서 완전 제외 */}
+      <div data-html2canvas-ignore="true" className="print:hidden flex justify-center mt-16 relative z-20 pb-16">
         <button onClick={() => router.push('/')}
           className="px-8 py-4 bg-slate-900 text-white font-bold rounded-full hover:bg-slate-700 transition-all shadow-lg text-sm flex items-center gap-2">
           홈으로 돌아가기
