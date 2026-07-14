@@ -94,8 +94,9 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
 
   if (stats.length === 0) return <div className="text-xs text-slate-400">데이터가 없습니다.</div>;
 
-  // 시인성 상향: 차트 크기 160→220, 반경 40→80 (컨테이너 여백 없이 꽉 차게)
-  const size = 220; const center = size / 2; const radius = 80;
+  // 반경 80→62: 라벨이 viewBox 밖으로 벗어나 잘리던 현상 복구.
+  // 확대된 폰트(13px)는 유지하되, 라벨이 온전히 보이도록 내부 여백 확보
+  const size = 220; const center = size / 2; const radius = 62;
   const angleStep = (Math.PI * 2) / stats.length;
 
   const getPoint = (value: number, index: number) => {
@@ -123,8 +124,9 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
           return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#10b981" />;
         })}
         {stats.map((stat, i) => {
-          // 라벨 위치 배율 축소(7.5→6.5): 반경 확대분만큼 라벨이 밖으로 밀리지 않게 보정
-          const pLabel = getPoint(6.5, i);
+          // 라벨 배율 6.8: 다각형 모서리(5.0 지점)와 22px 가량 간격을 두면서도
+          // viewBox 경계(반폭 110) 안에 라벨·점수가 온전히 들어오는 위치
+          const pLabel = getPoint(6.8, i);
           return (
             <g key={i}>
               <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill="#475569" fontSize="13" fontWeight="800">{stat.label}</text>
@@ -412,29 +414,43 @@ function ReportContent() {
     if (!reportRef.current) return;
     try {
       // 캡처 직전/직후 상태(State)·DOM 변경 일절 없음 — 화면에 보이는 그대로
-      // 단 1회 캡처한다. ('Unable to find element in cloned iframe' 은 캡처
-      // 도중 DOM 이 변하며 클론과 원본이 어긋날 때 발생하므로 원천 차단)
+      // 단 1회 캡처한다. windowHeight 를 명시해 브라우저 뷰포트 높이와 무관하게
+      // 리포트 DOM 전체 높이를 온전히 캡처 ('일관리' 이후 섹션 유실 방지)
       const canvas = await html2canvas(reportRef.current, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
+        windowHeight: reportRef.current.scrollHeight,
       } as any);
 
       if (canvas.width === 0 || canvas.height === 0) {
         throw new Error('빈 캔버스가 생성되었습니다.');
       }
 
-      // 단일 연속 페이지(Single Continuous Page):
-      // A4 여러 장으로 자르지 않고, 캔버스 전체 크기에 딱 맞춘 1장짜리
-      // PDF 를 생성 → 웹 화면처럼 처음부터 끝까지 끊김 없이 이어진다.
-      const pdf = new jsPDF({
-        orientation: canvas.width > canvas.height ? 'l' : 'p',
-        unit: 'px',
-        format: [canvas.width, canvas.height],
-        hotfixes: ['px_scaling'], // px 단위를 1:1 로 매핑 (기본은 96→72dpi 오차 발생)
-      });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
+      // 표준 A4 다중 페이지 분할:
+      // 거대한 단일 페이지 PDF 는 브라우저 캔버스 한계·PDF 뷰어 규격 초과로
+      // 후반부가 유실될 수 있어 폐기. 전체 이미지를 A4 폭에 맞춰 축척한 뒤,
+      // 같은 이미지를 페이지마다 음수 y 오프셋으로 얹어 여러 장에 나눠 담는다.
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position -= pageHeight; // 다음 페이지에 보일 구간만큼 이미지를 위로 올림
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
       pdf.save('Leadership_Report.pdf');
     } catch (error) {
       console.error('PDF 생성 실패:', error);
@@ -642,7 +658,7 @@ function ReportContent() {
               <React.Fragment key={idx}>
 
                 {/* ① 헤더 + 코치 피드백 + 세부 역량 */}
-                <div className={`print-section bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${isOpen ? 'border-blue-300 shadow-lg' : 'border-slate-200 shadow-sm hover:border-blue-100'}`}>
+                <div className={`print-section print:break-inside-avoid bg-white rounded-3xl border transition-all duration-300 overflow-hidden ${isOpen ? 'border-blue-300 shadow-lg' : 'border-slate-200 shadow-sm hover:border-blue-100'}`}>
 
                   {/* 헤더 */}
                   <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
@@ -723,7 +739,7 @@ function ReportContent() {
 
                 {/* ② 심층 평가 — SAR 분석 바로 아래에 실제 대화 발췌문 통합 */}
                 {isOpen && (
-                  <div className="print-section bg-white rounded-3xl border border-blue-100 shadow-sm overflow-hidden mt-3">
+                  <div className="print-section print:break-inside-avoid bg-white rounded-3xl border border-blue-100 shadow-sm overflow-hidden mt-3">
                     <div className="px-8 py-6 bg-slate-50/30">
                       <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} evidenceList={evidenceList} />
                     </div>
