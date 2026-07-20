@@ -707,24 +707,24 @@ function ReportContent() {
 
                         {/* 좌상: 코치 피드백 */}
                         <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                          <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200">코치 피드백</h4>
-                          <p className="text-slate-700 text-sm leading-relaxed">{comment}</p>
+                          <h4 className="text-lg font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200">코치 피드백</h4>
+                          <p className="text-slate-700 text-base leading-relaxed">{comment}</p>
                         </div>
 
-                        {/* 우상: 강점 & 개선 필요점 */}
+                        {/* 우상: 강점 & 개선 필요점 — 좌측 '코치 피드백'과 시각적 무게감 균형 */}
                         <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                          <h4 className="text-base font-black text-slate-900 mb-3 pb-2 border-b border-slate-200">강점 &amp; 개선 필요점</h4>
-                          <div className="space-y-2">
+                          <h4 className="text-lg font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200">강점 &amp; 개선 필요점</h4>
+                          <div className="space-y-3">
                             {strengthPoint && (
-                              <div className="flex gap-3 items-start p-3 bg-white rounded-lg border-l-4 border-emerald-700 border-y border-r border-y-slate-100 border-r-slate-100">
-                                <span className="text-emerald-800 text-xs font-black shrink-0 mt-0.5 w-8">강점</span>
-                                <p className="text-xs text-slate-700 leading-relaxed">{strengthPoint}</p>
+                              <div className="flex gap-3 items-start p-4 bg-white rounded-lg border-l-4 border-emerald-700 border-y border-r border-y-slate-100 border-r-slate-100">
+                                <span className="text-emerald-800 text-base font-bold shrink-0 mt-0.5 w-10">강점</span>
+                                <p className="text-base text-slate-700 leading-relaxed">{strengthPoint}</p>
                               </div>
                             )}
                             {growthPoint && (
-                              <div className="flex gap-3 items-start p-3 bg-white rounded-lg border-l-4 border-orange-700 border-y border-r border-y-slate-100 border-r-slate-100">
-                                <span className="text-orange-800 text-xs font-black shrink-0 mt-0.5 w-8">개선</span>
-                                <p className="text-xs text-slate-700 leading-relaxed">{growthPoint}</p>
+                              <div className="flex gap-3 items-start p-4 bg-white rounded-lg border-l-4 border-orange-700 border-y border-r border-y-slate-100 border-r-slate-100">
+                                <span className="text-orange-800 text-base font-bold shrink-0 mt-0.5 w-10">개선</span>
+                                <p className="text-base text-slate-700 leading-relaxed">{growthPoint}</p>
                               </div>
                             )}
                           </div>
