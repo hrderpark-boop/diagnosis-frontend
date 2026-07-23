@@ -156,6 +156,13 @@ export interface ReportDetail {
   edited_at: string | null;
   edited_by: string | null;
   has_ai_original: boolean;
+  /** 대상자가 진단 시작 전 직접 입력한 자가진단 (미제출 시 null) */
+  self_assessment: {
+    scores: Record<string, number>;
+    strength_weakness_text: string | null;
+    self_average: number;
+    submitted_at: string;
+  } | null;
 }
 
 export interface ReportEditPayload {

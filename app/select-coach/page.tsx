@@ -127,8 +127,8 @@ export default function SelectCoachPage() {
       localStorage.setItem('currentCoachId', selectedCoachId);
       localStorage.setItem('chatHistory', JSON.stringify([first_message]));
 
-      // 채팅 페이지로 이동
-      router.push('/chat');
+      // 채팅 전 자가진단 단계로 이동 (세션 ID 는 localStorage 로 전달됨)
+      router.push(`/assessment/self-eval?session_id=${session_id}`);
 
     } catch (error: any) {
       console.error("진단 시작 오류:", error);

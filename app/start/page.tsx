@@ -67,7 +67,9 @@ export default function StartPage() {
       const encodedMsg = encodeURIComponent(finalMsg);
       const encodedImg = encodeURIComponent(coachAvatar);
 
-      router.push(`/chat?diagnosis_id=${diagnosisId}&session_id=${sessionId}&coach_name=${coachName}&coach_img=${encodedImg}&initial_message=${encodedMsg}`);
+      // 채팅 직전에 자가진단 단계를 거친다. 대화 파라미터는 그대로 넘겨,
+      // 자가진단 제출(또는 건너뛰기) 후 동일한 채팅 화면으로 이어지게 한다.
+      router.push(`/assessment/self-eval?diagnosis_id=${diagnosisId}&session_id=${sessionId}&coach_name=${coachName}&coach_img=${encodedImg}&initial_message=${encodedMsg}`);
 
     } catch (error) {
       console.error(error);

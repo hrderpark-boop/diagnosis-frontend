@@ -99,7 +99,89 @@ const KeywordNetworkChart = ({ keywords }: { keywords: { keyword: string; count:
 };
 
 // ----------------------------------------------------------------------
-// 3. Correlation Heatmap — 실제 피어슨 상관계수
+// 3. Gap Analysis — 자가진단 평균(자기 인식) vs AI 분석 평균(실제 발현)
+//    두 값 모두 실측이며, 자가진단 미제출 표본은 집계에서 제외된다.
+// ----------------------------------------------------------------------
+const GapComparisonChart = ({
+  selfScore,
+  aiScore,
+  sampleSize,
+}: {
+  selfScore: number;
+  aiScore: number;
+  sampleSize: number;
+}) => {
+  if (sampleSize === 0) {
+    return (
+      <div className="flex h-[240px] w-full flex-col items-center justify-center px-4 text-center">
+        <p className="text-sm text-gray-400">아직 자가진단 응답이 없습니다.</p>
+        <p className="mt-2 text-xs text-gray-500">
+          대상자가 진단 시작 전 자가진단을 제출하면
+          <br />자기 인식과 AI 분석 결과의 차이가 자동으로 산출됩니다.
+        </p>
+      </div>
+    );
+  }
+
+  const gap = Number((selfScore - aiScore).toFixed(2));
+  const pct = (v: number) => `${Math.max(0, Math.min(100, (v / 5) * 100))}%`;
+
+  return (
+    <div className="flex h-full w-full flex-col justify-center px-2">
+      {/* 두 개의 동심원으로 인식 차이를 직관적으로 표현 */}
+      <div className="mb-6 flex justify-center">
+        <div className="relative h-[150px] w-[150px]">
+          <div className="absolute inset-0 rounded-full border border-dashed border-gray-700" />
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-500 bg-blue-500/25 transition-all duration-700"
+            style={{ width: pct(aiScore), height: pct(aiScore) }}
+          />
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-pink-500 bg-pink-500/20 transition-all duration-700"
+            style={{ width: pct(selfScore), height: pct(selfScore) }}
+          />
+        </div>
+      </div>
+
+      <div className="mb-4 flex justify-center gap-6 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-pink-500" />
+          <span className="text-gray-400">
+            자가진단 평균 <span className="font-bold text-white">{selfScore}</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-blue-500" />
+          <span className="text-gray-400">
+            AI 분석 평균 <span className="font-bold text-white">{aiScore}</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
+        <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-500">
+          인식 격차 (자가 − AI)
+        </span>
+        <span
+          className={`text-2xl font-black ${gap > 0 ? 'text-pink-400' : gap < 0 ? 'text-blue-400' : 'text-gray-300'}`}
+        >
+          {gap > 0 ? '+' : ''}{gap}
+        </span>
+        <span className="mt-1 block text-xs text-gray-500">
+          {gap > 0.3
+            ? '실제 발현보다 스스로를 높게 평가하는 경향'
+            : gap < -0.3
+              ? '실제 발현보다 스스로를 낮게 평가하는 경향(과소 인식)'
+              : '자기 인식과 실제 발현이 대체로 일치'}
+          {` · 표본 ${sampleSize}명`}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// ----------------------------------------------------------------------
+// 4. Correlation Heatmap — 실제 피어슨 상관계수
 // ----------------------------------------------------------------------
 const CorrelationHeatmap = ({
   competencies,
@@ -193,6 +275,7 @@ const ReportsPage = () => {
   const competencies: { competency: string; average: number }[] = stats?.competencies || [];
   const correlations = stats?.correlations || [];
   const keywords = stats?.keywords || [];
+  const gapAnalysis = stats?.gap_analysis || { sample_size: 0, self_average: 0, ai_average: 0, by_competency: [] };
   const participantsCount = stats?.participants_count ?? 0;
   const totalAverage = stats?.total_average ?? 0;
 
@@ -291,19 +374,83 @@ const ReportsPage = () => {
               </div>
             </div>
 
-            {/* [섹션 3] 조직 DNA 키워드 */}
-            <div className="mb-8 rounded-[2.5rem] border border-white/10 bg-white/[0.03] p-8 backdrop-blur-sm">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">조직 DNA 키워드</h3>
-                <span className="rounded border border-indigo-500/30 bg-indigo-900/50 px-2 py-1 text-[10px] text-indigo-300">
-                  실제 리포트 {participantsCount}건 집계
-                </span>
+            {/* [섹션 3] 조직 DNA 키워드 & 인식의 차이 */}
+            <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
+              <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.03] p-8 backdrop-blur-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-white">조직 DNA 키워드</h3>
+                  <span className="rounded border border-indigo-500/30 bg-indigo-900/50 px-2 py-1 text-[10px] text-indigo-300">
+                    리포트 {participantsCount}건
+                  </span>
+                </div>
+                <KeywordNetworkChart keywords={keywords} />
+                <p className="mt-4 text-center text-sm text-gray-400">
+                  진단 리포트에서 추출된 핵심 키워드의 출현 빈도입니다. 원의 크기가 빈도에 비례합니다.
+                </p>
               </div>
-              <KeywordNetworkChart keywords={keywords} />
-              <p className="mt-4 text-center text-sm text-gray-400">
-                진단 리포트에서 추출된 핵심 키워드의 출현 빈도입니다. 원의 크기가 빈도에 비례합니다.
-              </p>
+
+              <div className="flex flex-col rounded-[2.5rem] border border-white/10 bg-white/[0.03] p-8 backdrop-blur-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-white">인식의 차이 (Gap Analysis)</h3>
+                  <span className="rounded border border-pink-500/30 bg-pink-900/50 px-2 py-1 text-[10px] text-pink-300">
+                    Self vs AI
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <GapComparisonChart
+                    selfScore={gapAnalysis.self_average ?? 0}
+                    aiScore={gapAnalysis.ai_average ?? 0}
+                    sampleSize={gapAnalysis.sample_size ?? 0}
+                  />
+                </div>
+                <p className="mt-4 text-center text-sm text-gray-400">
+                  진단 전 스스로 매긴 점수와 대화 분석 결과를 비교한 메타인지 지표입니다.
+                </p>
+              </div>
             </div>
+
+            {/* 역량별 인식 격차 */}
+            {gapAnalysis.sample_size > 0 && (
+              <div className="mb-8 rounded-[2.5rem] border border-white/10 bg-white/[0.03] p-8 backdrop-blur-sm">
+                <h3 className="mb-6 text-lg font-bold text-white">역량별 인식 격차</h3>
+                <div className="space-y-4">
+                  {(gapAnalysis.by_competency || [])
+                    .filter((g: any) => g.gap !== null)
+                    .map((g: any) => {
+                      const over = g.gap > 0;
+                      return (
+                        <div key={g.competency} className="flex flex-wrap items-center gap-4">
+                          <span className="w-28 shrink-0 text-sm font-bold text-gray-300">
+                            {g.competency}
+                          </span>
+                          <div className="flex flex-1 items-center gap-3 text-xs">
+                            <span className="w-16 text-right text-pink-300">자가 {g.self_score}</span>
+                            <div className="relative h-2 flex-1 rounded-full bg-gray-800">
+                              <div
+                                className="absolute inset-y-0 rounded-full bg-blue-500"
+                                style={{ width: `${(g.ai_score / 5) * 100}%` }}
+                              />
+                              <div
+                                className="absolute top-1/2 h-3.5 w-0.5 -translate-y-1/2 bg-pink-400"
+                                style={{ left: `${(g.self_score / 5) * 100}%` }}
+                              />
+                            </div>
+                            <span className="w-16 text-blue-300">AI {g.ai_score}</span>
+                          </div>
+                          <span
+                            className={`w-16 text-right text-sm font-black ${over ? 'text-pink-400' : 'text-blue-400'}`}
+                          >
+                            {over ? '+' : ''}{g.gap}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+                <p className="mt-5 text-xs text-gray-500">
+                  ※ 양수(+)는 실제 발현보다 스스로를 높게 평가한 역량, 음수(−)는 낮게 평가한 역량입니다.
+                </p>
+              </div>
+            )}
 
             {/* [섹션 4] 역량 상관관계 */}
             <div className="mb-12 rounded-[2.5rem] border border-white/10 bg-white/[0.03] p-8 backdrop-blur-sm">

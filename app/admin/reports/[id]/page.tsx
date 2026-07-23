@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import AdminLayout from '../../../../components/layouts/AdminLayout';
 import {
   Pencil, Save, X, Loader2, CheckCircle2, AlertCircle, ArrowLeft,
-  ExternalLink, ShieldCheck, History,
+  ExternalLink, ShieldCheck, History, UserCheck,
 } from 'lucide-react';
 import {
   fetchReportDetail, updateReport, fetchAiOriginal,
@@ -341,6 +341,72 @@ export default function ReportEditPage() {
           </span>
         </div>
       )}
+
+      {/* 대상자 자가진단 — 대화 시작 전 본인이 직접 입력한 내용 */}
+      <section className="mb-6 rounded-xl border border-pink-900/40 bg-pink-950/10 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-gray-200">
+            <UserCheck size={17} className="text-pink-400" /> 대상자 자가진단
+          </h3>
+          {report.self_assessment && (
+            <span className="rounded-md bg-pink-600/20 px-2.5 py-1 text-xs font-bold text-pink-300">
+              자가 평균 {report.self_assessment.self_average}점 · AI {Number(report.total_score).toFixed(1)}점
+            </span>
+          )}
+        </div>
+
+        {!report.self_assessment ? (
+          <p className="text-sm text-gray-500">
+            이 대상자는 자가진단을 제출하지 않았습니다. (진단 시작 전 단계에서 건너뛴 경우)
+          </p>
+        ) : (
+          <div className="space-y-5">
+            {/* 역량별 자가 점수 vs AI 점수 */}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(report.self_assessment.scores).map(([key, selfScore]) => {
+                const aiScore = report.radar_chart?.[key];
+                const gap = typeof aiScore === 'number' ? Number((selfScore - aiScore).toFixed(1)) : null;
+                return (
+                  <div key={key} className="rounded-lg border border-gray-700 bg-gray-900/60 px-4 py-3">
+                    <div className="mb-1.5 text-xs font-bold text-gray-400">{labels[key] || key}</div>
+                    <div className="flex items-baseline gap-2 text-sm">
+                      <span className="font-black text-pink-300">자가 {selfScore}</span>
+                      <span className="text-gray-600">/</span>
+                      <span className="font-black text-blue-300">
+                        AI {typeof aiScore === 'number' ? aiScore.toFixed(1) : '-'}
+                      </span>
+                      {gap !== null && (
+                        <span className={`ml-auto text-xs font-black ${gap > 0 ? 'text-pink-400' : gap < 0 ? 'text-blue-400' : 'text-gray-500'}`}>
+                          {gap > 0 ? '+' : ''}{gap}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 주관식 강약점 — 대상자 본인의 문장 */}
+            <div>
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500">
+                본인이 서술한 강점 &amp; 약점
+              </span>
+              {report.self_assessment.strength_weakness_text ? (
+                <blockquote className="rounded-lg border-l-4 border-pink-500/60 bg-gray-900/60 px-5 py-4 text-sm leading-relaxed text-gray-200">
+                  {report.self_assessment.strength_weakness_text}
+                </blockquote>
+              ) : (
+                <p className="text-sm text-gray-500">주관식 응답 없음</p>
+              )}
+              <p className="mt-2 text-xs text-gray-600">
+                ※ 대상자가 직접 작성한 원문입니다. 교정 대상이 아닙니다.
+                {report.self_assessment.submitted_at &&
+                  ` · 제출 ${new Date(report.self_assessment.submitted_at).toLocaleString('ko-KR')}`}
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* 종합 피드백 */}
       <section className="mb-6 rounded-xl border border-gray-700 bg-gray-800 p-6">
