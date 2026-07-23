@@ -149,6 +149,51 @@ export const fetchCompanies = async () => {
   return data;
 };
 
+export const createCompany = async (payload: {
+  name: string;
+  code: string;
+  contact_email?: string | null;
+}) => {
+  const { data } = await adminApi.post('/admin/companies', payload);
+  return data;
+};
+
+export interface IssuedAdmin {
+  id: string;
+  email: string;
+  name: string | null;
+  role: AdminRole;
+  company_id: string | null;
+  company_name: string | null;
+  /** 서버가 자동 생성한 임시 비밀번호. 이 응답에서만 확인 가능하다. */
+  generated_password: string | null;
+}
+
+/**
+ * HR 담당자(Client Admin) 계정 발급.
+ * password 를 넘기지 않으면 서버가 안전한 임시 비밀번호를 생성해 1회 반환한다.
+ */
+export const createAdminUser = async (payload: {
+  email: string;
+  company_id: string;
+  name?: string;
+  password?: string;
+  role?: AdminRole;
+}): Promise<IssuedAdmin> => {
+  const { data } = await adminApi.post('/admin/users', {
+    role: 'client_admin',
+    ...payload,
+  });
+  return data;
+};
+
+export const fetchAdminUsers = async (companyId?: string) => {
+  const { data } = await adminApi.get('/admin/users', {
+    params: companyId ? { company_id: companyId } : {},
+  });
+  return data;
+};
+
 export const downloadExcel = async () => {
   const res = await adminApi.get('/admin/export_excel', { responseType: 'blob' });
   const url = URL.createObjectURL(new Blob([res.data]));
