@@ -135,6 +135,58 @@ export const fetchReports = async (params: {
   return data;
 };
 
+// ---------------------------------------------------------------------------
+// Human-in-the-Loop: 리포트 교정
+// ---------------------------------------------------------------------------
+export interface ReportDetail {
+  id: string;
+  session_id: string;
+  user_name: string;
+  user_email: string | null;
+  company_name: string | null;
+  total_score: number;
+  summary: string;
+  radar_chart: Record<string, number>;
+  details: Record<string, any>;
+  top_keywords: any[];
+  blind_spot: string | null;
+  idp: string[];
+  created_at: string | null;
+  is_human_edited: boolean;
+  edited_at: string | null;
+  edited_by: string | null;
+  has_ai_original: boolean;
+}
+
+export interface ReportEditPayload {
+  summary?: string;
+  blind_spot?: string;
+  details?: Record<string, {
+    comment?: string;
+    strength_point?: string;
+    growth_point?: string;
+    gap_analysis?: string;
+    reasoning_process?: Record<string, { description?: string }>;
+  }>;
+}
+
+export const fetchReportDetail = async (reportId: string): Promise<ReportDetail> => {
+  const { data } = await adminApi.get(`/admin/reports/${reportId}`);
+  return data;
+};
+
+/** 교정 전 AI 원본 스냅샷 (교정 이력이 있는 리포트만 존재) */
+export const fetchAiOriginal = async (reportId: string) => {
+  const { data } = await adminApi.get(`/admin/reports/${reportId}/ai-original`);
+  return data;
+};
+
+/** 관리자 교정 저장. 변경된 필드만 보내는 부분 갱신 방식. */
+export const updateReport = async (reportId: string, payload: ReportEditPayload) => {
+  const { data } = await adminApi.put(`/reports/${reportId}`, payload);
+  return data;
+};
+
 export const fetchOverview = async (companyId?: string) => {
   const { data } = await adminApi.get('/admin/stats/overview', {
     params: companyId ? { company_id: companyId } : {},

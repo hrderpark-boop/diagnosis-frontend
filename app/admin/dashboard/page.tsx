@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout from '../../../components/layouts/AdminLayout';
-import { Download, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Download, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2, ShieldCheck } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer
 } from 'recharts';
@@ -197,12 +197,20 @@ export default function AdminDashboard() {
                   {r.created_at ? new Date(r.created_at).toLocaleDateString('ko-KR') : '-'}
                 </td>
                 <td className="px-4 py-4 text-center">
-                  <button
-                    onClick={() => router.push(`/report?session_id=${r.session_id}`)}
-                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-md transition hover:bg-blue-500"
-                  >
-                    리포트 보기
-                  </button>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <button
+                      onClick={() => router.push(`/admin/reports/${r.id}`)}
+                      className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-md transition hover:bg-blue-500"
+                      title="상세 확인 및 AI 피드백 교정"
+                    >
+                      상세/교정
+                    </button>
+                    {r.is_human_edited && (
+                      <span title="관리자 검수 완료" className="text-emerald-400">
+                        <ShieldCheck size={14} />
+                      </span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
