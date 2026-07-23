@@ -38,6 +38,8 @@ const SUPER_MENU: MenuItem[] = [
   { name: '고객사 관리', icon: Building2, href: '/super-admin/companies' },
   { name: '전체 참여자', icon: Users, href: '/admin/participants' },
   { name: '전체 리포트', icon: FileText, href: '/admin/reports' },
+  // 비밀번호 변경 등 개인 계정 설정은 두 권한 모두 필요하다
+  { name: '설정', icon: Settings, href: '/admin/settings' },
 ];
 
 const AdminLayout = ({ children }: { children: React.ReactNode }) => {

@@ -103,6 +103,18 @@ export const fetchMe = async (): Promise<AdminProfile> => {
   return data;
 };
 
+/**
+ * 본인 비밀번호 변경. 대상 계정은 서버가 JWT 로 판별하므로 여기서 보내지 않는다.
+ */
+export const changeMyPassword = async (payload: {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}) => {
+  const { data } = await adminApi.patch('/admin/users/me/password', payload);
+  return data;
+};
+
 export const fetchParticipants = async (params: {
   search?: string;
   page?: number;
