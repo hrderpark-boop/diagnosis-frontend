@@ -3,6 +3,7 @@
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
+import { COMPETENCY_ORDER, toKoreanCompetency } from '@/lib/competencyLabels';
 
 /**
  * 자가진단(Self-Assessment) — AI 코칭 대화 시작 직전 단계.
@@ -16,13 +17,19 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/a
 
 // 백엔드 COMPETENCY_FRAMEWORK 와 동일한 영문 키를 사용해야
 // AI 점수(radar_chart)와 역량 단위로 정렬 비교가 가능하다.
-const COMPETENCIES = [
-  { key: 'organization_management', name: '조직관리', desc: '조직의 방향을 세우고 체계를 만드는 역량' },
-  { key: 'performance_management', name: '성과관리', desc: '목표를 설정하고 성과를 이끌어내는 역량' },
-  { key: 'people_management', name: '사람관리', desc: '구성원을 육성하고 동기를 부여하는 역량' },
-  { key: 'work_management', name: '일관리', desc: '업무를 효율적으로 설계하고 실행하는 역량' },
-  { key: 'self_management', name: '자기관리', desc: '스스로를 성찰하고 지속 성장하는 역량' },
-];
+const COMPETENCY_DESCRIPTIONS: Record<string, string> = {
+  organization_management: '조직의 방향을 세우고 체계를 만드는 역량',
+  performance_management: '목표를 설정하고 성과를 이끌어내는 역량',
+  people_management: '구성원을 육성하고 동기를 부여하는 역량',
+  work_management: '업무를 효율적으로 설계하고 실행하는 역량',
+  self_management: '스스로를 성찰하고 지속 성장하는 역량',
+};
+
+const COMPETENCIES = COMPETENCY_ORDER.map((key) => ({
+  key,
+  name: toKoreanCompetency(key),
+  desc: COMPETENCY_DESCRIPTIONS[key],
+}));
 
 const SCORE_LABELS: Record<string, string> = {
   '1': '많이 부족해요',

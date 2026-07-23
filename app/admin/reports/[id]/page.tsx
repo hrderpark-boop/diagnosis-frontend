@@ -11,7 +11,7 @@ import {
   fetchReportDetail, updateReport, fetchAiOriginal,
   ReportDetail, ReportEditPayload,
 } from '@/lib/adminApi';
-import { getKeyToNameMap } from '@/lib/framework';
+import { toKoreanCompetency } from '@/lib/competencyLabels';
 
 /**
  * 리포트 상세 + AI 피드백 교정 (Human-in-the-Loop).
@@ -60,7 +60,6 @@ export default function ReportEditPage() {
   const reportId = String(params?.id || '');
 
   const [report, setReport] = useState<ReportDetail | null>(null);
-  const [labels, setLabels] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -97,12 +96,8 @@ export default function ReportEditPage() {
     setLoading(true);
     setError('');
     try {
-      const [data, labelMap] = await Promise.all([
-        fetchReportDetail(reportId),
-        getKeyToNameMap().catch(() => ({} as Record<string, string>)),
-      ]);
+      const data = await fetchReportDetail(reportId);
       setReport(data);
-      setLabels(labelMap);
       setDraft(buildDraft(data));
       setSummaryDraft(data.summary || '');
     } catch (err: any) {
@@ -368,7 +363,7 @@ export default function ReportEditPage() {
                 const gap = typeof aiScore === 'number' ? Number((selfScore - aiScore).toFixed(1)) : null;
                 return (
                   <div key={key} className="rounded-lg border border-gray-700 bg-gray-900/60 px-4 py-3">
-                    <div className="mb-1.5 text-xs font-bold text-gray-400">{labels[key] || key}</div>
+                    <div className="mb-1.5 text-xs font-bold text-gray-400">{toKoreanCompetency(key)}</div>
                     <div className="flex items-baseline gap-2 text-sm">
                       <span className="font-black text-pink-300">자가 {selfScore}</span>
                       <span className="text-gray-600">/</span>
@@ -435,7 +430,7 @@ export default function ReportEditPage() {
       <div className="space-y-6">
         {Object.entries(report.details || {}).map(([compKey, value]: [string, any]) => {
           if (!value || typeof value !== 'object') return null;
-          const label = labels[compKey] || compKey;
+          const label = toKoreanCompetency(compKey);
           const d = draft[compKey];
           const orig = originalView?.details?.[compKey];
 
