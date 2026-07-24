@@ -5,9 +5,7 @@ import AdminLayout from '../../../components/layouts/AdminLayout';
 import { Download, TrendingUp, Users, Loader2, ChevronDown } from 'lucide-react';
 import { Treemap, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { fetchCompetencyStats, fetchOverview, downloadExcel } from '@/lib/adminApi';
-import {
-  toKoreanCompetency, toShortCompetency, sortByCompetencyOrder,
-} from '@/lib/competencyLabels';
+import { toKoreanCompetency, sortByCompetencyOrder } from '@/lib/competencyLabels';
 
 /**
  * 종합 리포트 (조직 단위 집계).
@@ -21,10 +19,12 @@ import {
 // 1. Radar Chart — 전사 역량 밸런스
 // ----------------------------------------------------------------------
 const RadarChart = ({ data }: { data: { competency: string; average: number }[] }) => {
-  const stats = data.map((d) => ({ label: toShortCompetency(d.competency), value: d.average }));
-  const size = 300;
+  // 축약형('조직') 대신 풀네임('조직 관리')으로 표기
+  const stats = data.map((d) => ({ label: toKoreanCompetency(d.competency), value: d.average }));
+  // 차트 확대: 300 → 380 (반경 90 → 118)
+  const size = 380;
   const center = size / 2;
-  const radius = 90;
+  const radius = 118;
   const angleStep = (Math.PI * 2) / Math.max(1, stats.length);
 
   const getPoint = (value: number, index: number) => {
@@ -35,21 +35,34 @@ const RadarChart = ({ data }: { data: { competency: string; average: number }[] 
   const points = stats.map((stat, i) => getPoint(stat.value, i)).map((p) => `${p.x},${p.y}`).join(" ");
 
   if (stats.length === 0) {
-    return <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">집계할 리포트가 없습니다.</div>;
+    return <div className="flex h-[380px] items-center justify-center text-sm text-gray-500">집계할 리포트가 없습니다.</div>;
   }
 
   return (
-    <div className="relative flex items-center justify-center py-4">
-      <svg width={size} height={size} className="overflow-visible">
+    <div className="relative flex w-full items-center justify-center py-2">
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        className="h-auto w-full max-w-[420px] overflow-visible"
+      >
         {[1, 2, 3, 4, 5].map((level) => (
           <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#ffffff" strokeOpacity="0.1" strokeWidth="1" />
         ))}
         {stats.map((_, i) => { const p = getPoint(5, i); return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#ffffff" strokeOpacity="0.1" />; })}
-        <polygon points={points} fill="rgba(59, 130, 246, 0.4)" stroke="#60a5fa" strokeWidth="2" filter="url(#glow)" />
-        {stats.map((stat, i) => { const p = getPoint(stat.value, i); return <circle key={i} cx={p.x} cy={p.y} r="3" fill="#93c5fd" />; })}
+        <polygon points={points} fill="rgba(59, 130, 246, 0.4)" stroke="#60a5fa" strokeWidth="2.5" filter="url(#glow)" />
+        {stats.map((stat, i) => { const p = getPoint(stat.value, i); return <circle key={i} cx={p.x} cy={p.y} r="4" fill="#93c5fd" />; })}
         {stats.map((stat, i) => {
-          const p = getPoint(6, i);
-          return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="#9ca3af" fontSize="12" fontWeight="bold">{stat.label}</text>;
+          // 풀네임이 길어진 만큼 라벨을 살짝 바깥으로 밀어 도형과 겹치지 않게 한다
+          const p = getPoint(5.9, i);
+          return (
+            <g key={i}>
+              <text x={p.x} y={p.y - 8} textAnchor="middle" dominantBaseline="middle" fill="#cbd5e1" fontSize="14" fontWeight="bold">
+                {stat.label}
+              </text>
+              <text x={p.x} y={p.y + 9} textAnchor="middle" dominantBaseline="middle" fill="#60a5fa" fontSize="13" fontWeight="800">
+                {stat.value.toFixed(1)}
+              </text>
+            </g>
+          );
         })}
         <defs><filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur" /><feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
       </svg>
@@ -60,22 +73,55 @@ const RadarChart = ({ data }: { data: { competency: string; average: number }[] 
 // ----------------------------------------------------------------------
 // 2. 조직 DNA — Treemap (빈도가 높을수록 큰 사각형)
 // ----------------------------------------------------------------------
-const TREEMAP_COLORS = ['#1d4ed8', '#2563eb', '#4f46e5', '#6366f1', '#7c3aed', '#8b5cf6', '#0ea5e9', '#0284c7'];
+/**
+ * 트리맵 셀 색상: 파랑 단일 색조의 '음영'만으로 순위를 표현한다.
+ * (여러 색을 섞으면 색상 자체가 범주를 뜻하는 것처럼 오해되고 시인성도 떨어진다)
+ * 빈도가 높은 칸일수록 진하고, 낮을수록 옅어진다.
+ */
+const cellColor = (rank: number, total: number) => {
+  const ratio = total <= 1 ? 0 : rank / (total - 1);   // 0(최다) → 1(최소)
+  const lightness = 30 + ratio * 34;                    // 30% → 64%
+  const saturation = 80 - ratio * 18;                   // 80% → 62%
+  return `hsl(214, ${saturation}%, ${lightness}%)`;
+};
+
+/** 한글 기준 글자 폭 근사치(폰트 크기 대비 비율) */
+const CHAR_WIDTH_RATIO = 1.02;
 
 const TreemapCell = (props: any) => {
-  const { x, y, width, height, index, name, count } = props;
-  if (width <= 0 || height <= 0) return null;
+  const { x, y, width, height, index, name, count, total } = props;
+  if (!width || !height || width <= 0 || height <= 0) return null;
 
-  // 사각형이 작으면 라벨이 넘쳐 깨지므로 표시 여부를 크기로 판단한다
-  const showLabel = width > 54 && height > 32;
-  const showCount = width > 70 && height > 50;
+  const PAD = 6;
+  const availW = width - PAD * 2;
+  const availH = height - PAD * 2;
+
+  // 1) 높이에 맞춘 기본 폰트 크기 → 2) 폭에 맞춰 축소
+  const label = String(name ?? '');
+  const byHeight = Math.min(17, availH * 0.34);
+  const byWidth = label.length > 0 ? availW / (label.length * CHAR_WIDTH_RATIO) : 0;
+  let fontSize = Math.floor(Math.min(byHeight, byWidth));
+
+  // 폭이 부족하면 말줄임으로 잘라 도형 밖으로 넘치지 않게 한다
+  let display = label;
+  if (fontSize < 10 && availW > 0 && availH >= 16) {
+    const maxChars = Math.floor(availW / (10 * CHAR_WIDTH_RATIO));
+    if (maxChars >= 2) {
+      fontSize = 10;
+      display = label.length > maxChars ? `${label.slice(0, maxChars - 1)}…` : label;
+    }
+  }
+
+  const showLabel = fontSize >= 10 && availH >= 16 && display.length > 0;
+  // 횟수는 라벨과 겹치지 않을 만큼 세로 여유가 있을 때만
+  const showCount = showLabel && availH >= fontSize + 20 && availW >= 34;
 
   return (
     <g>
       <rect
         x={x} y={y} width={width} height={height}
         style={{
-          fill: TREEMAP_COLORS[index % TREEMAP_COLORS.length],
+          fill: cellColor(index ?? 0, total ?? 1),
           stroke: '#0f172a',
           strokeWidth: 3,
         }}
@@ -83,24 +129,26 @@ const TreemapCell = (props: any) => {
       {showLabel && (
         <text
           x={x + width / 2}
-          y={y + height / 2 - (showCount ? 7 : 0)}
+          y={y + height / 2 - (showCount ? fontSize * 0.55 : 0)}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill="#fff"
-          fontSize={Math.min(16, Math.max(11, width / 7))}
+          fill="#ffffff"
+          fontSize={fontSize}
           fontWeight="bold"
+          style={{ pointerEvents: 'none' }}
         >
-          {name}
+          {display}
         </text>
       )}
       {showCount && (
         <text
           x={x + width / 2}
-          y={y + height / 2 + 12}
+          y={y + height / 2 + fontSize * 0.75}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill="rgba(255,255,255,0.75)"
-          fontSize="11"
+          fill="rgba(255,255,255,0.8)"
+          fontSize={Math.max(10, Math.min(12, fontSize - 2))}
+          style={{ pointerEvents: 'none' }}
         >
           {count}회
         </text>
@@ -118,25 +166,42 @@ const KeywordTreemap = ({ keywords }: { keywords: { keyword: string; count: numb
     );
   }
 
-  const data = keywords.map((k) => ({ name: k.keyword, size: k.count, count: k.count }));
+  // 빈도 내림차순으로 정렬해야 음영(진함→옅음)이 순위와 일치한다
+  const sorted = [...keywords].sort((a, b) => b.count - a.count);
+  const data = sorted.map((k) => ({ name: k.keyword, size: k.count, count: k.count }));
 
   return (
-    <div className="h-[320px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <Treemap
-          data={data}
-          dataKey="size"
-          aspectRatio={4 / 3}
-          stroke="#0f172a"
-          content={<TreemapCell />}
-        >
-          <RechartsTooltip
-            contentStyle={{ backgroundColor: '#1F2937', borderRadius: '8px', border: '1px solid #374151' }}
-            formatter={(value: any) => [`${value}회 언급`, '출현 빈도']}
-          />
-        </Treemap>
-      </ResponsiveContainer>
-    </div>
+    <>
+      <div className="h-[380px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <Treemap
+            data={data}
+            dataKey="size"
+            aspectRatio={4 / 3}
+            stroke="#0f172a"
+            content={<TreemapCell total={data.length} />}
+          >
+            <RechartsTooltip
+              contentStyle={{ backgroundColor: '#1F2937', borderRadius: '8px', border: '1px solid #374151' }}
+              formatter={(value: any) => [`${value}회 언급`, '출현 빈도']}
+            />
+          </Treemap>
+        </ResponsiveContainer>
+      </div>
+
+      {/* 칸이 작아 라벨이 생략된 키워드도 확인할 수 있도록 목록을 함께 제공 */}
+      <div className="mt-4 flex flex-wrap justify-center gap-2">
+        {sorted.map((k, i) => (
+          <span
+            key={k.keyword}
+            className="rounded-md px-2.5 py-1 text-xs font-semibold text-white"
+            style={{ backgroundColor: cellColor(i, sorted.length) }}
+          >
+            {k.keyword} <span className="opacity-70">{k.count}</span>
+          </span>
+        ))}
+      </div>
+    </>
   );
 };
 
@@ -242,18 +307,18 @@ const CorrelationHeatmap = ({
       {/* 셀 크기 확대(2.5rem → 4rem)로 가독성 확보 */}
       <div
         className="grid gap-1.5"
-        style={{ gridTemplateColumns: `5rem repeat(${competencies.length}, minmax(0, 4rem))` }}
+        style={{ gridTemplateColumns: `6rem repeat(${competencies.length}, minmax(0, 4.5rem))` }}
       >
-        <div className="h-16 w-20" />
+        <div className="h-16 w-24" />
         {competencies.map((l) => (
-          <div key={l} className="flex h-16 items-center justify-center text-xs font-bold text-gray-400">
-            {toShortCompetency(l)}
+          <div key={l} className="flex h-16 items-center justify-center px-0.5 text-center text-[11px] font-bold leading-tight text-gray-400">
+            {toKoreanCompetency(l)}
           </div>
         ))}
         {competencies.map((rowName) => (
           <Fragment key={rowName}>
-            <div className="flex h-16 w-20 items-center justify-end pr-2 text-xs font-bold text-gray-400">
-              {toShortCompetency(rowName)}
+            <div className="flex h-16 w-24 items-center justify-end pr-2 text-right text-[11px] font-bold leading-tight text-gray-400">
+              {toKoreanCompetency(rowName)}
             </div>
             {competencies.map((colName) => {
               const isSelf = rowName === colName;
