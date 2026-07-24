@@ -85,73 +85,45 @@ const cellColor = (rank: number, total: number) => {
   return `hsl(214, ${saturation}%, ${lightness}%)`;
 };
 
-/** 한글 기준 글자 폭 근사치(폰트 크기 대비 비율) */
-const CHAR_WIDTH_RATIO = 1.02;
-
 const TreemapCell = (props: any) => {
   const { x, y, width, height, index, name, count, total } = props;
   if (!width || !height || width <= 0 || height <= 0) return null;
 
-  const PAD = 6;
-  const availW = width - PAD * 2;
-  const availH = height - PAD * 2;
-
-  // 1) 높이에 맞춘 기본 폰트 크기 → 2) 폭에 맞춰 축소
-  const label = String(name ?? '');
-  const byHeight = Math.min(17, availH * 0.34);
-  const byWidth = label.length > 0 ? availW / (label.length * CHAR_WIDTH_RATIO) : 0;
-  let fontSize = Math.floor(Math.min(byHeight, byWidth));
-
-  // 폭이 부족하면 말줄임으로 잘라 도형 밖으로 넘치지 않게 한다
-  let display = label;
-  if (fontSize < 10 && availW > 0 && availH >= 16) {
-    const maxChars = Math.floor(availW / (10 * CHAR_WIDTH_RATIO));
-    if (maxChars >= 2) {
-      fontSize = 10;
-      display = label.length > maxChars ? `${label.slice(0, maxChars - 1)}…` : label;
-    }
-  }
-
-  const showLabel = fontSize >= 10 && availH >= 16 && display.length > 0;
-  // 횟수는 라벨과 겹치지 않을 만큼 세로 여유가 있을 때만
-  const showCount = showLabel && availH >= fontSize + 20 && availW >= 34;
+  // 텍스트를 SVG <text> 가 아닌 foreignObject 안의 HTML 로 렌더링한다.
+  // 그래야 상관관계 매트릭스(HTML div)와 동일한 선명한 서브픽셀 텍스트가 되고,
+  // truncate(CSS ellipsis) 로 넘침이 자동 처리된다. text-shadow·stroke 없음.
+  const showText = width > 40 && height > 24;
+  // 폰트는 셀 높이에 비례. 폭 넘침은 truncate 가 처리하므로 폭 계산 불필요.
+  const fontSize = Math.round(Math.min(16, Math.max(11, height * 0.2)));
+  const showCount = height > 52 && width > 50;
 
   return (
     <g>
+      {/* 칸 구분선: 배경(slate-950)과 같은 색의 얇은 stroke = 여백처럼 보임 */}
       <rect
         x={x} y={y} width={width} height={height}
         style={{
           fill: cellColor(index ?? 0, total ?? 1),
           stroke: '#0f172a',
-          strokeWidth: 3,
+          strokeWidth: 2,
         }}
       />
-      {showLabel && (
-        <text
-          x={x + width / 2}
-          y={y + height / 2 - (showCount ? fontSize * 0.55 : 0)}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="#ffffff"
-          fontSize={fontSize}
-          fontWeight="bold"
-          style={{ pointerEvents: 'none' }}
-        >
-          {display}
-        </text>
-      )}
-      {showCount && (
-        <text
-          x={x + width / 2}
-          y={y + height / 2 + fontSize * 0.75}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="rgba(255,255,255,0.8)"
-          fontSize={Math.max(10, Math.min(12, fontSize - 2))}
-          style={{ pointerEvents: 'none' }}
-        >
-          {count}회
-        </text>
+      {showText && (
+        <foreignObject x={x} y={y} width={width} height={height} style={{ pointerEvents: 'none' }}>
+          <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden px-2 text-center leading-tight">
+            <span
+              className="w-full truncate font-bold text-white"
+              style={{ fontSize, textShadow: 'none' }}
+            >
+              {name}
+            </span>
+            {showCount && (
+              <span className="mt-0.5 font-semibold text-white/75" style={{ fontSize: 11 }}>
+                {count}회
+              </span>
+            )}
+          </div>
+        </foreignObject>
       )}
     </g>
   );
@@ -307,17 +279,17 @@ const CorrelationHeatmap = ({
       {/* 셀 크기 확대(2.5rem → 4rem)로 가독성 확보 */}
       <div
         className="grid gap-1.5"
-        style={{ gridTemplateColumns: `6rem repeat(${competencies.length}, minmax(0, 4.5rem))` }}
+        style={{ gridTemplateColumns: `6rem repeat(${competencies.length}, minmax(0, 5rem))` }}
       >
-        <div className="h-16 w-24" />
+        <div className="h-[4.5rem] w-24" />
         {competencies.map((l) => (
-          <div key={l} className="flex h-16 items-center justify-center px-0.5 text-center text-[11px] font-bold leading-tight text-gray-400">
+          <div key={l} className="flex h-[4.5rem] items-center justify-center px-0.5 text-center text-[11px] font-bold leading-tight text-gray-400">
             {toKoreanCompetency(l)}
           </div>
         ))}
         {competencies.map((rowName) => (
           <Fragment key={rowName}>
-            <div className="flex h-16 w-24 items-center justify-end pr-2 text-right text-[11px] font-bold leading-tight text-gray-400">
+            <div className="flex h-[4.5rem] w-24 items-center justify-end pr-2 text-right text-[11px] font-bold leading-tight text-gray-400">
               {toKoreanCompetency(rowName)}
             </div>
             {competencies.map((colName) => {
@@ -327,7 +299,7 @@ const CorrelationHeatmap = ({
                 <div
                   key={`${rowName}-${colName}`}
                   title={isSelf ? '' : `${toKoreanCompetency(rowName)} ↔ ${toKoreanCompetency(colName)}: ${val ?? '표본 부족'}`}
-                  className="flex h-16 cursor-default items-center justify-center rounded-lg text-sm font-bold text-white transition-all hover:scale-105"
+                  className="flex h-[4.5rem] cursor-default items-center justify-center rounded-lg text-base font-bold text-white transition-all hover:scale-105"
                   style={{ backgroundColor: isSelf ? 'rgba(255,255,255,0.08)' : getColor(val) }}
                 >
                   {isSelf ? '–' : (val ?? '·')}
@@ -832,15 +804,15 @@ const ReportsPage = () => {
                 <h3 className="text-lg font-bold text-white">역량 간 상관관계 분석</h3>
                 <p className="text-sm text-gray-500">피어슨 상관계수 (파랑: 양의 상관 / 분홍: 음의 상관)</p>
               </div>
-              {/* 좌: 매트릭스(좌측 정렬) / 우: 인사이트(넓게) */}
+              {/* 좌: 매트릭스(좌측 정렬, 5칸) / 우: 인사이트(넓게, 7칸) */}
               <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
-                <div className="flex justify-start lg:col-span-6">
+                <div className="flex justify-start lg:col-span-5">
                   <CorrelationHeatmap
                     competencies={competencies.map((c) => c.competency)}
                     correlations={correlations}
                   />
                 </div>
-                <div className="lg:col-span-6">
+                <div className="lg:col-span-7">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
                     <p className="mb-3 flex items-center gap-2 text-base font-bold text-white">
                       💡 인사이트
