@@ -89,13 +89,21 @@ const TreemapCell = (props: any) => {
   const { x, y, width, height, index, name, count, total } = props;
   if (!width || !height || width <= 0 || height <= 0) return null;
 
-  // 텍스트를 SVG <text> 가 아닌 foreignObject 안의 HTML 로 렌더링한다.
-  // 그래야 상관관계 매트릭스(HTML div)와 동일한 선명한 서브픽셀 텍스트가 되고,
-  // truncate(CSS ellipsis) 로 넘침이 자동 처리된다. text-shadow·stroke 없음.
-  const showText = width > 40 && height > 24;
-  // 폰트는 셀 높이에 비례. 폭 넘침은 truncate 가 처리하므로 폭 계산 불필요.
-  const fontSize = Math.round(Math.min(16, Math.max(11, height * 0.2)));
-  const showCount = height > 52 && width > 50;
+  // 텍스트는 SVG <text> 가 아닌 foreignObject 안의 HTML 로 렌더링한다.
+  // 말줄임(...) 대신 여러 줄로 자연스럽게 줄바꿈(overflow-wrap: break-word)해
+  // 좁은 칸에서도 키워드 전체가 보이도록 한다. 상관관계 매트릭스와 동일한
+  // 선명한 HTML 텍스트(solid white), text-shadow·stroke 없음.
+
+  // 반응형 방어: 너무 작은 칸은 텍스트를 숨긴다(UI 깨짐 방지).
+  const showText = width > 30 && height > 20;
+
+  // 폰트는 셀의 '짧은 변'에 비례시켜, 좁고 긴 칸에서 글자가 넘치지 않게 한다.
+  const base = Math.min(width, height);
+  const fontSize = Math.round(Math.min(15, Math.max(9, base * 0.24)));
+  // 줄바꿈되며 세로로 늘어나므로, 세로 여유가 넉넉할 때만 '횟수'를 병기한다.
+  const showCount = height > 54 && width > 44;
+  // 아주 작은 칸에서는 라벨을 한 줄로만(2줄이면 넘칠 수 있어) 제한한다.
+  const maxLines = height < 40 ? 1 : height < 70 ? 2 : 3;
 
   return (
     <g>
@@ -110,15 +118,41 @@ const TreemapCell = (props: any) => {
       />
       {showText && (
         <foreignObject x={x} y={y} width={width} height={height} style={{ pointerEvents: 'none' }}>
-          <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden px-2 text-center leading-tight">
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: '4px',
+              boxSizing: 'border-box',
+              overflow: 'hidden',
+              lineHeight: 1.15,
+            }}
+          >
             <span
-              className="w-full truncate font-bold text-white"
-              style={{ fontSize, textShadow: 'none' }}
+              style={{
+                fontSize,
+                fontWeight: 700,
+                color: '#ffffff',
+                textShadow: 'none',
+                // 상자 밖으로 삐져나가지 않도록 강제 줄바꿈
+                overflowWrap: 'break-word',
+                wordBreak: 'break-word',
+                // 최대 줄 수를 넘으면 말줄임(최후의 방어선)
+                display: '-webkit-box',
+                WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: maxLines,
+                overflow: 'hidden',
+              }}
             >
               {name}
             </span>
             {showCount && (
-              <span className="mt-0.5 font-semibold text-white/75" style={{ fontSize: 11 }}>
+              <span style={{ marginTop: 2, fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>
                 {count}회
               </span>
             )}
