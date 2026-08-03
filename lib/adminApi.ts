@@ -125,6 +125,27 @@ export const fetchParticipants = async (params: {
   return data;
 };
 
+export interface TranscriptMessage {
+  role: string;        // "user"(대상자) | "model"(코치)
+  content: string;
+  chapter: string | null;
+  created_at: string | null;
+}
+
+export interface SessionTranscript {
+  session_id: string;
+  user_name: string;
+  status: string;
+  current_topic: string | null;
+  messages: TranscriptMessage[];
+}
+
+/** 세션 전체 대화 원문 (대화 모달 뷰어용) */
+export const fetchTranscript = async (sessionId: string): Promise<SessionTranscript> => {
+  const { data } = await adminApi.get(`/admin/sessions/${sessionId}/transcript`);
+  return data;
+};
+
 export const fetchReports = async (params: {
   search?: string;
   page?: number;

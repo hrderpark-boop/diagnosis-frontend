@@ -5,8 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import AdminLayout from '../../../../components/layouts/AdminLayout';
 import {
   Pencil, Save, X, Loader2, CheckCircle2, AlertCircle, ArrowLeft,
-  ExternalLink, ShieldCheck, History, UserCheck,
+  ExternalLink, ShieldCheck, History, UserCheck, MessageSquare,
 } from 'lucide-react';
+import TranscriptModal from '../../../../components/admin/TranscriptModal';
 import {
   fetchReportDetail, updateReport, fetchAiOriginal,
   ReportDetail, ReportEditPayload,
@@ -71,6 +72,7 @@ export default function ReportEditPage() {
 
   const [originalView, setOriginalView] = useState<any>(null);
   const [loadingOriginal, setLoadingOriginal] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   // 현재 리포트 값으로 편집 초안을 만든다.
   const buildDraft = useCallback((data: ReportDetail): Draft => {
@@ -264,6 +266,14 @@ export default function ReportEditPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {/* 💬 전체 대화 기록 보기 — 눈에 띄는 강조 버튼 */}
+            <button
+              onClick={() => setTranscriptOpen(true)}
+              className="flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-900/30 transition hover:bg-indigo-500"
+            >
+              <MessageSquare size={15} className="mr-1.5" /> 💬 전체 대화 기록 보기
+            </button>
+
             <a
               href={`/report?session_id=${report.session_id}`}
               target="_blank"
@@ -572,6 +582,13 @@ export default function ReportEditPage() {
           );
         })}
       </div>
+
+      {/* 전체 대화 기록 모달 */}
+      <TranscriptModal
+        sessionId={report.session_id}
+        open={transcriptOpen}
+        onClose={() => setTranscriptOpen(false)}
+      />
     </AdminLayout>
   );
 }
