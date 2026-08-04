@@ -108,6 +108,8 @@ function ChatContent() {
 
   // 세션 상태 재동기화(Sync) / 단계 인지용
   const [sessionStatus, setSessionStatus] = useState<string>('in_progress');
+  // 3-Strike 강제 종료 등 '영구 종료' 상태 — 입력창을 잠근다(재개 불가).
+  const [isTerminated, setIsTerminated] = useState(false);
   const [hasNextChapter, setHasNextChapter] = useState(false);
   const [nextTopic, setNextTopic] = useState<string | null>(null);
   const [justCompletedTopic, setJustCompletedTopic] = useState(false);
@@ -193,7 +195,8 @@ function ChatContent() {
   // 4. 메시지 전송 (override 를 주면 입력창 대신 그 텍스트로 전송 — 계속하기/다음챕터 버튼용)
   const sendMessage = async (override?: string) => {
     const userMsg = (override ?? input).trim();
-    if (!userMsg || isLoading) return;
+    // 영구 종료(3-Strike/완료) 후에는 어떤 경로(엔터·버튼·override)로도 전송 차단.
+    if (!userMsg || isLoading || isTerminated) return;
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     if (override === undefined) setInput("");
     setIsLoading(true);
@@ -223,8 +226,19 @@ function ChatContent() {
       // 배지는 절대 사라지면 안 됨 — 기존 획득분과 합집합으로 누적 유지
       setCompletedTopics(prev => Array.from(new Set([...prev, ...completedList])));
 
+      // 3-Strike 강제 종료 / 완료 → 영구 종료(입력창 잠금).
+      const terminated =
+        res.data.is_terminated === true ||
+        res.data.session_status === 'aborted' ||
+        sessionCompleted;
+      if (terminated) setIsTerminated(true);
+
       // 현재 단계 반영
-      setSessionStatus(isPaused ? 'paused' : (sessionCompleted ? 'completed' : 'in_progress'));
+      setSessionStatus(
+        res.data.session_status === 'aborted' ? 'aborted'
+          : isPaused ? 'paused'
+          : (sessionCompleted ? 'completed' : 'in_progress')
+      );
       setHasNextChapter(nextExists);
       setNextTopic(res.data.next_topic || null);
       // 챕터 경계 '계속/휴식' 선택 대기 — 선택 버튼 노출
@@ -497,24 +511,33 @@ function ChatContent() {
               </div>
             )}
 
-            {/* 입력창 */}
+            {/* 입력창 — 세션이 영구 종료(3-Strike/완료)되면 잠금 */}
             <div className="p-6 pt-2">
-              <div className="relative group bg-white border border-gray-200 rounded-[24px] flex items-end shadow-xl">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="대화를 입력하세요..."
-                  rows={1}
-                  className="w-full bg-transparent text-gray-900 px-6 py-4 focus:outline-none resize-none max-h-[150px] custom-scrollbar"
-                />
-                <button onClick={() => sendMessage()} disabled={isLoading || !input.trim()} className="mb-2 mr-2 p-2.5 bg-blue-600 rounded-full disabled:opacity-50">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
-                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                  </svg>
-                </button>
-              </div>
+              {isTerminated ? (
+                <div className="rounded-[24px] border border-gray-200 bg-gray-100 px-6 py-4 text-center text-sm font-semibold text-gray-500">
+                  {sessionStatus === 'aborted'
+                    ? '이 진단은 종료되었습니다. 준비가 되셨을 때 다시 접속해 주세요.'
+                    : '진단이 완료되어 대화가 종료되었습니다.'}
+                </div>
+              ) : (
+                <div className="relative group bg-white border border-gray-200 rounded-[24px] flex items-end shadow-xl">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="대화를 입력하세요..."
+                    rows={1}
+                    disabled={isTerminated}
+                    className="w-full bg-transparent text-gray-900 px-6 py-4 focus:outline-none resize-none max-h-[150px] custom-scrollbar disabled:cursor-not-allowed"
+                  />
+                  <button onClick={() => sendMessage()} disabled={isLoading || isTerminated || !input.trim()} className="mb-2 mr-2 p-2.5 bg-blue-600 rounded-full disabled:opacity-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
+                      <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </section>
