@@ -25,12 +25,16 @@ const STATUS_STYLE: Record<string, string> = {
   completed: 'bg-green-900/50 text-green-400',
   in_progress: 'bg-blue-900/50 text-blue-400',
   paused: 'bg-amber-900/50 text-amber-400',
+  incomplete: 'bg-rose-900/50 text-rose-300',
+  aborted: 'bg-rose-900/50 text-rose-300',
   미시작: 'bg-gray-700/50 text-gray-400',
 };
 const STATUS_LABEL: Record<string, string> = {
   completed: '완료',
   in_progress: '진행 중',
   paused: '일시중지',
+  incomplete: '미완료',
+  aborted: '중단됨',
   미시작: '미시작',
 };
 
