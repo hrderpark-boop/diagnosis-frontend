@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { X, Loader2, MessageSquare, User, Bot } from 'lucide-react';
+import { X, Loader2, MessageSquare, User } from 'lucide-react';
 import { fetchTranscript, SessionTranscript, TranscriptMessage } from '@/lib/adminApi';
 
 /**
@@ -118,9 +118,10 @@ export default function TranscriptModal({ sessionId, open, onClose }: Transcript
                 return (
                   <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                     <div className={`flex max-w-[80%] items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-                      {/* 아바타 */}
-                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isUser ? 'bg-blue-600' : 'bg-gray-700'}`}>
-                        {isUser ? <User size={15} className="text-white" /> : <Bot size={15} className="text-blue-300" />}
+                      {/* 아바타 — 대상자·코치 모두 사람(User) 아이콘.
+                          배경색으로 구분: 대상자=파랑, 코치=차분한 짙은 남색(slate) */}
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isUser ? 'bg-blue-600' : 'bg-slate-600'}`}>
+                        {isUser ? <User size={15} className="text-white" /> : <User size={15} className="text-slate-200" />}
                       </div>
                       {/* 말풍선 */}
                       <div
