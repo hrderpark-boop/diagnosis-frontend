@@ -266,7 +266,9 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
     const raw = reasoning[key];
     if (!raw) return null;
     if (typeof raw === "string") return { description: raw, evidence: [] as string[] };
-    return { description: raw.description || "", evidence: (raw.evidence || []) as string[] };
+    // quotes(신규 스키마) 우선, evidence(구 필드) 폴백
+    const ev = (raw.quotes || raw.evidence || []) as string[];
+    return { description: raw.description || "", evidence: ev };
   };
 
   return (
@@ -287,10 +289,13 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
               </span>
               <p className="text-base text-slate-700 leading-loose">{step.description}</p>
               {step.evidence.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
-                  <span className="block text-xs font-black text-slate-400 uppercase tracking-wider">관련 대화 발췌</span>
+                <div className="mt-4 rounded-lg bg-slate-100 border border-slate-200 p-4 space-y-2.5">
+                  <span className="flex items-center gap-1.5 text-xs font-black text-slate-500 uppercase tracking-wider">
+                    <span className="inline-block h-3 w-1 rounded-sm bg-slate-400" />
+                    관련 대화 발췌
+                  </span>
                   {step.evidence.map((ev: string, i: number) => (
-                    <p key={i} className="text-slate-600 text-base font-medium italic leading-loose border-l-2 border-slate-400 pl-4 py-0.5">"{ev}"</p>
+                    <p key={i} className="text-slate-600 text-sm font-medium italic leading-relaxed border-l-2 border-slate-300 pl-3">&ldquo;{ev}&rdquo;</p>
                   ))}
                 </div>
               )}
@@ -437,8 +442,10 @@ function ReportContent() {
       let isFirstPage = true;
 
       for (const block of blocks) {
+        // 📉 PDF 경량화: scale 2→1.5 (해상도 충분·용량 절감),
+        //    캡처 시 pdf-mode 클래스로 그림자·그라데이션·애니메이션 제거.
         const canvas = await html2canvas(block, {
-          scale: 2,
+          scale: 1.5,
           backgroundColor: '#ffffff',
           useCORS: true,
           logging: false,
@@ -458,7 +465,12 @@ function ReportContent() {
         if (!isFirstPage) pdf.addPage();
         isFirstPage = false;
 
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, margin, drawWidth, drawHeight);
+        // 📉 PNG → JPEG(quality 0.82): 무손실 PNG 대비 용량을 대폭 줄인다
+        //    (텍스트·차트 가독성은 유지되는 수준). 업로드 실패의 주원인 해결.
+        pdf.addImage(
+          canvas.toDataURL('image/jpeg', 0.82), 'JPEG',
+          x, margin, drawWidth, drawHeight,
+        );
       }
 
       pdf.save('Leadership_Report.pdf');
@@ -511,7 +523,7 @@ function ReportContent() {
         <div className="pdf-page-block print:break-after-page">
 
         {/* ── [섹션 1] 타이틀 & 아키타입 & 응답자 정보 ── */}
-        <div className="print-section mb-12">
+        <div className="print-section mb-6">
           <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-6">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-black uppercase tracking-widest mb-4">
@@ -580,12 +592,10 @@ function ReportContent() {
           </div>
         </div>
 
-        </div>
-        {/* ══ [PDF 페이지 1] 끝 ══ */}
-
-        {/* ══ [PDF 페이지 2] 종합 피드백 & 키워드 ══ */}
-        {/* ── [섹션 3] 종합 피드백 & 키워드 ── */}
-        <div className="pdf-page-block print:break-after-page print-section mb-8">
+        {/* ── [섹션 3] 종합 피드백 & 키워드 — 요구사항: 점수/차트/피드백/
+              키워드를 여백 없이 '단일 1페이지'에 모두 압축. 별도 페이지 블록을
+              해제하고 상단 대시보드와 같은 pdf-page-block 안에 병합한다. ── */}
+        <div className="print-section mb-4">
           {/* 종합 피드백 — 전체 너비 */}
           <div className="bg-blue-50/50 rounded-3xl border border-blue-100 p-8 mb-4">
             <h3 className="text-xl font-black text-slate-900 mb-4 border-l-4 border-slate-900 pl-3">종합 피드백</h3>
@@ -617,7 +627,10 @@ function ReportContent() {
           </div>
         </div>
 
-        {/* ══ [PDF 페이지 3] 사각지대 & IDP ══ */}
+        </div>
+        {/* ══ [PDF 페이지 1] 끝 — 점수·차트·피드백·키워드 1페이지 압축 ══ */}
+
+        {/* ══ [PDF 페이지 2] 사각지대 & IDP ══ */}
         {/* ── [섹션 4] 사각지대 & IDP ── */}
         <div className="pdf-page-block print:break-after-page print-section grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 mb-16">
           {report.blind_spot && report.blind_spot !== "-" && (

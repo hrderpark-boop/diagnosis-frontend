@@ -77,6 +77,24 @@ body {
 
   /* 고정 헤더(print:hidden)가 사라진 만큼 상단 보정 여백 축소 */
   .pt-28 { padding-top: 0.5rem !important; }
+
+  /* 📉 인쇄/PDF 경량화: 렌더 비용이 큰 그림자·애니메이션 제거.
+     그라데이션은 배경/도형 정체성이라 유지하되, 무거운 blur/shadow만 제거. */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* 페이지 경계에서 블록이 잘리지 않도록 고립 유지. 각 pdf-page-block(상단
+     대시보드 1페이지 + 역량별 상세)은 break-after-page 로 1페이지씩 차지한다. */
+  .pdf-page-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
 
 @keyframes wave {
