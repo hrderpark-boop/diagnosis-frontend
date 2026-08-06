@@ -6,8 +6,11 @@ import AdminLayout from '../../../components/layouts/AdminLayout';
 import TranscriptModal from '../../../components/admin/TranscriptModal';
 import {
   Search, FileDown, ChevronLeft, ChevronRight, Loader2, MessageSquare, FileText,
+  Trash2, AlertTriangle,
 } from 'lucide-react';
-import { fetchParticipants, downloadExcel, Paginated } from '@/lib/adminApi';
+import {
+  fetchParticipants, downloadExcel, bulkDeleteParticipants, Paginated,
+} from '@/lib/adminApi';
 
 /**
  * 대상자 진단 현황 (구 '참여자 관리').
@@ -81,6 +84,11 @@ const ParticipantsPage = () => {
   // 대화 원문 모달
   const [transcriptSid, setTranscriptSid] = useState<string | null>(null);
 
+  // 일괄 삭제: 선택 상태 + 확인 모달 + 진행 상태
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -120,6 +128,55 @@ const ParticipantsPage = () => {
     return items;
   }, [data, statusFilter, behaviorFilter]);
 
+  // 페이지/검색/필터가 바뀌면 선택을 초기화 (다른 페이지의 stale id 삭제 방지)
+  useEffect(() => { setSelectedIds(new Set()); }, [page, search, statusFilter, behaviorFilter]);
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const visibleIds = useMemo(() => visibleItems.map((p: any) => p.id), [visibleItems]);
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id: string) => selectedIds.has(id));
+
+  const toggleAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visibleIds.forEach((id: string) => next.delete(id));
+      } else {
+        visibleIds.forEach((id: string) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      const res = await bulkDeleteParticipants(Array.from(selectedIds));
+      const parts: string[] = [
+        `대상자 ${res.deleted_participants}명 삭제 완료`,
+        `(대화 ${res.deleted_messages} · 세션 ${res.deleted_sessions} · 리포트 ${res.deleted_reports})`,
+      ];
+      if (res.skipped_protected > 0) parts.push(`\n코치 등록 ${res.skipped_protected}명은 보호되어 제외됨`);
+      if (res.skipped_out_of_scope > 0) parts.push(`\n권한 밖 ${res.skipped_out_of_scope}명 제외됨`);
+      alert(parts.join(' '));
+      setSelectedIds(new Set());
+      setConfirmOpen(false);
+      await load(); // 상태 동기화: 삭제된 데이터가 즉시 화면에서 사라지도록 refetch
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || '삭제에 실패했습니다.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const totalPages = data?.total_pages ?? 1;
   const anyFilter = statusFilter || behaviorFilter;
 
@@ -133,14 +190,24 @@ const ParticipantsPage = () => {
             {anyFilter && data && ` · 현재 페이지 ${visibleItems.length}명 표시`}
           </p>
         </div>
-        <button
-          onClick={handleExcelDownload}
-          disabled={downloading}
-          className="flex items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-lg transition hover:bg-green-700 disabled:bg-gray-700"
-        >
-          {downloading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
-          엑셀 다운로드
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setConfirmOpen(true)}
+            disabled={selectedIds.size === 0 || deleting}
+            className="flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-lg transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-500"
+          >
+            <Trash2 size={16} className="mr-2" />
+            선택 삭제{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+          </button>
+          <button
+            onClick={handleExcelDownload}
+            disabled={downloading}
+            className="flex items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-lg transition hover:bg-green-700 disabled:bg-gray-700"
+          >
+            {downloading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
+            엑셀 다운로드
+          </button>
+        </div>
       </div>
 
       {/* 검색 */}
@@ -208,6 +275,16 @@ const ParticipantsPage = () => {
         <table className="w-full border-collapse text-left">
           <thead className="bg-gray-900 text-xs uppercase text-gray-400">
             <tr>
+              <th className="border-b border-gray-700 p-4 w-12">
+                <input
+                  type="checkbox"
+                  aria-label="전체 선택"
+                  checked={allVisibleSelected}
+                  onChange={toggleAll}
+                  disabled={visibleIds.length === 0}
+                  className="h-4 w-4 cursor-pointer rounded border-gray-600 bg-gray-800 accent-red-600"
+                />
+              </th>
               <th className="border-b border-gray-700 p-4">이름</th>
               <th className="border-b border-gray-700 p-4">소속사</th>
               <th className="border-b border-gray-700 p-4">진단 상태</th>
@@ -218,11 +295,11 @@ const ParticipantsPage = () => {
           </thead>
           <tbody className="divide-y divide-gray-700">
             {loading ? (
-              <tr><td colSpan={6} className="p-8 text-center text-gray-500">
+              <tr><td colSpan={7} className="p-8 text-center text-gray-500">
                 <Loader2 className="mx-auto h-5 w-5 animate-spin" />
               </td></tr>
             ) : visibleItems.length === 0 ? (
-              <tr><td colSpan={6} className="p-8 text-center text-gray-500">
+              <tr><td colSpan={7} className="p-8 text-center text-gray-500">
                 {anyFilter ? '이 필터에 해당하는 대상자가 현재 페이지에 없습니다.'
                   : search ? `'${search}' 검색 결과가 없습니다.`
                   : '등록된 대상자가 없습니다.'}
@@ -231,8 +308,23 @@ const ParticipantsPage = () => {
               visibleItems.map((p: any) => {
                 const pct = p.progress_pct ?? 0;
                 const done = p.last_status === 'completed';
+                const isSelected = selectedIds.has(p.id);
                 return (
-                  <tr key={p.id} className="text-sm text-gray-300 hover:bg-gray-700/50">
+                  <tr
+                    key={p.id}
+                    className={`text-sm text-gray-300 transition-colors ${
+                      isSelected ? 'bg-red-950/30 hover:bg-red-950/40' : 'hover:bg-gray-700/50'
+                    }`}
+                  >
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        aria-label={`${p.name} 선택`}
+                        checked={isSelected}
+                        onChange={() => toggleOne(p.id)}
+                        className="h-4 w-4 cursor-pointer rounded border-gray-600 bg-gray-800 accent-red-600"
+                      />
+                    </td>
                     <td className="p-4">
                       <div className="font-bold text-white">{p.name}</div>
                       <div className="text-xs text-gray-500">{p.email}</div>
@@ -325,6 +417,43 @@ const ParticipantsPage = () => {
             >
               다음 <ChevronRight size={16} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 일괄 삭제 확인 모달 */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-700 bg-gray-800 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-900/40">
+                <AlertTriangle size={22} className="text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white">진단 데이터 영구 삭제</h3>
+            </div>
+            <p className="mb-6 text-sm leading-relaxed text-gray-300">
+              선택한 <span className="font-bold text-red-400">{selectedIds.size}건</span>의 진단 데이터를
+              영구 삭제하시겠습니까?
+              <br />
+              관련된 대화 기록 및 리포트가 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                disabled={deleting}
+                className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 transition hover:bg-gray-600 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                className="flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:bg-gray-700"
+              >
+                {deleting && <Loader2 size={16} className="mr-2 animate-spin" />}
+                영구 삭제
+              </button>
+            </div>
           </div>
         </div>
       )}

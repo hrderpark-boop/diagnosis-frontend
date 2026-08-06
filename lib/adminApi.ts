@@ -125,6 +125,26 @@ export const fetchParticipants = async (params: {
   return data;
 };
 
+export interface BulkDeleteResult {
+  deleted_participants: number;
+  deleted_sessions: number;
+  deleted_messages: number;
+  deleted_events: number;
+  deleted_reports: number;
+  skipped_protected: number;
+  skipped_out_of_scope: number;
+}
+
+/** 선택한 대상자들을 연관 데이터(세션·대화·리포트)와 함께 물리 삭제 */
+export const bulkDeleteParticipants = async (
+  participantIds: string[],
+): Promise<BulkDeleteResult> => {
+  const { data } = await adminApi.post('/admin/participants/bulk-delete', {
+    participant_ids: participantIds,
+  });
+  return data;
+};
+
 export interface TranscriptMessage {
   role: string;        // "user"(대상자) | "model"(코치)
   content: string;
