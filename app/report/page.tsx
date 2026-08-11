@@ -782,8 +782,72 @@ function ReportContent() {
             );
           })}
         </div>
+
+        {/* ── [섹션 6] 맞춤형 성장 처방전 (Next Step) — 리포트 최하단 ── */}
+        {report.course_recommendation && (
+          <div className="pdf-page-block print:break-after-page print-section mt-10">
+            <div className="rounded-3xl border-2 border-blue-200 bg-gradient-to-br from-blue-50/70 to-indigo-50/40 p-8 print:break-inside-avoid">
+              <h2 className="text-2xl font-black text-slate-900 mb-2">
+                🎯 리더님을 위한 맞춤형 성장 처방전 <span className="text-blue-600">(Next Step)</span>
+              </h2>
+              <p className="text-slate-600 text-sm leading-relaxed mb-6 max-w-3xl">
+                {report.course_recommendation.intro}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-5">
+                {[report.course_recommendation.weakness, report.course_recommendation.strength]
+                  .filter(Boolean)
+                  .map((c: any, i: number) => {
+                    const weak = c.type === "약점 개선";
+                    return (
+                      <div
+                        key={i}
+                        className={`print:break-inside-avoid rounded-2xl border-2 bg-white p-6 shadow-sm ${
+                          weak ? "border-rose-200" : "border-blue-200"
+                        }`}
+                      >
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-black ${
+                            weak ? "bg-rose-100 text-rose-700" : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {c.icon} [{c.type}]
+                        </span>
+                        <a
+                          href={c.vod_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-4 flex items-start gap-1.5 group"
+                        >
+                          <span className="text-lg font-black leading-snug text-slate-900 group-hover:text-blue-600 transition-colors">
+                            <span className={`mr-1 font-black ${weak ? "text-rose-600" : "text-blue-600"}`}>
+                              [{c.category}]
+                            </span>
+                            {c.course}
+                          </span>
+                          <span className="shrink-0 text-blue-500 pt-1" title="VOD 강의로 이동">🔗</span>
+                        </a>
+                        <div className="mt-1.5 text-xs font-bold text-slate-400">
+                          해당 하위 역량: {c.sub_competency} · {Number(c.score).toFixed(1)}점
+                        </div>
+                        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                          <p className="text-sm text-slate-700 leading-relaxed">
+                            <span className="font-black text-slate-900">추천 이유 </span>
+                            {c.reason}
+                          </p>
+                          <p className="text-sm text-slate-700 leading-relaxed">
+                            <span className="font-black text-slate-900">🤖 AI 실전 과제 </span>
+                            {c.sparring}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-      
+
       {/* 홈으로 돌아가기 버튼 — 인쇄물·PDF 캡처에서 완전 제외 */}
       <div data-html2canvas-ignore="true" className="print:hidden flex justify-center mt-16 relative z-20 pb-16">
         <button onClick={() => router.push('/')}
