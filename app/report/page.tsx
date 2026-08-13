@@ -794,22 +794,34 @@ function ReportContent() {
                 {report.course_recommendation.intro}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
-                {[report.course_recommendation.weakness, report.course_recommendation.strength]
+                {[
+                  ...(report.course_recommendation.growth || []),
+                  report.course_recommendation.strength,
+                ]
                   .filter(Boolean)
                   .map((c: any, i: number) => {
-                    const weak = c.type === "약점 개선";
+                    const strength = c.is_strength || c.type === "강점 활용";
                     return (
                       <div
                         key={i}
-                        className="print:break-inside-avoid rounded-xl border border-slate-200 bg-slate-50/60 p-7"
+                        className={`print:break-inside-avoid rounded-xl border p-7 ${
+                          strength
+                            ? "border-emerald-200 bg-emerald-50/40"
+                            : "border-slate-200 bg-slate-50/60"
+                        }`}
                       >
-                        {/* [구분] — 색상 배지가 아닌 깔끔한 소제목 */}
-                        <div
-                          className={`text-xs font-bold uppercase tracking-[0.12em] ${
-                            weak ? "text-amber-700" : "text-blue-700"
-                          }`}
-                        >
-                          {c.type}
+                        {/* [구분] + [트랙/학습형식] — 배지 아닌 소제목 라벨 */}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span
+                            className={`text-xs font-bold uppercase tracking-[0.12em] ${
+                              strength ? "text-emerald-700" : "text-blue-700"
+                            }`}
+                          >
+                            {c.type}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-400">
+                            {c.track}트랙 · {c.track_format}
+                          </span>
                         </div>
 
                         {/* [과정명] [대역량명] 과정명 — 클릭 시 VOD 이동 */}
@@ -822,30 +834,22 @@ function ReportContent() {
                           <span className="text-slate-500 font-bold">[{c.category}]</span>{" "}
                           {c.course}
                         </a>
-
-                        {/* [하위역량] */}
-                        <div className="mt-1.5 text-xs font-semibold text-slate-500 tabular-nums">
-                          해당 하위 역량: {c.sub_competency} · {Number(c.score).toFixed(1)}점
-                        </div>
-
-                        {/* [교육 주요 내용] — 개조식 */}
-                        {Array.isArray(c.key_contents) && c.key_contents.length > 0 && (
-                          <div className="mt-5">
-                            <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                              교육 주요 내용
-                            </div>
-                            <ul className="list-disc pl-5 space-y-1.5 text-sm leading-relaxed text-slate-700 marker:text-slate-400">
-                              {c.key_contents.map((k: string, j: number) => (
-                                <li key={j}>{k}</li>
-                              ))}
-                            </ul>
+                        {/* 수료 시 도달 행동 (Next Level Behavior) */}
+                        {c.subtitle && (
+                          <div className="mt-1 text-sm font-medium text-slate-500">
+                            → {c.subtitle}
                           </div>
                         )}
 
-                        {/* [추천 이유] — 총평 1~2줄 + 개조식 */}
+                        {/* [하위역량] — 진단 레벨 표기 */}
+                        <div className="mt-2 text-xs font-semibold text-slate-500 tabular-nums">
+                          진단 결과: {c.sub_competency} · Lv.{c.level} ({Number(c.score).toFixed(1)}점)
+                        </div>
+
+                        {/* [추천 이유] — 도약 총평 + 개조식 */}
                         <div className="mt-5 border-t border-slate-200 pt-4">
                           <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                            추천 이유
+                            {strength ? "제안 이유" : "추천 이유"}
                           </div>
                           {c.reason_overview && (
                             <p className="text-sm font-semibold leading-relaxed text-slate-800">
@@ -860,6 +864,18 @@ function ReportContent() {
                             </ul>
                           )}
                         </div>
+
+                        {/* BEI 분석 인용 — 리더의 딜레마/발화 한 줄 */}
+                        {c.bei_citation && (
+                          <div className="mt-4 rounded-md bg-white/70 border border-slate-200 px-3.5 py-2.5">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              진단 대화 근거
+                            </div>
+                            <p className="text-xs italic leading-relaxed text-slate-600 border-l-2 border-slate-300 pl-2.5">
+                              &ldquo;{c.bei_citation}&rdquo;
+                            </p>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
