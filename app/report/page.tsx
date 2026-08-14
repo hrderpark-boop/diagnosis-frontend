@@ -87,10 +87,11 @@ const RadarChart = ({
 // ----------------------------------------------------------------------
 const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any, fallbackScore: number, maxScore: number }) => {
   const safeMax = maxScore || 5;
-  const stats = Object.entries(subScores || {}).map(([label, score]) => ({
-    label,
-    value: typeof score === 'number' ? score : fallbackScore
-  }));
+  // P0-1: 미측정(null) 하위역량은 레이더 축에서 제외 (값이 아니라 미측정)
+  const stats = Object.entries(subScores || {})
+    .filter(([, score]) => typeof score === 'number')
+    .map(([label, score]) => ({ label, value: score as number }));
+  if (stats.length < 3) return null;  // 축이 3개 미만이면 레이더 생략
 
   if (stats.length === 0) return <div className="text-xs text-slate-400">데이터가 없습니다.</div>;
 
@@ -174,7 +175,8 @@ const ComparisonChart = ({ myScore, maxScore }: { myScore: number, maxScore: num
 // [SCORE BREAKDOWN]
 // ----------------------------------------------------------------------
 const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: number }) => {
-  if (!breakdown) return null;
+  // P0-1: 미측정 대역량(final null)은 산출 근거를 표시하지 않는다.
+  if (!breakdown || breakdown.final === null || breakdown.final === undefined) return null;
   const safeMax = maxScore || 5;
   // 항목별 스케일 분리: 각 막대는 '해당 항목의 실제 최대치' 기준으로 채워진다.
   // (예: STAR 깊이 +0.3 은 0.5 만점 기준 60% — 5.0 만점 기준이 아님)
@@ -334,27 +336,34 @@ const SubScoresTable = ({ subScores, totalScore, maxScore }: { subScores: any, t
   if (!subScores || Object.keys(subScores).length === 0) return null;
 
   const safeMax = maxScore || 5;
-  const entries = Object.entries(subScores) as [string, number][];
-  const max = Math.max(...entries.map(([, v]) => v));
-  const min = Math.min(...entries.map(([, v]) => v));
+  const entries = Object.entries(subScores) as [string, number | null][];
+  // P0-1: 측정된 하위역량만 min/max 계산 (미측정은 '미측정'으로 표기)
+  const nums = entries
+    .map(([, v]) => v)
+    .filter((v): v is number => typeof v === 'number');
+  const max = nums.length ? Math.max(...nums) : 0;
+  const min = nums.length ? Math.min(...nums) : 0;
 
   return (
     // A4 한 페이지를 채우는 여유로운 구성: 세로 간격 대폭 확대 + 역량명 폰트 상향
     <div className="mt-4 space-y-6">
       {entries.map(([label, score]) => {
-        const isHigh = score === max;
-        const isLow  = score === min;
+        const measured = typeof score === 'number';
+        const isHigh = measured && score === max;
+        const isLow  = measured && score === min;
         return (
           <div key={label} className="flex items-center gap-4">
-            <span className="text-lg text-slate-700 font-bold min-w-[150px] flex-shrink-0">{label}</span>
+            <span className={`text-lg font-bold min-w-[150px] flex-shrink-0 ${measured ? 'text-slate-700' : 'text-slate-400'}`}>{label}</span>
             <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${isHigh ? 'bg-emerald-400' : isLow ? 'bg-rose-300' : 'bg-blue-300'}`}
-                style={{ width: `${(score / safeMax) * 100}%` }}
-              />
+              {measured && (
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${isHigh ? 'bg-emerald-400' : isLow ? 'bg-rose-300' : 'bg-blue-300'}`}
+                  style={{ width: `${((score as number) / safeMax) * 100}%` }}
+                />
+              )}
             </div>
-            <span className={`text-base font-black w-12 text-right ${isHigh ? 'text-emerald-600' : isLow ? 'text-rose-500' : 'text-slate-600'}`}>
-              {Number(score).toFixed(1)}
+            <span className={`text-base font-black w-14 text-right ${!measured ? 'text-slate-400 text-xs' : isHigh ? 'text-emerald-600' : isLow ? 'text-rose-500' : 'text-slate-600'}`}>
+              {measured ? Number(score).toFixed(1) : '미측정'}
             </span>
           </div>
         );
@@ -569,12 +578,24 @@ function ReportContent() {
         {/* ── [섹션 2] 3단 대시보드 ── */}
         <div className="print-section grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-6 mb-8">
           <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col justify-between">
-            <h3 className="text-xl font-black text-slate-900 mb-6">종합 리더십 점수</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black text-slate-900">종합 리더십 점수</h3>
+              {report.coverage && (
+                <span className={`rounded-md px-2.5 py-1 text-xs font-bold ${report.coverage.is_low_confidence ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                  {report.coverage.label}
+                </span>
+              )}
+            </div>
             <div className="text-center my-auto">
               <span className="text-7xl font-black text-blue-600">{Number(report.total_score).toFixed(1)}</span>
               <span className="text-slate-400 text-2xl font-bold ml-1">/ {maxScore.toFixed(1)}</span>
             </div>
-            <p className="text-center text-sm font-semibold text-slate-500 mt-6">{frameworkCompetencies.length || 5}개 역량 심층 평가 평균치</p>
+            <p className="text-center text-sm font-semibold text-slate-500 mt-6">
+              측정된 역량의 심층 평가 평균치
+              {report.coverage?.is_low_confidence && (
+                <span className="mt-1 block text-xs font-bold text-amber-600">측정 범위가 좁아 참고용입니다 — 재진단을 권장합니다.</span>
+              )}
+            </p>
           </div>
 
           <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
@@ -669,6 +690,8 @@ function ReportContent() {
           {Object.entries(detailsData).map(([key, value]: any, idx) => {
             const label          = competencyLabels[key] || key;
             const score          = typeof value === 'object' ? value.score : value;
+            const measured       = score !== null && score !== undefined;  // P0-1
+            const isReference    = typeof value === 'object' ? value.is_reference : false;
             const comment        = typeof value === 'object' ? value.comment : "상세 분석 내용이 없습니다.";
             const evidenceList   = typeof value === 'object' && Array.isArray(value.evidence_list) ? value.evidence_list : [];
             const reasoning      = typeof value === 'object' ? value.reasoning_process : null;
@@ -699,13 +722,18 @@ function ReportContent() {
                       {/* 점수 도형: grid place-items-center 중앙 정렬 +
                           Mac(Safari/Webkit) 폰트 베이스라인 시각 오차를
                           mt-[-2px] 음수 마진으로 픽셀 단위 보정 */}
-                      <div className="grid place-items-center w-16 h-16 rounded-2xl bg-white border-2 border-slate-800 shrink-0">
-                        <span className="leading-none mt-[-2px] p-0 text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
-                          {Number(score).toFixed(1)}
+                      <div className={`grid place-items-center w-16 h-16 rounded-2xl bg-white border-2 shrink-0 ${measured ? 'border-slate-800' : 'border-slate-300'}`}>
+                        <span className={`leading-none mt-[-2px] p-0 font-black tabular-nums whitespace-nowrap ${measured ? 'text-2xl text-slate-900' : 'text-xs text-slate-400'}`}>
+                          {measured ? Number(score).toFixed(1) : '미측정'}
                         </span>
                       </div>
                       <div>
-                        <span className="block text-xl font-black text-slate-900 mb-1.5">{label}</span>
+                        <span className="block text-xl font-black text-slate-900 mb-1.5">
+                          {label}
+                          {measured && isReference && (
+                            <span className="ml-2 align-middle rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">참고치</span>
+                          )}
+                        </span>
                         {/* 역량 요약 설명 — 시인성 극대화 (text-sm → text-lg, 톤 업) */}
                         <span className="block text-lg text-slate-700 font-semibold leading-snug">{strengthPoint || "역량 상세 분석 클릭"}</span>
                       </div>
