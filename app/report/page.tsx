@@ -586,16 +586,31 @@ function ReportContent() {
                 </span>
               )}
             </div>
-            <div className="text-center my-auto">
-              <span className="text-7xl font-black text-blue-600">{Number(report.total_score).toFixed(1)}</span>
-              <span className="text-slate-400 text-2xl font-bold ml-1">/ {maxScore.toFixed(1)}</span>
-            </div>
-            <p className="text-center text-sm font-semibold text-slate-500 mt-6">
-              측정된 역량의 심층 평가 평균치
-              {report.coverage?.is_low_confidence && (
-                <span className="mt-1 block text-xs font-bold text-amber-600">측정 범위가 좁아 참고용입니다 — 재진단을 권장합니다.</span>
-              )}
-            </p>
+            {report.coverage?.score_suppressed ? (
+              /* T4 셧다운: 측정 부족 시 종합점수 미렌더 + 재진단 권고 */
+              <>
+                <div className="text-center my-auto">
+                  <span className="text-2xl font-black text-slate-400">종합 점수 산출 보류</span>
+                </div>
+                <p className="text-center text-sm font-semibold text-amber-600 mt-6">
+                  측정된 역량이 부족하여 종합 점수를 산출하지 않았습니다.<br />
+                  아래 대역량별 분석은 참고치로 확인하시고, 재진단을 권장합니다.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-center my-auto">
+                  <span className="text-7xl font-black text-blue-600">{Number(report.total_score).toFixed(1)}</span>
+                  <span className="text-slate-400 text-2xl font-bold ml-1">/ {maxScore.toFixed(1)}</span>
+                </div>
+                <p className="text-center text-sm font-semibold text-slate-500 mt-6">
+                  측정된 역량의 심층 평가 평균치
+                  {report.coverage?.is_low_confidence && (
+                    <span className="mt-1 block text-xs font-bold text-amber-600">측정 범위가 좁아 참고용입니다 — 재진단을 권장합니다.</span>
+                  )}
+                </p>
+              </>
+            )}
           </div>
 
           <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
