@@ -332,28 +332,52 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
 // ----------------------------------------------------------------------
 // [SUB SCORES TABLE] — 하위 지표 점수 테이블
 // ----------------------------------------------------------------------
-const SubScoresTable = ({ subScores, totalScore, maxScore }: { subScores: any, totalScore: number, maxScore: number }) => {
+const SubScoresTable = ({ subScores, subLedger, totalScore, maxScore }: { subScores: any, subLedger?: any, totalScore: number, maxScore: number }) => {
   if (!subScores || Object.keys(subScores).length === 0) return null;
 
   const safeMax = maxScore || 5;
   const entries = Object.entries(subScores) as [string, number | null][];
-  // P0-1: 측정된 하위역량만 min/max 계산 (미측정은 '미측정'으로 표기)
+  // P0-1: 측정된 하위역량만 min/max 계산 (미측정은 상태별로 표기)
   const nums = entries
     .map(([, v]) => v)
     .filter((v): v is number => typeof v === 'number');
   const max = nums.length ? Math.max(...nums) : 0;
   const min = nums.length ? Math.min(...nums) : 0;
 
+  // 🧭 T3 2-tier + 게이트 상태. 표시 우선순위:
+  //   gate_status='pending'(검증 미완료, 도구 상태) > status(대상자 응답 상태:
+  //   측정 / 근거미확보 / 미탐색). 셋은 서로 다른 의미다.
+  const dispStateOf = (label: string): 'measured' | 'gate_pending' | 'evidence_missing' | 'unexplored' => {
+    const row = subLedger?.[label];
+    if (row?.gate_status === 'pending') return 'gate_pending';
+    const st = row?.status;
+    if (st === 'measured' || st === 'evidence_missing' || st === 'unexplored') return st;
+    return 'unexplored'; // ledger 없으면 보수적으로 미탐색
+  };
+
   return (
     // A4 한 페이지를 채우는 여유로운 구성: 세로 간격 대폭 확대 + 역량명 폰트 상향
     <div className="mt-4 space-y-6">
       {entries.map(([label, score]) => {
-        const measured = typeof score === 'number';
+        const scored = typeof score === 'number';
+        const ds = scored ? 'measured' : dispStateOf(label);
+        const measured = ds === 'measured' && scored;
         const isHigh = measured && score === max;
         const isLow  = measured && score === min;
+        const isEvMissing = ds === 'evidence_missing';
+        const isPending   = ds === 'gate_pending';
+        // 검증 미완료(보라): 도구 상태. 근거 미확보(앰버): 대상자 응답 상태.
+        const stLabel = isPending ? '검증 미완료' : isEvMissing ? '근거 미확보' : '미탐색';
+        const stTip = isPending
+          ? '역량 판정 검증(레벨 게이트)이 완료되지 않아 점수를 보류했습니다. 대상자 역량과 무관한 도구 상태입니다 — 재생성 시 해소됩니다.'
+          : isEvMissing
+          ? '질문은 드렸으나 구체 사례가 확인되지 않아 점수를 산출하지 않았습니다.'
+          : '이 하위역량은 이번 진단에서 다루지 않았습니다(미탐색).';
+        const labelColor = measured ? 'text-slate-700' : isPending ? 'text-violet-700' : isEvMissing ? 'text-amber-700' : 'text-slate-400';
+        const valColor = isPending ? 'text-violet-600' : isEvMissing ? 'text-amber-600' : 'text-slate-400';
         return (
           <div key={label} className="flex items-center gap-4">
-            <span className={`text-lg font-bold min-w-[150px] flex-shrink-0 ${measured ? 'text-slate-700' : 'text-slate-400'}`}>{label}</span>
+            <span className={`text-lg font-bold min-w-[150px] flex-shrink-0 ${labelColor}`}>{label}</span>
             <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
               {measured && (
                 <div
@@ -362,8 +386,10 @@ const SubScoresTable = ({ subScores, totalScore, maxScore }: { subScores: any, t
                 />
               )}
             </div>
-            <span className={`text-base font-black w-14 text-right ${!measured ? 'text-slate-400 text-xs' : isHigh ? 'text-emerald-600' : isLow ? 'text-rose-500' : 'text-slate-600'}`}>
-              {measured ? Number(score).toFixed(1) : '미측정'}
+            <span
+              title={measured ? undefined : stTip}
+              className={`text-right font-black ${measured ? `w-14 text-base ${isHigh ? 'text-emerald-600' : isLow ? 'text-rose-500' : 'text-slate-600'}` : `w-24 text-xs cursor-help ${valColor}`}`}>
+              {measured ? Number(score).toFixed(1) : stLabel}
             </span>
           </div>
         );
@@ -575,26 +601,57 @@ function ReportContent() {
           </div>
         </div>
 
+        {/* 🚧 T-A fail-closed: 레벨 게이트 검증 미완료 경고 (상단). 도구 상태이며
+            대상자 역량과 무관 — 재생성 시 해소. 조용한 fail-open 을 막는 신호. */}
+        {report.coverage?.gate_incomplete && (
+          <div className="print:break-inside-avoid mb-8 rounded-2xl border border-violet-300 bg-violet-50 p-5">
+            <div className="flex items-start gap-3">
+              <span className="text-violet-600 text-lg font-black">⚠</span>
+              <div>
+                <p className="text-sm font-black text-violet-800">역량 판정 검증 미완료 {report.coverage.gate_pending}건</p>
+                <p className="mt-1 text-xs text-violet-700 leading-relaxed">
+                  일부 하위역량의 레벨 판정 검증(레벨 게이트)이 완료되지 않아 해당 항목의 점수를 보류했습니다.
+                  이는 <b>도구 처리 상태</b>이며 대상자의 역량 수준과 무관합니다. 잠시 후 리포트를 재생성하면 해소됩니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── [섹션 2] 3단 대시보드 ── */}
         <div className="print-section grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-6 mb-8">
           <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-black text-slate-900">종합 리더십 점수</h3>
               {report.coverage && (
-                <span className={`rounded-md px-2.5 py-1 text-xs font-bold ${report.coverage.is_low_confidence ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                  {report.coverage.label}
-                </span>
+                /* 🧭 T3 2단 지표: 탐색률(질문한 하위역량) + 측정률(근거 확보).
+                   '얼마나 물었는가'와 '그중 몇 개에 근거가 있었는가'를 분리 노출. */
+                <div className="flex items-center gap-1.5">
+                  {typeof report.coverage.asked === 'number' && (
+                    <span
+                      title="탐색률 — 이번 진단에서 질문한 하위역량 수(26개 중). 측정률과 달리 근거 확보 여부와 무관합니다."
+                      className="rounded-md px-2.5 py-1 text-xs font-bold bg-slate-100 text-slate-500 cursor-help">
+                      탐색 {report.coverage.asked}/{report.coverage.total}
+                    </span>
+                  )}
+                  <span
+                    title="측정률 — 질문한 것 중 구체 행동 근거가 확인되어 점수를 산출한 하위역량 수."
+                    className={`rounded-md px-2.5 py-1 text-xs font-bold cursor-help ${report.coverage.is_low_confidence ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                    측정 {report.coverage.measured}/{report.coverage.total}
+                  </span>
+                </div>
               )}
             </div>
             {report.coverage?.score_suppressed ? (
-              /* T4 셧다운: 측정 부족 시 종합점수 미렌더 + 재진단 권고 */
+              /* C-4: completed_insufficient — 실패가 아니라 '진행 상태'로.
+                 '부족/미달/실패' 표현 금지. 종합점수 자리에 안내 + 이어하기 CTA. */
               <>
                 <div className="text-center my-auto">
-                  <span className="text-2xl font-black text-slate-400">종합 점수 산출 보류</span>
+                  <span className="text-xl font-black text-slate-500">측정 범위가 제한되어<br />종합 점수는 산출하지 않았습니다</span>
                 </div>
-                <p className="text-center text-sm font-semibold text-amber-600 mt-6">
-                  측정된 역량이 부족하여 종합 점수를 산출하지 않았습니다.<br />
-                  아래 대역량별 분석은 참고치로 확인하시고, 재진단을 권장합니다.
+                <p className="text-center text-sm font-semibold text-slate-500 mt-6">
+                  이번 세션에서는 26개 역량 중 {report.coverage?.measured}개에 대한 구체적 사례를 확인했습니다.
+                  아래 분석은 확인된 역량을 기준으로 하며, 나머지 역량은 다음 세션에서 이어서 살펴봅니다.
                 </p>
               </>
             ) : (
@@ -613,19 +670,25 @@ function ReportContent() {
             )}
           </div>
 
-          <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
-            <h3 className="text-xl font-black text-slate-900 w-full mb-2">역량 밸런스</h3>
-            <div className="w-full h-full flex-1 min-h-[220px]">
-              <RadarChart data={report.radar_chart} competencies={frameworkCompetencies} maxScore={maxScore} />
-            </div>
-          </div>
+          {/* C-2: 근거 부족(부분 리포트) 시 역량 밸런스 레이더·상대 비교 분석은
+              렌더링하지 않는다 — 6개 평균을 26개 종합처럼 오해시키지 않기 위함. */}
+          {!report.coverage?.score_suppressed && (
+            <>
+              <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
+                <h3 className="text-xl font-black text-slate-900 w-full mb-2">역량 밸런스</h3>
+                <div className="w-full h-full flex-1 min-h-[220px]">
+                  <RadarChart data={report.radar_chart} competencies={frameworkCompetencies} maxScore={maxScore} />
+                </div>
+              </div>
 
-          <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col">
-            <h3 className="text-xl font-black text-slate-900 mb-6">상대적 비교 분석</h3>
-            <div className="flex-1">
-              <ComparisonChart myScore={report.total_score} maxScore={maxScore} />
-            </div>
-          </div>
+              <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col">
+                <h3 className="text-xl font-black text-slate-900 mb-6">상대적 비교 분석</h3>
+                <div className="flex-1">
+                  <ComparisonChart myScore={report.total_score} maxScore={maxScore} />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* ── [섹션 3] 종합 피드백 & 키워드 — 요구사항: 점수/차트/피드백/
@@ -715,6 +778,7 @@ function ReportContent() {
             const growthPoint    = typeof value === 'object' ? value.growth_point : null;
             const gapAnalysis    = typeof value === 'object' ? value.gap_analysis : null;
             const aiSubScores    = typeof value === 'object' ? value.sub_scores : null;
+            const aiSubLedger    = typeof value === 'object' ? value.sub_ledger : null;
 
             const hasValidSubScores = aiSubScores && Object.keys(aiSubScores).length > 0;
             const defaultSubLabels  = subCompetencies[key] || [];
@@ -756,8 +820,18 @@ function ReportContent() {
                     <ChevronIcon className={`w-6 h-6 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {/* 펼침 Part 1: 2x2 그리드 */}
-                  {isOpen && (
+                  {/* C-2: measured 0 대역량은 상세 분석을 렌더링하지 않고
+                      '이번 세션 미확인'으로만 표기 (근거 없는 분석 오해 방지). */}
+                  {isOpen && !measured && (
+                    <div className="px-8 pb-8 border-t border-slate-100 pt-6">
+                      <p className="text-sm font-semibold text-slate-500">
+                        이 역량은 이번 세션에서 확인되지 않았습니다. 다음 세션에서 이어서 살펴봅니다.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 펼침 Part 1: 2x2 그리드 (measured 대역량만) */}
+                  {isOpen && measured && (
                     <div className="px-8 pb-8 border-t border-slate-100 pt-6 bg-slate-50/30">
                       <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4">
 
@@ -796,7 +870,7 @@ function ReportContent() {
                               <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
                             </div>
                             <div className="w-full md:order-2">
-                              <SubScoresTable subScores={subScores} totalScore={Number(score)} maxScore={maxScore} />
+                              <SubScoresTable subScores={subScores} subLedger={aiSubLedger} totalScore={Number(score)} maxScore={maxScore} />
                             </div>
                           </div>
 
@@ -812,8 +886,8 @@ function ReportContent() {
                   )}
                 </div>
 
-                {/* ② [역량 블록 2: 심층 평가 근거] STAR 분석 + 실제 대화 발췌문 전용 페이지 */}
-                {isOpen && (
+                {/* ② [역량 블록 2: 심층 평가 근거] — measured 대역량만(C-2) */}
+                {isOpen && measured && (
                   <div className="pdf-page-block print:break-after-page print-section print:break-inside-avoid bg-white rounded-3xl border border-blue-100 shadow-sm overflow-hidden mt-3">
                     <div className="px-8 py-6 bg-slate-50/30">
                       <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} evidenceList={evidenceList} />
