@@ -409,6 +409,9 @@ function ReportContent() {
   const [report, setReport] = useState<any>(null);
   const [statusMsg, setStatusMsg] = useState("데이터 분석 중...");
   const [canRetry, setCanRetry] = useState(false);  // item4: 지연/실패 재시도
+  const [retryCount, setRetryCount] = useState(0);  // B: 재시도 상한(3)
+  const _MAX_POLLS = 30;   // 2초 × 30 = 60초 (분석 중 대기 상한)
+  const _MAX_RETRY = 3;
   // 기본 상태 '항상 펼침(Always Expanded)': 리포트 진입 즉시 5개 역량 상세가
   // 모두 열려 있어야 인쇄·PDF 저장 시 내용 누락 없이 전체가 출력된다.
   const [openDetail, setOpenDetail] = useState<string | null>("ALL");
@@ -440,28 +443,47 @@ function ReportContent() {
     });
   }, []);
 
-  // item4: 분석 오염(degraded) 시 리포트가 저장되지 않아 GET 이 계속 404 다.
-  //   무한 폴링 대신 상한(≈60초)을 두고, 초과 시 '지연/실패 + 다시 시도'를
-  //   명확히 안내한다(빈 화면·에러 코드 노출 금지).
-  const _MAX_POLLS = 30;  // 2초 × 30 = 60초
+  // B: 리포트 부재 404의 두 상황을 구분한다.
+  //   · analyzing → 기다리면 나옴 → 계속 폴링(상한 60초).
+  //   · degraded  → 기다려도 안 나옴 → 폴링 중단 + 재시도 유도.
+  //   재시도 상한 3(크레딧 소진처럼 즉시 회복 안 되는 원인의 무한 재시도 방지).
   const loadReport = async (attempt = 0) => {
     try {
       const res = await apiClient.get(`/reports/${sessionId}`);
       setReport(res.data);
     } catch (err: any) {
-      if (err.response?.status === 404 && attempt < _MAX_POLLS) {
+      const st = err.response?.status;
+      const status = err.response?.data?.detail?.analysis_status;
+      if (st === 404 && status === "degraded") {
+        // 오염: 기다려도 안 나옴 → 폴링 중단, 재시도 유도.
+        setStatusMsg("리포트 생성이 일시적으로 실패했습니다. 다시 시도해 주세요. (대화 내용은 저장되어 있어 이어서 진행할 수 있습니다)");
+        setCanRetry(true);
+      } else if (st === 404 && attempt < _MAX_POLLS) {
         setStatusMsg("AI가 정밀 분석 중입니다...");
         setTimeout(() => loadReport(attempt + 1), 2000);
-      } else if (err.response?.status === 404) {
-        // 상한 초과 — 분석 지연 또는 일시적 실패(오염). 재시도 유도.
-        setStatusMsg(
-          "리포트 생성이 지연되거나 일시적으로 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      } else if (st === 404) {
+        setStatusMsg("리포트 생성이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.");
         setCanRetry(true);
       } else {
         setStatusMsg("오류가 발생했습니다. 다시 시도해주세요.");
         setCanRetry(true);
       }
     }
+  };
+
+  // B: 재시도 = 재분석(analyze) 트리거 후 폴링. 상한 초과 시 안내로 전환.
+  const handleRetry = async () => {
+    if (retryCount >= _MAX_RETRY) {
+      setStatusMsg("잠시 후 다시 시도해 주세요. 대화 내용은 저장되어 있어 이어서 진행할 수 있습니다.");
+      return;  // 버튼은 비활성 유지
+    }
+    setRetryCount((c) => c + 1);
+    setCanRetry(false);
+    setStatusMsg("AI가 다시 분석 중입니다...");
+    try {
+      await apiClient.post(`/reports/${sessionId}/analyze`);
+    } catch { /* 재분석 실패해도 아래 폴링이 상태를 다시 판정 */ }
+    loadReport(0);
   };
 
   const handleDownloadPDF = async () => {
@@ -535,9 +557,10 @@ function ReportContent() {
         <h2 className={`text-lg font-bold mb-2 ${canRetry ? 'text-slate-700' : 'text-blue-600'}`}>{statusMsg}</h2>
         {canRetry && (
           <button
-            onClick={() => { setCanRetry(false); setStatusMsg("AI가 정밀 분석 중입니다..."); loadReport(0); }}
-            className="mt-4 rounded-full bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
-            다시 시도
+            onClick={handleRetry}
+            disabled={retryCount >= _MAX_RETRY}
+            className={`mt-4 rounded-full px-6 py-2.5 text-sm font-bold text-white transition-colors ${retryCount >= _MAX_RETRY ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
+            {retryCount >= _MAX_RETRY ? '잠시 후 다시 시도' : '다시 시도'}
           </button>
         )}
       </div>
