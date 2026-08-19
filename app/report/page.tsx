@@ -408,6 +408,7 @@ function ReportContent() {
 
   const [report, setReport] = useState<any>(null);
   const [statusMsg, setStatusMsg] = useState("데이터 분석 중...");
+  const [canRetry, setCanRetry] = useState(false);  // item4: 지연/실패 재시도
   // 기본 상태 '항상 펼침(Always Expanded)': 리포트 진입 즉시 5개 역량 상세가
   // 모두 열려 있어야 인쇄·PDF 저장 시 내용 누락 없이 전체가 출력된다.
   const [openDetail, setOpenDetail] = useState<string | null>("ALL");
@@ -439,16 +440,26 @@ function ReportContent() {
     });
   }, []);
 
-  const loadReport = async () => {
+  // item4: 분석 오염(degraded) 시 리포트가 저장되지 않아 GET 이 계속 404 다.
+  //   무한 폴링 대신 상한(≈60초)을 두고, 초과 시 '지연/실패 + 다시 시도'를
+  //   명확히 안내한다(빈 화면·에러 코드 노출 금지).
+  const _MAX_POLLS = 30;  // 2초 × 30 = 60초
+  const loadReport = async (attempt = 0) => {
     try {
       const res = await apiClient.get(`/reports/${sessionId}`);
       setReport(res.data);
     } catch (err: any) {
-      if (err.response?.status === 404) {
+      if (err.response?.status === 404 && attempt < _MAX_POLLS) {
         setStatusMsg("AI가 정밀 분석 중입니다...");
-        setTimeout(loadReport, 2000);
+        setTimeout(() => loadReport(attempt + 1), 2000);
+      } else if (err.response?.status === 404) {
+        // 상한 초과 — 분석 지연 또는 일시적 실패(오염). 재시도 유도.
+        setStatusMsg(
+          "리포트 생성이 지연되거나 일시적으로 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        setCanRetry(true);
       } else {
         setStatusMsg("오류가 발생했습니다. 다시 시도해주세요.");
+        setCanRetry(true);
       }
     }
   };
@@ -518,8 +529,17 @@ function ReportContent() {
   if (!report) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center px-4 text-center">
-        <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
-        <h2 className="text-lg font-bold mb-2 text-blue-600">{statusMsg}</h2>
+        {!canRetry && (
+          <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
+        )}
+        <h2 className={`text-lg font-bold mb-2 ${canRetry ? 'text-slate-700' : 'text-blue-600'}`}>{statusMsg}</h2>
+        {canRetry && (
+          <button
+            onClick={() => { setCanRetry(false); setStatusMsg("AI가 정밀 분석 중입니다..."); loadReport(0); }}
+            className="mt-4 rounded-full bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
+            다시 시도
+          </button>
+        )}
       </div>
     );
   }
