@@ -8,7 +8,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('test@example.com');
   const [password, setPassword] = useState('password123');
-  const [groupCode, setGroupCode] = useState('G-TEST');
+  const [groupCode, setGroupCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -28,7 +28,7 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="space-y-4">
           <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} className="w-full px-4 py-3 border rounded-lg" required />
           <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} className="w-full px-4 py-3 border rounded-lg" required />
-          <input type="text" value={groupCode} onChange={(e)=>setGroupCode(e.target.value)} className="w-full px-4 py-3 border rounded-lg" required />
+          <input type="text" value={groupCode} onChange={(e)=>setGroupCode(e.target.value)} placeholder="기업에서 안내받은 코드를 입력하세요" className="w-full px-4 py-3 border rounded-lg" required />
           <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">{loading ? '로그인 중...' : '시작하기'}</button>
         </form>
       </div>
