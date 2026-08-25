@@ -88,11 +88,14 @@ function ChatContent() {
   const diagnosisId = searchParams.get('diagnosis_id');
   const sessionId = searchParams.get('session_id');
   const coachName = searchParams.get('coach_name') || "AI 코치";
-  const initialMsg = searchParams.get('initial_message') ? decodeURIComponent(searchParams.get('initial_message')!) : "";
+  // 🐛 fix: useSearchParams()가 이미 1회 디코드한 값을 다시 decodeURIComponent 하면
+  //   '50%' 처럼 %가 포함된 코치 문구에서 'URI malformed'가 렌더 중 던져져
+  //   화면 전체가 client-side exception 으로 죽었다(배포 전용 증상). 재디코드 제거.
+  const initialMsg = searchParams.get('initial_message') || "";
 
   const rawCoachImg = searchParams.get('coach_img');
-  const coachImg = rawCoachImg 
-    ? `/images/${decodeURIComponent(rawCoachImg).split('/').pop()}` 
+  const coachImg = rawCoachImg
+    ? `/images/${(rawCoachImg.split('/').pop() || 'default.png')}`
     : "/images/default.png";
 
   const [messages, setMessages] = useState<Message[]>([]);
