@@ -189,8 +189,12 @@ const KeywordTreemap = ({ keywords }: { keywords: { keyword: string; count: numb
           >
             <RechartsTooltip
               contentStyle={{ backgroundColor: '#1F2937', borderRadius: '8px', border: '1px solid #374151' }}
+              // 👇 여기부터 추가 및 수정된 부분입니다 👇
+              itemStyle={{ color: '#F3F4F6' }}  // '1회 언급' 값의 글자색 (밝은 회색)
+              labelStyle={{ color: '#9CA3AF' }} // '출현 빈도' 라벨의 글자색 (조금 더 어두운 회색)
+              // 👆 여기까지 👆
               formatter={(value: any) => [`${value}회 언급`, '출현 빈도']}
-            />
+          />
           </Treemap>
         </ResponsiveContainer>
       </div>

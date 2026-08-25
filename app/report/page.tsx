@@ -685,16 +685,18 @@ function ReportContent() {
                 </div>
               )}
             </div>
-            {report.coverage?.score_suppressed ? (
-              /* C-4: completed_insufficient — 실패가 아니라 '진행 상태'로.
-                 '부족/미달/실패' 표현 금지. 종합점수 자리에 안내 + 이어하기 CTA. */
+            {!report.coverage?.composite_shown ? (
+              /* V-6(1): 종합 섹션은 커버리지가 넓을 때만 추가되는 부가물이다.
+                 없는 것이 기본 출력 — '부족/미달/제한' 함의 금지. 확인 개수를
+                 숫자로 밝히고, 나머지는 다음 세션에서 이어볼 수 있음을 안내. */
               <>
                 <div className="text-center my-auto">
-                  <span className="text-xl font-black text-slate-500">측정 범위가 제한되어<br />종합 점수는 산출하지 않았습니다</span>
+                  <span className="text-xl font-black text-slate-700">이번 진단에서 26개 역량 지표 중<br />{report.coverage?.measured}개를 확인했습니다</span>
                 </div>
                 <p className="text-center text-sm font-semibold text-slate-500 mt-6">
-                  이번 세션에서는 26개 역량 중 {report.coverage?.measured}개에 대한 구체적 사례를 확인했습니다.
-                  아래 분석은 확인된 역량을 기준으로 하며, 나머지 역량은 다음 세션에서 이어서 살펴봅니다.
+                  아래 심층 분석과 성장 제안은 확인된 역량 근거로 구성됩니다.
+                  종합 점수·레이더는 더 넓은 범위가 확인될 때 함께 제공되며,
+                  남은 역량은 다음 세션에서 이어볼 수 있습니다.
                 </p>
               </>
             ) : (
@@ -713,9 +715,10 @@ function ReportContent() {
             )}
           </div>
 
-          {/* C-2: 근거 부족(부분 리포트) 시 역량 밸런스 레이더·상대 비교 분석은
-              렌더링하지 않는다 — 6개 평균을 26개 종합처럼 오해시키지 않기 위함. */}
-          {!report.coverage?.score_suppressed && (
+          {/* V-6(1): 레이더·상대비교는 종합 섹션의 일부 — 커버리지가 넓을
+              때(composite_shown)만 추가한다. 좁은 측정으로 6역량 평균을 26
+              종합처럼 오해시키지 않기 위함. */}
+          {report.coverage?.composite_shown && (
             <>
               <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
                 <h3 className="text-xl font-black text-slate-900 w-full mb-2">역량 밸런스</h3>
