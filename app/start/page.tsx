@@ -16,6 +16,8 @@ export default function StartPage() {
   const router = useRouter();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // 진행 중 세션 사전 안내(재개 시 원래 코치로 이어짐을 미리 고지).
+  const [activeCoachName, setActiveCoachName] = useState<string | null>(null);
 
   // 백엔드 API 주소 (.env.local 의 NEXT_PUBLIC_API_URL 로 override 가능)
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
@@ -29,6 +31,15 @@ export default function StartPage() {
     localStorage.removeItem('diagnosis_id');
     localStorage.removeItem('session_id');
     sessionStorage.clear();
+  }, []);
+
+  // 진행 중 세션이 있으면 미리 안내(코치를 새로 골라도 재개 시 원래 코치 유지).
+  useEffect(() => {
+    const pid = localStorage.getItem('participant_id');
+    if (!pid) return;
+    axios.get(`${API_BASE_URL}/diagnoses/active`, { params: { participant_id: pid } })
+      .then((r) => { if (r.data?.has_active) setActiveCoachName(r.data.coach_name); })
+      .catch(() => {});
   }, []);
 
   // 코치 목록 불러오기
@@ -60,16 +71,29 @@ export default function StartPage() {
 
       const diagnosisId = res.data.diagnosis_id || res.data.id;
       const sessionId = res.data.session_id;
-      
+
+      // 🐛 fix: 진행 중 세션이 있으면 백엔드가 그 세션을 '재개'하고 원래 코치를
+      //   유지한다. 이때 화면은 방금 클릭한 코치가 아니라 '재개 세션의 코치'를
+      //   보여줘야 혼란이 없다. next_action==="resume" 이면 응답의 coach_id/
+      //   coach_name 으로 프로필(이름·아바타)을 덮어쓰고, 이어하기 안내를 띄운다.
+      let effName = coachName;
+      let effAvatar = coachAvatar;
+      if (res.data.next_action === "resume") {
+        const rId = res.data.coach_id;
+        effName = res.data.coach_name || coachName;
+        const rCoach = coaches.find((c) => c.id === rId);
+        if (rCoach) effAvatar = rCoach.avatar_url;
+        alert(`이전에 ${effName} 코치와 진행하던 진단이 있어 이어서 시작합니다.`);
+      }
+
       const msgStr = res.data.coach_response_message;
-      const finalMsg = (msgStr && msgStr.length > 5) ? msgStr : `안녕하세요. 오늘 진단을 함께할 ${coachName.split('(')[0]} 코치입니다.`;
+      const finalMsg = (msgStr && msgStr.length > 5) ? msgStr : `안녕하세요. 오늘 진단을 함께할 ${effName.split('(')[0]} 코치입니다.`;
 
       const encodedMsg = encodeURIComponent(finalMsg);
-      const encodedImg = encodeURIComponent(coachAvatar);
+      const encodedImg = encodeURIComponent(effAvatar);
 
-      // 채팅 직전에 자가진단 단계를 거친다. 대화 파라미터는 그대로 넘겨,
-      // 자가진단 제출(또는 건너뛰기) 후 동일한 채팅 화면으로 이어지게 한다.
-      router.push(`/assessment/self-eval?diagnosis_id=${diagnosisId}&session_id=${sessionId}&coach_name=${coachName}&coach_img=${encodedImg}&initial_message=${encodedMsg}`);
+      // 채팅 직전에 자가진단 단계를 거친다. 재개면 '재개 세션 코치'로 프로필 통일.
+      router.push(`/assessment/self-eval?diagnosis_id=${diagnosisId}&session_id=${sessionId}&coach_name=${effName}&coach_img=${encodedImg}&initial_message=${encodedMsg}`);
 
     } catch (error) {
       console.error(error);
@@ -131,6 +155,13 @@ export default function StartPage() {
             <p className="text-gray-500 text-sm">AI 코치 프로필 로딩 중...</p>
           </div>
         ) : (
+          <>
+          {activeCoachName && (
+            <div className="mb-6 mx-4 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-4 text-sm text-blue-200">
+              진행 중인 진단이 있습니다. 이어서 진행하시면 처음 선택하신{' '}
+              <b>{activeCoachName}</b> 코치로 계속됩니다. (새 코치를 골라도 진행 중 진단이 이어집니다.)
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-4">
             {coaches?.map((coach) => (
               <div 
@@ -178,6 +209,7 @@ export default function StartPage() {
               </div>
             ))}
           </div>
+          </>
         )}
       </div>
     </main>
