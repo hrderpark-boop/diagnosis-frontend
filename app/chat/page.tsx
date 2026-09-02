@@ -6,6 +6,15 @@ import apiClient from '@/lib/api';
 import { getTopicNames } from '@/lib/framework';
 
 // ----------------------------------------------------------------------
+// [상수] 일시중지 요청 문구 — 백엔드 PAUSE 전용 키워드("잠시 쉬"/"쉴게")만 포함.
+//   ⚠️ "오늘은 여기까지 하고 …", "다음에 이어서 …" 류는 이탈(refusal) 패턴과
+//   겹쳐 ABORT_CONFIRM → aborted_disengaged 체인을 탔다(H4). 여기 문구를 바꿀 땐
+//   백엔드 tests/test_abort.py::test_pause_intent_is_not_refusal 과 맞출 것.
+// ----------------------------------------------------------------------
+const PAUSE_MESSAGE = "잠시 쉬었다가 다시 할게요.";
+const PAUSE_LATER_MESSAGE = "오늘은 여기서 잠시 쉴게요.";
+
+// ----------------------------------------------------------------------
 // [타입 정의]
 // ----------------------------------------------------------------------
 interface Message {
@@ -287,10 +296,12 @@ function ChatContent() {
     setJustCompletedTopic(false);
     sendMessage("네, 다음으로 이어가 주세요.");
   };
-  // 챕터 경계에서 '잠시 쉬기' 선택 — 백엔드 pause 키워드("쉴게")에 매칭되는 문구 전송
+  // 챕터 경계에서 '잠시 쉬기' 선택 — 백엔드 PAUSE 전용 키워드("잠시 쉬"/"쉴게")만
+  // 포함하는 문구를 보낸다. ⚠️ "오늘은 여기까지 하고…" 류는 이탈(refusal) 패턴과
+  // 겹쳐 ABORT_CONFIRM 체인을 탔다(H4) — pause 문구는 refusal 표지를 피한다.
   const takeBreak = () => {
     setAwaitingContinue(false);
-    sendMessage("오늘은 여기까지 하고 잠시 쉴게요.");
+    sendMessage(PAUSE_MESSAGE);
   };
 
   // 5. 진단 종료
@@ -467,7 +478,7 @@ function ChatContent() {
                     ▶ 계속 진행하기
                   </button>
                   <button
-                    onClick={() => { setNeedsDecision(false); sendMessage("오늘은 여기까지 하고 다음에 이어서 할게요."); }}
+                    onClick={() => { setNeedsDecision(false); sendMessage(PAUSE_LATER_MESSAGE); }}
                     disabled={isLoading}
                     className="rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 px-4 py-2 text-sm font-bold text-gray-200 transition-colors disabled:opacity-50"
                   >
