@@ -142,36 +142,6 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
 
 
 // ----------------------------------------------------------------------
-// [COMPARISON CHART - 상대적 비교 분석]
-// ----------------------------------------------------------------------
-const ComparisonChart = ({ myScore, maxScore }: { myScore: number, maxScore: number }) => {
-  const safeMax = maxScore || 5;
-  // 시인성 높은 짙은 단색(Solid) — 흐릿한 파스텔 톤 배제
-  const data = [
-    { label: "나의 점수", value: myScore, color: "bg-blue-700" },
-    { label: "팀 평균",   value: 3.8, color: "bg-slate-800" },
-    { label: "부문 평균", value: 3.6, color: "bg-slate-600" },
-    { label: "전사 평균", value: 3.5, color: "bg-slate-400" },
-  ];
-  return (
-    <div className="w-full space-y-4 flex flex-col justify-center h-full">
-      {data.map((item, idx) => (
-        <div key={idx} className="space-y-1.5">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700 font-semibold">{item.label}</span>
-            <span className="text-slate-900 font-bold tabular-nums">{Number(item.value).toFixed(1)}점</span>
-          </div>
-          <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${item.color} transition-all duration-700`}
-              style={{ width: `${(item.value / safeMax) * 100}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// ----------------------------------------------------------------------
 // [SCORE BREAKDOWN]
 // ----------------------------------------------------------------------
 const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: number }) => {
@@ -569,18 +539,20 @@ function ReportContent() {
 
   const detailsData = report.details ?? {};
 
+  // H6: 가짜 인적사항 금지 — 이름은 실제 참가자명, 없으면 중립 호칭 '리더'.
   const displayName = !report.user_name || report.user_name === "Leader" || report.user_name === "User"
-                      ? "박기진"
+                      ? "리더"
                       : report.user_name;
 
-  // TODO: 출시 전 백엔드 연결
-  const respondentInfo = {
-    company: "압닛컴퍼니",
-    department: "R&D 본부",
-    team: "AI 플랫폼팀",
-    position: "팀장",
-    diagnosisDate: report.created_at || new Date().toISOString().slice(0, 10),
-  };
+  // H6: 응답자 정보는 백엔드(/reports/{sid} → participant)에서 온 값만 표시하고,
+  //   없는 항목은 칸 자체를 숨긴다(소속/부서/직급 하드코딩 제거).
+  const participant = report.participant ?? {};
+  const respondentRows: Array<{ label: string; value: string }> = [
+    participant.company_name ? { label: '소속', value: String(participant.company_name) } : null,
+    participant.group_code ? { label: '그룹 코드', value: String(participant.group_code) } : null,
+    participant.email ? { label: '이메일', value: String(participant.email) } : null,
+    { label: '진단일', value: String(report.created_at || new Date().toISOString().slice(0, 10)) },
+  ].filter((r): r is { label: string; value: string } => r !== null);
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-800 pb-24">
@@ -624,22 +596,12 @@ function ReportContent() {
           {/* 응답자 정보 */}
           <div className="print:break-inside-avoid p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-4">
-              <div>
-                <div className="text-xs text-slate-500 font-semibold mb-1">소속</div>
-                <div className="text-sm text-slate-800 font-bold">{respondentInfo.company}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500 font-semibold mb-1">부서</div>
-                <div className="text-sm text-slate-800 font-bold">{respondentInfo.department} / {respondentInfo.team}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500 font-semibold mb-1">직급</div>
-                <div className="text-sm text-slate-800 font-bold">{respondentInfo.position}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500 font-semibold mb-1">진단일</div>
-                <div className="text-sm text-slate-800 font-bold">{respondentInfo.diagnosisDate}</div>
-              </div>
+              {respondentRows.map((row) => (
+                <div key={row.label}>
+                  <div className="text-xs text-slate-500 font-semibold mb-1">{row.label}</div>
+                  <div className="text-sm text-slate-800 font-bold break-all">{row.value}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -718,22 +680,16 @@ function ReportContent() {
           {/* V-6(1): 레이더·상대비교는 종합 섹션의 일부 — 커버리지가 넓을
               때(composite_shown)만 추가한다. 좁은 측정으로 6역량 평균을 26
               종합처럼 오해시키지 않기 위함. */}
+          {/* H6: '상대적 비교 분석'(팀/부문/전사 평균)은 실데이터 소스가 없어
+              하드코딩 수치(3.8/3.6/3.5)를 보여주고 있었다 → 제거. 비교 집계 API 가
+              생기면 그때 다시 추가한다. 레이더가 남은 2칸을 차지한다. */}
           {report.coverage?.composite_shown && (
-            <>
-              <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
-                <h3 className="text-xl font-black text-slate-900 w-full mb-2">역량 밸런스</h3>
-                <div className="w-full h-full flex-1 min-h-[220px]">
-                  <RadarChart data={report.radar_chart} competencies={frameworkCompetencies} maxScore={maxScore} />
-                </div>
+            <div className="print:break-inside-avoid lg:col-span-2 print:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
+              <h3 className="text-xl font-black text-slate-900 w-full mb-2">역량 밸런스</h3>
+              <div className="w-full h-full flex-1 min-h-[220px]">
+                <RadarChart data={report.radar_chart} competencies={frameworkCompetencies} maxScore={maxScore} />
               </div>
-
-              <div className="print:break-inside-avoid bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col">
-                <h3 className="text-xl font-black text-slate-900 mb-6">상대적 비교 분석</h3>
-                <div className="flex-1">
-                  <ComparisonChart myScore={report.total_score} maxScore={maxScore} />
-                </div>
-              </div>
-            </>
+            </div>
           )}
         </div>
 
