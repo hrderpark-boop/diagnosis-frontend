@@ -246,9 +246,15 @@ function ChatContent() {
       if (terminated) setIsTerminated(true);
 
       // 현재 단계 반영
+      // M16: 참여 이탈 중단(aborted_disengaged)은 3-Strike(aborted)와 달리 '원장
+      //   보존·재개 가능' 상태 — 입력을 잠그지 않고 일시중지와 같은 재개 배너를
+      //   띄운다(다음 발화에서 백엔드 1-b 가 in_progress 로 복원).
+      const disengaged =
+        res.data.is_aborted_disengaged === true ||
+        res.data.session_status === 'aborted_disengaged';
       setSessionStatus(
         res.data.session_status === 'aborted' ? 'aborted'
-          : isPaused ? 'paused'
+          : (isPaused || disengaged) ? 'paused'
           : (sessionCompleted ? 'completed' : 'in_progress')
       );
       setHasNextChapter(nextExists);

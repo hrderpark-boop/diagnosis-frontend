@@ -24,11 +24,14 @@ import {
 
 const PAGE_SIZE = 20;
 
+// 백엔드 세션 상태 모델(M16): in_progress / paused / aborted_disengaged(참여 이탈
+// 중단 — 원장 보존·재개 가능) / aborted(3-Strike — 재개 불가) / completed.
+// 'incomplete' 는 V-6 에서 제거된 상태라 라벨도 삭제.
 const STATUS_STYLE: Record<string, string> = {
   completed: 'bg-green-900/50 text-green-400',
   in_progress: 'bg-blue-900/50 text-blue-400',
   paused: 'bg-amber-900/50 text-amber-400',
-  incomplete: 'bg-rose-900/50 text-rose-300',
+  aborted_disengaged: 'bg-orange-900/50 text-orange-300',
   aborted: 'bg-rose-900/50 text-rose-300',
   미시작: 'bg-gray-700/50 text-gray-400',
 };
@@ -36,8 +39,8 @@ const STATUS_LABEL: Record<string, string> = {
   completed: '완료',
   in_progress: '진행 중',
   paused: '일시중지',
-  incomplete: '미완료',
-  aborted: '중단됨',
+  aborted_disengaged: '이탈 중단(재개 가능)',
+  aborted: '강제 종료',
   미시작: '미시작',
 };
 
@@ -55,6 +58,9 @@ const BEHAVIOR_STYLE: Record<string, string> = {
 const STATUS_FILTERS = [
   { key: 'completed', label: '완료' },
   { key: 'in_progress', label: '진행 중' },
+  { key: 'paused', label: '일시중지' },
+  { key: 'aborted_disengaged', label: '이탈 중단' },
+  { key: 'aborted', label: '강제 종료' },
   { key: '미시작', label: '미시작' },
 ];
 const BEHAVIOR_FILTERS = ['투머치토커', '단답형', '표준형'];
