@@ -158,8 +158,8 @@ export default function StartPage() {
           <>
           {activeCoachName && (
             <div className="mb-6 mx-4 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-4 text-sm text-blue-200">
-              진행 중인 진단이 있습니다. 이어서 진행하시면 처음 선택하신{' '}
-              <b>{activeCoachName}</b> 코치로 계속됩니다. (새 코치를 골라도 진행 중 진단이 이어집니다.)
+              진행 중인 진단이 있습니다. 이어서 진행하시면 처음 함께 시작하신{' '}
+              <b>{activeCoachName}</b> 코치와 계속됩니다. 다른 코치와 새로 진행하고 싶으시더라도, 기존에 진행 중이던 진단이 이어집니다.
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-4">
