@@ -78,7 +78,8 @@ export default function StartPage() {
       //   coach_name 으로 프로필(이름·아바타)을 덮어쓰고, 이어하기 안내를 띄운다.
       let effName = coachName;
       let effAvatar = coachAvatar;
-      if (res.data.next_action === "resume") {
+      const isResume = res.data.next_action === "resume";
+      if (isResume) {
         const rId = res.data.coach_id;
         effName = res.data.coach_name || coachName;
         const rCoach = coaches.find((c) => c.id === rId);
@@ -91,9 +92,16 @@ export default function StartPage() {
 
       const encodedMsg = encodeURIComponent(finalMsg);
       const encodedImg = encodeURIComponent(effAvatar);
+      const chatQuery = `diagnosis_id=${diagnosisId}&session_id=${sessionId}&coach_name=${effName}&coach_img=${encodedImg}&initial_message=${encodedMsg}`;
 
-      // 채팅 직전에 자가진단 단계를 거친다. 재개면 '재개 세션 코치'로 프로필 통일.
-      router.push(`/assessment/self-eval?diagnosis_id=${diagnosisId}&session_id=${sessionId}&coach_name=${effName}&coach_img=${encodedImg}&initial_message=${encodedMsg}`);
+      // 🐛 fix: 재개 세션은 자가진단을 이미 마쳤다. 다시 self-eval 을 거치면
+      //   이미 완료한 설문을 반복하게 되므로, 재개면 /chat 으로 직행한다.
+      //   신규 세션만 자가진단 단계를 거친다.
+      if (isResume) {
+        router.push(`/chat?${chatQuery}`);
+      } else {
+        router.push(`/assessment/self-eval?${chatQuery}`);
+      }
 
     } catch (error) {
       console.error(error);

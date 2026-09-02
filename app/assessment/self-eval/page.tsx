@@ -63,6 +63,15 @@ function SelfEvalContent() {
     setSessionId(fromQuery || fromStorage || '');
   }, [searchParams]);
 
+  // 🐛 백업 게이트: 재개 등으로 이미 자가진단을 제출한 세션이면 설문을 다시
+  //   보여주지 않고 곧바로 채팅으로 넘긴다(직접 URL 진입·start 우회 대비).
+  useEffect(() => {
+    if (!sessionId) return;
+    axios.get(`${API_BASE_URL}/sessions/${sessionId}/self-eval`)
+      .then((r) => { if (r.data?.submitted) router.replace(chatUrl); })
+      .catch(() => {});
+  }, [sessionId]);
+
   // 자가진단을 마친 뒤 이동할 채팅 URL (진단 시작 단계에서 받은 파라미터 보존)
   const chatUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -149,7 +158,7 @@ function SelfEvalContent() {
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="text-2xl font-black tabular-nums text-blue-600">
-                      {scores[c.key].toFixed(1)}
+                      {scores[c.key]}
                     </div>
                     <div className="text-[11px] font-semibold text-slate-500">
                       {scoreLabel(scores[c.key])}
@@ -161,16 +170,29 @@ function SelfEvalContent() {
                   type="range"
                   min={1}
                   max={5}
-                  step={0.5}
+                  step={1}
                   value={scores[c.key]}
                   onChange={(e) => setScore(c.key, Number(e.target.value))}
                   aria-label={`${c.name} 자가 평가 점수`}
                   className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600"
                 />
+                {/* 5점 척도 눈금: 1~5 모두 표시. 양끝·중앙만 텍스트 라벨,
+                    2·4 는 숫자만 두어 시각적 잡음을 줄인다. */}
                 <div className="mt-2 flex justify-between text-[11px] font-medium text-slate-400">
-                  <span>1 · 많이 부족</span>
-                  <span>3 · 보통</span>
-                  <span>5 · 매우 자신 있음</span>
+                  <span className="flex flex-col items-start leading-tight">
+                    <span className="font-bold text-slate-500">1</span>
+                    <span>많이 부족</span>
+                  </span>
+                  <span className="font-bold text-slate-400">2</span>
+                  <span className="flex flex-col items-center leading-tight">
+                    <span className="font-bold text-slate-500">3</span>
+                    <span>보통</span>
+                  </span>
+                  <span className="font-bold text-slate-400">4</span>
+                  <span className="flex flex-col items-end leading-tight">
+                    <span className="font-bold text-slate-500">5</span>
+                    <span>매우 자신 있음</span>
+                  </span>
                 </div>
               </div>
             ))}
