@@ -351,7 +351,9 @@ function ChatContent() {
       <div className="flex w-full h-full max-w-[1600px] mx-auto relative z-10">
         {/* 왼쪽 패널 */}
         <section className="hidden md:flex w-[400px] flex-col h-full relative border-r border-white/5 bg-black/20 backdrop-blur-sm">
-          <div className="flex-1 flex flex-col justify-center items-center w-full px-8 gap-12 pt-48 translate-y-10">
+          {/* 오른쪽 채팅창(mt-24 + p-8 = 128px 오프셋, 높이 92vh)과 위·아래 선을 맞춘다.
+              프로필 상단 = 채팅창 상단, 마지막 버튼 하단 = 채팅창 하단(mt-auto). */}
+          <div className="flex flex-col items-center w-full px-8 gap-10 mt-32 h-[92vh]">
             {/* 코치 프로필 */}
             <div className="flex flex-col items-center space-y-6">
               <div className="relative group">
@@ -375,7 +377,7 @@ function ChatContent() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
                   </span>
-                  <span className="text-[11px] font-bold text-green-400 tracking-widest uppercase">Live</span>
+                  <span className="text-[11px] font-bold text-green-400 tracking-wider">세션 진행 중</span>
                 </div>
               </div>
             </div>
@@ -422,8 +424,8 @@ function ChatContent() {
               </ol>
             </div>
 
-            {/* 하단 버튼 */}
-            <div className="flex flex-col gap-3 w-full max-w-[300px]">
+            {/* 하단 버튼 — mt-auto 로 패널 바닥(=채팅창 하단선)에 붙인다 */}
+            <div className="flex flex-col gap-3 w-full max-w-[300px] mt-auto">
               <button onClick={() => router.push('/start')} className="w-full py-3.5 rounded-xl border border-white/10 bg-transparent hover:bg-white/5 text-gray-200 transition-all text-sm font-medium">
                 저장하고 나가기
               </button>
