@@ -353,7 +353,7 @@ function ChatContent() {
         <section className="hidden md:flex w-[400px] flex-col h-full relative border-r border-white/5 bg-black/20 backdrop-blur-sm">
           {/* 오른쪽 채팅창(mt-24 + p-8 = 128px 오프셋, 높이 92vh)과 위·아래 선을 맞춘다.
               프로필 상단 = 채팅창 상단, 마지막 버튼 하단 = 채팅창 하단(mt-auto). */}
-          <div className="flex flex-col items-center w-full px-8 gap-10 mt-32 h-[92vh]">
+          <div className="flex flex-col items-center w-full px-8 gap-10 mt-32 h-[92vh] shrink-0">
             {/* 코치 프로필 */}
             <div className="flex flex-col items-center space-y-6">
               <div className="relative group">
@@ -383,7 +383,7 @@ function ChatContent() {
             </div>
 
             {/* 진행 상황 — 역량 순서 목록 (완료: 금색 점 / 진행 중: 흰 링 / 대기: 흐림) */}
-            <div className="w-full max-w-[300px] flex flex-col">
+            <div className="w-full max-w-[300px] flex flex-col my-auto">
               <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-[0.25em]">Progress</p>
               <h3 className="text-sm font-bold text-white mt-1 mb-4">진행 상황</h3>
               <ol className="w-full">
