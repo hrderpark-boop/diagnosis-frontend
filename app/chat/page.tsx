@@ -353,7 +353,8 @@ function ChatContent() {
         <section className="hidden md:flex w-[400px] flex-col h-full relative border-r border-white/5 bg-black/20 backdrop-blur-sm">
           {/* 오른쪽 채팅창(mt-24 + p-8 = 128px 오프셋, 높이 92vh)과 위·아래 선을 맞춘다.
               프로필 상단 = 채팅창 상단, 마지막 버튼 하단 = 채팅창 하단(mt-auto). */}
-          <div className="flex flex-col items-center w-full px-8 gap-10 mt-32 h-[92vh] shrink-0">
+          {/* 상단은 채팅창 상단선보다 72px 아래, 하단은 채팅창 하단선 유지(높이에서 72px 차감). */}
+          <div className="flex flex-col items-center w-full px-8 gap-10 mt-[200px] h-[calc(92vh-72px)] shrink-0">
             {/* 코치 프로필 */}
             <div className="flex flex-col items-center space-y-6">
               <div className="relative group">
