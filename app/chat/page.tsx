@@ -380,35 +380,56 @@ function ChatContent() {
               </div>
             </div>
 
-            {/* 하단 버튼 */}
-            <div className="flex flex-col gap-3 w-full max-w-[260px]">
-              <button onClick={() => router.push('/start')} className="w-full py-3.5 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300 transition-all text-sm font-medium">
-                저장하고 나가기
-              </button>
-              <button onClick={handleFinishDiagnosis} disabled={isAnalyzing} className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-lg hover:shadow-blue-500/30">
-                {isAnalyzing ? "분석 중..." : "진단 완료 및 결과 보기"}
-              </button>
-            </div>
-
-            {/* 역량 메달 */}
-            <div className="w-full max-w-[300px] flex flex-col bg-white/[0.03] rounded-[2rem] p-6 border border-white/5 backdrop-blur-sm">
-              <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-5 text-center">Hall of Achievements</h3>
-              <div
-                className="grid gap-2 w-full place-items-center"
-                style={{ gridTemplateColumns: `repeat(${allTopics.length || 5}, minmax(0, 1fr))` }}
-              >
+            {/* 진행 상황 — 역량 순서 목록 (완료: 금색 점 / 진행 중: 흰 링 / 대기: 흐림) */}
+            <div className="w-full max-w-[300px] flex flex-col">
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-[0.25em]">Progress</p>
+              <h3 className="text-sm font-bold text-white mt-1 mb-4">진행 상황</h3>
+              <ol className="w-full">
                 {allTopics.map((topic, idx) => {
                   const isCompleted = completedTopics.includes(topic);
+                  // 현재 진행 중 = 아직 완료되지 않은 첫 번째 역량 (역량은 순서대로 진행)
+                  const currentIdx = allTopics.findIndex((t) => !completedTopics.includes(t));
+                  const isCurrent = !isCompleted && idx === currentIdx;
+                  const isUpcoming = !isCompleted && !isCurrent;
                   return (
-                    <div key={idx} className={`relative w-11 h-11 rounded-full flex items-center justify-center border-2 transition-all duration-700
-                        ${isCompleted ? 'bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 border-yellow-200/50 shadow-lg scale-110' : 'bg-[#1a1a1d] border-white/5 opacity-30'}`}>
-                      <span className={`text-[10px] font-extrabold ${isCompleted ? 'text-white' : 'text-gray-600'}`}>
-                        {topic.substring(0, 2)}
-                      </span>
-                    </div>
+                    <li
+                      key={topic}
+                      className="flex items-center justify-between py-3.5 border-b border-white/[0.06] last:border-b-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[11px] font-mono tabular-nums ${isUpcoming ? 'text-gray-600' : 'text-gray-500'}`}>
+                          {String(idx + 1).padStart(2, '0')}
+                        </span>
+                        <span className={`text-sm transition-colors duration-500 ${
+                          isCompleted ? 'text-gray-200 font-medium'
+                            : isCurrent ? 'text-white font-semibold'
+                            : 'text-gray-600'
+                        }`}>
+                          {topic}
+                        </span>
+                      </div>
+                      <span
+                        aria-label={isCompleted ? '완료' : isCurrent ? '진행 중' : '대기'}
+                        className={`inline-block rounded-full transition-all duration-500 ${
+                          isCompleted ? 'w-2 h-2 bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]'
+                            : isCurrent ? 'w-2 h-2 border-[1.5px] border-white bg-transparent'
+                            : 'w-1.5 h-1.5 bg-white/10'
+                        }`}
+                      />
+                    </li>
                   );
                 })}
-              </div>
+              </ol>
+            </div>
+
+            {/* 하단 버튼 */}
+            <div className="flex flex-col gap-3 w-full max-w-[300px]">
+              <button onClick={() => router.push('/start')} className="w-full py-3.5 rounded-xl border border-white/10 bg-transparent hover:bg-white/5 text-gray-200 transition-all text-sm font-medium">
+                저장하고 나가기
+              </button>
+              <button onClick={handleFinishDiagnosis} disabled={isAnalyzing} className="w-full py-3.5 rounded-xl bg-white text-black text-sm font-bold hover:bg-gray-100 transition-all disabled:opacity-60">
+                {isAnalyzing ? "분석 중..." : "진단 완료 및 결과 보기"}
+              </button>
             </div>
           </div>
         </section>
