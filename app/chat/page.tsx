@@ -439,7 +439,8 @@ function ChatContent() {
 
         {/* 오른쪽 채팅창 */}
         <section className="flex-1 h-full p-4 md:p-8 flex items-start justify-center">
-          <div className="w-full max-w-4xl h-[92vh] mt-24 bg-white/[0.09] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex flex-col overflow-hidden relative shadow-2xl">
+          {/* #4: 넓은 화면에서는 대화창을 더 넓게(4xl 896px → xl 이상 6xl 1152px), 모바일은 기존대로 */}
+          <div className="w-full max-w-4xl xl:max-w-6xl h-[92vh] mt-24 bg-white/[0.09] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex flex-col overflow-hidden relative shadow-2xl">
             {/* 채팅 히스토리 */}
             <div className="flex-1 px-6 md:px-10 py-6 space-y-8 overflow-y-auto custom-scrollbar">
               <div className="h-8"></div>
@@ -450,7 +451,9 @@ function ChatContent() {
                       <img src={coachImg} alt="AI" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "/images/default.png"}} />
                     </div>
                   )}
-                  <div className={`max-w-[85%] px-6 py-4 rounded-2xl whitespace-pre-wrap shadow-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-[#1a1a1d]/60 text-gray-100 border border-white/10'}`}>
+                  {/* #4: 말풍선 최대 폭 85% → 모바일 92% / md 이상 88%. break-keep 으로 한국어
+                      단어 중간 줄바꿈(끝 한 글자만 다음 줄로 떨어짐) 방지 */}
+                  <div className={`max-w-[92%] md:max-w-[88%] px-6 py-4 rounded-2xl whitespace-pre-wrap break-keep shadow-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-[#1a1a1d]/60 text-gray-100 border border-white/10'}`}>
                     {msg.content}
                   </div>
                 </div>
