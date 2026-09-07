@@ -129,7 +129,7 @@ function SelfEvalContent() {
           </div>
           <h1 className="mb-3 text-3xl font-black leading-tight text-slate-900 md:text-4xl">
             대화를 시작하기 전에,<br />
-            <span className="text-blue-600">스스로를 어떻게 보고 계신가요?</span>
+            <span className="text-blue-600">지금 나는 어느 정도일까요?</span>
           </h1>
           <p className="text-base leading-relaxed text-slate-600">
             정답은 없습니다. 지금 떠오르는 대로 솔직하게 표시해주세요.<br />
