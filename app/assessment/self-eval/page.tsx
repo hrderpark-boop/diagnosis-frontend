@@ -158,7 +158,7 @@ function SelfEvalContent() {
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="text-2xl font-black tabular-nums text-blue-600">
-                      {scores[c.key]}
+                      {Number(scores[c.key]).toFixed(1)}
                     </div>
                     <div className="text-[11px] font-semibold text-slate-500">
                       {scoreLabel(scores[c.key])}
@@ -166,33 +166,33 @@ function SelfEvalContent() {
                   </div>
                 </div>
 
+                {/* 슬라이더 + 눈금: 썸(점)의 중심은 트랙 양끝에서 썸 반폭(8px)만큼
+                    안쪽에서 시작하므로, 눈금 라벨 행도 좌우 8px 을 비우고 각 눈금을
+                    (v-1)/4 위치에 절대 배치해 중심을 맞춘다(기존 justify-between 은
+                    양끝 정렬이라 2·3·4 라벨이 썸 위치와 어긋났다). step 0.5 → 3.5 가능. */}
                 <input
                   type="range"
                   min={1}
                   max={5}
-                  step={1}
+                  step={0.5}
                   value={scores[c.key]}
                   onChange={(e) => setScore(c.key, Number(e.target.value))}
                   aria-label={`${c.name} 자가 평가 점수`}
                   className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600"
                 />
-                {/* 5점 척도 눈금: 1~5 모두 표시. 양끝·중앙만 텍스트 라벨,
-                    2·4 는 숫자만 두어 시각적 잡음을 줄인다. */}
-                <div className="mt-2 flex justify-between text-[11px] font-medium text-slate-400">
-                  <span className="flex flex-col items-start leading-tight">
-                    <span className="font-bold text-slate-500">1</span>
-                    <span>많이 부족</span>
-                  </span>
-                  <span className="font-bold text-slate-400">2</span>
-                  <span className="flex flex-col items-center leading-tight">
-                    <span className="font-bold text-slate-500">3</span>
-                    <span>보통</span>
-                  </span>
-                  <span className="font-bold text-slate-400">4</span>
-                  <span className="flex flex-col items-end leading-tight">
-                    <span className="font-bold text-slate-500">5</span>
-                    <span>매우 자신 있음</span>
-                  </span>
+                <div className="relative mx-2 mt-2 h-9 text-[11px] font-medium text-slate-400">
+                  {[1, 2, 3, 4, 5].map((v) => (
+                    <span
+                      key={v}
+                      className="absolute flex -translate-x-1/2 flex-col items-center leading-tight whitespace-nowrap"
+                      style={{ left: `${((v - 1) / 4) * 100}%` }}
+                    >
+                      <span className={`font-bold ${v % 2 ? 'text-slate-500' : 'text-slate-400'}`}>{v}</span>
+                      {v === 1 && <span>많이 부족</span>}
+                      {v === 3 && <span>보통</span>}
+                      {v === 5 && <span>매우 자신 있음</span>}
+                    </span>
+                  ))}
                 </div>
               </div>
             ))}
