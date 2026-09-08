@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import JourneyLine from '@/components/JourneyLine';
 
 // FindME 리뉴얼 1A / SIGN IN — 좌: 브랜드·여정 3단계, 우: 참여자 확인 패널.
 // 로직(그룹코드/이름/이메일 → /participants/token → /start)은 기존 그대로.
@@ -76,14 +77,17 @@ export default function LoginPage() {
       </header>
 
       {/* 본문: 좌 브랜드 / 우 로그인 패널 */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-        <section className="flex-1 px-6 md:px-16 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">
+      {/* 2열 기준점 md(768): 맥 디스플레이 배율 탓에 1440 모니터도 CSS 폭이 1024 아래로 자주 떨어짐 */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
+        <section className="flex-1 min-w-0 px-6 md:px-10 lg:px-16 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">
           <div className="fm-eyebrow text-xs text-fm-gold">AI Leadership Coaching</div>
 
           <div className="mt-7 w-max flex flex-col">
+            {/* 워드마크: Find 200→300, Me 는 Instrument Serif 가 400 단일 굵기라
+                0.6px 골드 스트로크로 한 단계 두껍게(금빛 흐름 유지) */}
             <div className="flex items-baseline gap-[.16em] text-[64px] md:text-[92px] leading-[.96] text-white">
-              <span className="font-extralight tracking-[-.02em]">Find</span>
-              <span className="fm-wave font-serif italic tracking-[-.01em] px-[.06em]">Me</span>
+              <span className="font-light tracking-[-.02em]">Find</span>
+              <span className="fm-wave font-serif italic tracking-[-.01em] px-[.06em] [-webkit-text-stroke:0.6px_#B08D5C]">Me</span>
             </div>
             <div className="mt-[18px] flex items-center gap-2.5">
               <div className="flex-1 h-px bg-fm-line" />
@@ -96,12 +100,23 @@ export default function LoginPage() {
             데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요. 자가진단과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
           </p>
 
-          {/* 여정 3단계 */}
-          <div className="mt-12 lg:mt-auto border-t border-fm-line grid grid-cols-1 sm:grid-cols-3">
+          {/* 비주얼 A "여정의 선" — 설명문과 여정 3단계 사이 띠. md 미만 숨김.
+              점 3개의 x 가 아래 그리드의 01·02·03 위치와 맞도록 같은 폭의 컨테이너에 둔다. */}
+          <JourneyLine className="hidden md:block flex-1 min-h-[180px] max-h-[260px] mt-4" />
+
+          {/* 여정 3단계: sm 3열 → md~xl(768~1280, 2열 레이아웃에서 좌측이 좁은 구간) 2단 → xl 3열 */}
+          <div className="mt-12 md:mt-0 border-t border-fm-line grid grid-cols-1 sm:grid-cols-3 md:grid-cols-2 xl:grid-cols-3">
             {STEPS.map((s, i) => (
               <div
                 key={s.no}
-                className={`pt-7 pb-6 sm:pb-0 ${i === 0 ? 'sm:pr-6' : i === 1 ? 'sm:px-6' : 'sm:pl-6'} ${i < 2 ? 'border-b sm:border-b-0 sm:border-r border-fm-line' : ''}`}
+                className={[
+                  'pt-7 pb-6 sm:pb-0 md:pb-6 xl:pb-0',
+                  i === 0 ? 'sm:pr-6' : i === 1 ? 'sm:px-6 md:pl-6 md:pr-0 xl:px-6' : 'sm:pl-6 md:pl-0 xl:pl-6',
+                  'border-fm-line',
+                  i === 0 ? 'border-b sm:border-b-0 sm:border-r' : '',
+                  i === 1 ? 'border-b sm:border-b-0 sm:border-r md:border-r-0 xl:border-r' : '',
+                  i === 2 ? 'md:col-span-2 md:border-t xl:col-span-1 xl:border-t-0' : '',
+                ].join(' ')}
               >
                 <div className={`fm-eyebrow text-[11px] ${s.active ? 'text-fm-gold' : 'text-fm-muted'}`}>{s.no}</div>
                 <div className="mt-3 text-[15px] font-bold text-white">{s.title}</div>
@@ -112,7 +127,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <aside className="w-full lg:w-[480px] shrink-0 border-t lg:border-t-0 lg:border-l border-fm-line bg-fm-panel px-6 md:px-14 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">
+        <aside className="w-full md:w-[340px] lg:w-[420px] xl:w-[480px] shrink-0 border-t md:border-t-0 md:border-l border-fm-line bg-fm-panel px-6 md:px-8 lg:px-12 xl:px-14 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">
           <div className="fm-eyebrow text-[11px] text-fm-muted">Sign in</div>
           <div className="mt-3 text-xl font-bold text-white">진단 참여자 확인</div>
 
@@ -168,7 +183,7 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="mt-10 lg:mt-auto pt-8 border-t border-fm-line flex items-baseline justify-between gap-4">
+          <div className="mt-10 md:mt-auto pt-8 border-t border-fm-line flex items-baseline justify-between gap-4">
             <span className="text-xs text-fm-muted">응답은 조직에 개별 공개되지 않습니다</span>
             <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer" className="text-xs text-white underline underline-offset-4 hover:text-fm-gold">문의</a>
           </div>
