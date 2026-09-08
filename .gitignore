@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Design 캔버스 원본(13MB) — 로컬 참고용, 저장소에 넣지 않음
+design/

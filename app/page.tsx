@@ -4,15 +4,23 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 
+// FindME 리뉴얼 1A / SIGN IN — 좌: 브랜드·여정 3단계, 우: 참여자 확인 패널.
+// 로직(그룹코드/이름/이메일 → /participants/token → /start)은 기존 그대로.
+const STEPS = [
+  { no: '01', title: '자가진단', desc: '5개 대역량에 대한 현재 인식을 기록합니다', time: '약 5분', active: true },
+  { no: '02', title: 'AI 코치와 대화를 통한 진단', desc: '실제 행동 사례를 바탕으로 역량을 진단합니다', time: '역량 별 30분 내외 / 총 약 150분', active: false },
+  { no: '03', title: '진단 리포트', desc: '하위역량 26개 분석과 추천 과정을 받습니다', time: '즉시 발급', active: false },
+];
+
 export default function LoginPage() {
   const router = useRouter();
-  
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     groupCode: ""
   });
-  
+
   const [isLoading, setIsLoading] = useState(false);
 
   // 백엔드 API 주소 (.env.local 의 NEXT_PUBLIC_API_URL 로 override 가능, 없으면 로컬 기본값)
@@ -54,96 +62,124 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen relative flex items-center justify-center bg-[#0a0a0c] overflow-hidden px-4">
-      
-      <style jsx global>{`
-        @keyframes text-flow {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-text-flow {
-          background-size: 200% auto;
-          animation: text-flow 3s linear infinite;
-        }
-      `}</style>
-
-      {/* 배경 장식 */}
-      <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-900/20 rounded-full blur-[120px] pointer-events-none" />
-
-      {/* 메인 카드 */}
-      <div className="relative z-10 w-full max-w-[480px] bg-white/5 backdrop-blur-2xl border border-white/10 p-12 rounded-3xl shadow-2xl">
-        
-        <div className="text-center mb-12">
-          <h2 className="text-blue-500 font-semibold tracking-[0.2em] text-xs uppercase mb-4 animate-pulse">
-            AI Leadership Coaching
-          </h2>
-          
-          <h1 className="text-6xl font-bold text-white tracking-tight mb-4">
-            Find 
-            <span className="ml-3 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-blue-400 animate-text-flow drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-              ME
-            </span>
-          </h1>
-          
-          <p className="text-white text-md font-light mt-4 leading-relaxed tracking-wide">
-            데이터를 기반 리더십 역량 진단으로<br/>
-            당신의 진정한 잠재력을 발견하세요!
-          </p>
+    <main className="fm-stage fm-rise min-h-screen flex flex-col text-white">
+      {/* 상단 바 */}
+      <header className="h-16 shrink-0 px-6 md:px-12 border-b border-fm-line flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <span className="fm-eyebrow text-[11px] text-white">Connect &amp; Company</span>
+          <span className="hidden sm:block w-px h-5 bg-fm-line" />
+          <span className="hidden sm:block text-xs text-fm-muted">리더십 역량 진단</span>
         </div>
+        <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer" className="text-[13px] text-white hover:text-fm-gold transition-colors">
+          도입 문의
+        </a>
+      </header>
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-blue-400 ml-1 uppercase tracking-wider">Group Code</label>
-            <input 
-              type="text" 
-              name="groupCode"
-              value={formData.groupCode}
-              onChange={handleChange}
-              className="w-full bg-black/20 border border-white/10 rounded-xl px-5 py-4 text-base text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 focus:bg-white/5 transition-all"
-              placeholder="전달받은 그룹 코드를 입력하세요"
-            />
+      {/* 본문: 좌 브랜드 / 우 로그인 패널 */}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+        <section className="flex-1 px-6 md:px-16 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">
+          <div className="fm-eyebrow text-xs text-fm-gold">AI Leadership Coaching</div>
+
+          <div className="mt-7 w-max flex flex-col">
+            <div className="flex items-baseline gap-[.16em] text-[64px] md:text-[92px] leading-[.96] text-white">
+              <span className="font-extralight tracking-[-.02em]">Find</span>
+              <span className="fm-wave font-serif italic tracking-[-.01em] px-[.06em]">Me</span>
+            </div>
+            <div className="mt-[18px] flex items-center gap-2.5">
+              <div className="flex-1 h-px bg-fm-line" />
+              <div className="fm-eyebrow text-[10px] tracking-[.28em] text-fm-dim">Connect &amp; Company</div>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-blue-400 ml-1 uppercase tracking-wider">Name</label>
-            <input 
-              type="text" 
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              className="w-full bg-black/20 border border-white/10 rounded-xl px-5 py-4 text-base text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 focus:bg-white/5 transition-all"
-              placeholder="성함을 입력하세요"
-            />
+          <h1 className="mt-8 text-2xl md:text-[28px] font-bold leading-[1.45] text-white">내 안의 진짜 리더를 찾는 여정</h1>
+          <p className="mt-[18px] max-w-[460px] text-[15px] md:text-base font-light leading-[1.85] text-fm-text [text-wrap:pretty]">
+            데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요. 자가진단과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
+          </p>
+
+          {/* 여정 3단계 */}
+          <div className="mt-12 lg:mt-auto border-t border-fm-line grid grid-cols-1 sm:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <div
+                key={s.no}
+                className={`pt-7 pb-6 sm:pb-0 ${i === 0 ? 'sm:pr-6' : i === 1 ? 'sm:px-6' : 'sm:pl-6'} ${i < 2 ? 'border-b sm:border-b-0 sm:border-r border-fm-line' : ''}`}
+              >
+                <div className={`fm-eyebrow text-[11px] ${s.active ? 'text-fm-gold' : 'text-fm-muted'}`}>{s.no}</div>
+                <div className="mt-3 text-[15px] font-bold text-white">{s.title}</div>
+                <div className="mt-2 text-xs font-light leading-[1.7] text-fm-muted">{s.desc}</div>
+                <div className="mt-3 text-[11px] text-fm-muted">{s.time}</div>
+              </div>
+            ))}
           </div>
+        </section>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-blue-400 ml-1 uppercase tracking-wider">Work Email</label>
-            <input 
-              type="email" 
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full bg-black/20 border border-white/10 rounded-xl px-5 py-4 text-base text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 focus:bg-white/5 transition-all"
-              placeholder="사용 중인 이메일 주소를 입력하세요"
-            />
+        <aside className="w-full lg:w-[480px] shrink-0 border-t lg:border-t-0 lg:border-l border-fm-line bg-fm-panel px-6 md:px-14 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">
+          <div className="fm-eyebrow text-[11px] text-fm-muted">Sign in</div>
+          <div className="mt-3 text-xl font-bold text-white">진단 참여자 확인</div>
+
+          <form onSubmit={handleLogin} className="mt-10 md:mt-12 flex flex-col">
+            <div className="flex flex-col gap-9">
+              <label className="flex flex-col gap-3">
+                <span className={`fm-eyebrow text-[11px] ${formData.groupCode ? 'text-fm-gold' : 'text-fm-muted'}`}>Group Code</span>
+                <input
+                  type="text"
+                  name="groupCode"
+                  value={formData.groupCode}
+                  onChange={handleChange}
+                  className="fm-field"
+                  placeholder="전달받은 그룹 코드"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="flex flex-col gap-3">
+                <span className={`fm-eyebrow text-[11px] ${formData.name ? 'text-fm-gold' : 'text-fm-muted'}`}>Name</span>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="fm-field"
+                  placeholder="성함"
+                  autoComplete="name"
+                />
+              </label>
+              <label className="flex flex-col gap-3">
+                <span className={`fm-eyebrow text-[11px] ${formData.email ? 'text-fm-gold' : 'text-fm-muted'}`}>Work Email</span>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="fm-field"
+                  placeholder="name@company.com"
+                  autoComplete="email"
+                />
+              </label>
+            </div>
+
+            <div className="mt-12 flex flex-col gap-4">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="h-[52px] rounded bg-white text-black text-[15px] font-bold hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? "접속 중..." : "진단 시작하기"}
+              </button>
+              <p className="text-xs leading-[1.7] text-fm-muted">소속 조직에서 받은 그룹 코드가 필요합니다</p>
+            </div>
+          </form>
+
+          <div className="mt-10 lg:mt-auto pt-8 border-t border-fm-line flex items-baseline justify-between gap-4">
+            <span className="text-xs text-fm-muted">응답은 조직에 개별 공개되지 않습니다</span>
+            <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer" className="text-xs text-white underline underline-offset-4 hover:text-fm-gold">문의</a>
           </div>
-
-          <button 
-            type="submit" 
-            disabled={isLoading}
-            className="w-full mt-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-lg shadow-lg hover:shadow-blue-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? "접속 중..." : "진단 시작하기"}
-          </button>
-        </form>
-
-        <p className="mt-8 text-center text-[10px] text-gray-600 uppercase tracking-widest">
-          Connect & Company
-        </p>
+        </aside>
       </div>
+
+      {/* 하단 바 */}
+      <footer className="shrink-0 px-6 md:px-12 py-6 border-t border-fm-line flex items-center justify-between text-[11px] text-fm-muted">
+        <span>ⓒ CONNECT &amp; COMPANY Co., Ltd.</span>
+        <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer" className="font-display tracking-[.06em] hover:text-white">www.connectn.co.kr</a>
+      </footer>
     </main>
   );
 }

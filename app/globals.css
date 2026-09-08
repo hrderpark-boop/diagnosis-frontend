@@ -10,17 +10,67 @@
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 0, 0, 0;
   --background-end-rgb: 0, 0, 0;
+  /* FindME 리뉴얼 팔레트 (디자인 캔버스 "FindME 리뉴얼" 기준) */
+  --fm-ink: #0B0D10;
+  --fm-panel: #1C1F24;
+  --fm-line: #2C3037;
+  --fm-gold: #B08D5C;
+  --fm-text: #D5D9DF;
+  --fm-muted: #9BA2AC;
+  --fm-dim: #6B727C;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: var(--fm-ink);
+  background-image: radial-gradient(900px 500px at 0% 0%, #1A1D22 0%, rgba(11, 13, 16, 0) 70%);
+  background-attachment: fixed;
+  font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* ── FindME 리뉴얼 공통 유틸 ─────────────────────────────────── */
+@keyframes fmRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes fmWave { from { background-position: 0 0; } to { background-position: 200% 0; } }
+/* 화면 진입 애니메이션 */
+.fm-rise { animation: fmRise .32s ease-out both; }
+/* "Me" 워드마크의 금빛 흐름 */
+.fm-wave {
+  background-image: linear-gradient(100deg, #8A6C3F 0%, #B08D5C 22%, #F0DCB8 42%, #B08D5C 62%, #8A6C3F 82%, #B08D5C 100%);
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: fmWave 4.5s linear infinite;
+}
+/* 화면 배경(카드 밖) — 좌상단이 밝은 방사형 */
+.fm-stage {
+  background: radial-gradient(1300px 780px at 8% -12%, #343941 0%, #262B32 30%, #1B1F24 62%, #13161A 100%);
+}
+/* 눈썹 라벨: Montserrat 600 · 자간 .12em */
+.fm-eyebrow {
+  font-family: var(--font-montserrat), Montserrat, sans-serif;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+/* 밑줄형 입력 필드 */
+.fm-field {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--fm-line);
+  padding: 0 0 12px;
+  font-size: 15px;
+  color: #fff;
+  outline: none;
+  border-radius: 0;
+  transition: border-color .2s;
+}
+.fm-field::placeholder { color: var(--fm-dim); }
+.fm-field:focus { border-bottom-color: var(--fm-gold); }
 
 /* ✅ 커스텀 스크롤바 설정 (여기에 추가) */
 @layer utilities {
