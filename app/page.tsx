@@ -101,7 +101,7 @@ export default function LoginPage() {
           </p>
 
           {/* 비주얼 "축하의 불꽃" — 설명문과 여정 3단계 사이 띠. md 미만 숨김. */}
-          <Fireworks className="hidden md:block flex-1 min-h-[180px] max-h-[260px] mt-4" />
+          <Fireworks className="hidden md:block flex-1 min-h-[260px] max-h-[260px] mt-4" />
 
           {/* 여정 3단계: sm 3열 → md~xl(768~1280, 2열 레이아웃에서 좌측이 좁은 구간) 2단 → xl 3열 */}
           <div className="mt-12 md:mt-0 border-t border-fm-line grid grid-cols-1 sm:grid-cols-3 md:grid-cols-2 xl:grid-cols-3">
