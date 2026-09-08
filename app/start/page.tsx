@@ -146,9 +146,10 @@ export default function StartPage() {
         </div>
 
         {activeCoachName && (
-          <div className="mt-8 border-l-2 border-fm-gold bg-fm-panel/60 px-5 py-4 text-sm leading-[1.8] text-fm-text">
+          /* 배너 가독성: 16px, 본문 밝게(#E8ECF1), 코치명 골드 */
+          <div className="mt-8 border-l-2 border-fm-gold bg-fm-panel/80 px-6 py-5 text-[16px] leading-[1.8] text-[#E8ECF1]">
             진행 중인 진단이 있습니다. 이어서 진행하시면 처음 함께 시작하신{' '}
-            <b className="text-white">{activeCoachName}</b> 코치와 계속됩니다. 다른 코치와 새로 진행하고 싶으시더라도, 기존에 진행 중이던 진단이 이어집니다.
+            <b className="font-bold text-fm-gold">{activeCoachName}</b> 코치와 계속됩니다. 다른 코치와 새로 진행하고 싶으시더라도, 기존에 진행 중이던 진단이 이어집니다.
           </div>
         )}
 
@@ -169,12 +170,13 @@ export default function StartPage() {
                 >
                   <div className="fm-eyebrow text-[11px] text-fm-muted">{String(idx + 1).padStart(2, '0')}</div>
 
+                  {/* 사진 96px → 154px(1.6배). hover 시 사진 확대 + 테두리 골드 */}
                   <div className="flex justify-center">
-                    <div className="w-24 h-24 rounded-full overflow-hidden border border-fm-line group-hover:border-fm-gold transition-colors bg-[#171717]">
+                    <div className="w-[154px] h-[154px] rounded-full overflow-hidden border border-fm-line group-hover:border-fm-gold transition-colors bg-[#171717]">
                       <img
                         src={coach.avatar_url ? `/images/${coach.avatar_url.split('/').pop()}` : "/images/default.png"}
                         alt={coach.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
                         onError={(e) => { e.currentTarget.src = "/images/default.png"; }}
                       />
                     </div>
