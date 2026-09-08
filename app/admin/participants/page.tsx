@@ -33,6 +33,7 @@ const STATUS_STYLE: Record<string, string> = {
   paused: 'bg-amber-900/50 text-amber-400',
   aborted_disengaged: 'bg-orange-900/50 text-orange-300',
   aborted: 'bg-rose-900/50 text-rose-300',
+  abandoned: 'bg-slate-700/60 text-slate-300',
   미시작: 'bg-gray-700/50 text-gray-400',
 };
 const STATUS_LABEL: Record<string, string> = {
@@ -41,6 +42,7 @@ const STATUS_LABEL: Record<string, string> = {
   paused: '일시중지',
   aborted_disengaged: '이탈 중단(재개 가능)',
   aborted: '강제 종료',
+  abandoned: '보관(새로 시작)',
   미시작: '미시작',
 };
 
@@ -61,6 +63,7 @@ const STATUS_FILTERS = [
   { key: 'paused', label: '일시중지' },
   { key: 'aborted_disengaged', label: '이탈 중단' },
   { key: 'aborted', label: '강제 종료' },
+  { key: 'abandoned', label: '보관' },
   { key: '미시작', label: '미시작' },
 ];
 const BEHAVIOR_FILTERS = ['투머치토커', '단답형', '표준형'];

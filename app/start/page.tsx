@@ -21,6 +21,27 @@ export default function StartPage() {
   // 진행 중 세션 사전 안내(재개 시 원래 코치로 이어짐을 미리 고지).
   const [activeCoachName, setActiveCoachName] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
+  // 2단계 '새로 시작': 확인 팝업 → /diagnoses/abandon(기존 세션 보관, 삭제 아님) → 배너 제거
+  const [confirmNew, setConfirmNew] = useState(false);
+  const [abandoning, setAbandoning] = useState(false);
+  const [freshStart, setFreshStart] = useState(false);
+
+  const handleAbandon = async () => {
+    const pid = localStorage.getItem('participant_id');
+    if (!pid) { setConfirmNew(false); return; }
+    setAbandoning(true);
+    try {
+      await axios.post(`${API_BASE_URL}/diagnoses/abandon`, { participant_id: pid });
+      setActiveCoachName(null);
+      setFreshStart(true);
+      setConfirmNew(false);
+    } catch (e) {
+      console.error(e);
+      alert("기존 진단을 보관하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setAbandoning(false);
+    }
+  };
 
   // 백엔드 API 주소 (.env.local 의 NEXT_PUBLIC_API_URL 로 override 가능)
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
@@ -146,10 +167,25 @@ export default function StartPage() {
         </div>
 
         {activeCoachName && (
-          /* 배너 가독성: 16px, 본문 밝게(#E8ECF1), 코치명 골드 */
-          <div className="mt-8 border-l-2 border-fm-gold bg-fm-panel/80 px-6 py-5 text-[16px] leading-[1.8] text-[#E8ECF1]">
-            진행 중인 진단이 있습니다. 이어서 진행하시면 처음 함께 시작하신{' '}
-            <b className="font-bold text-fm-gold">{activeCoachName}</b> 코치와 계속됩니다. 다른 코치와 새로 진행하고 싶으시더라도, 기존에 진행 중이던 진단이 이어집니다.
+          /* 배너 가독성: 16px, 본문 밝게(#E8ECF1), 코치명 골드. 2단계: '새로 시작' 버튼 */
+          <div className="mt-8 border-l-2 border-fm-gold bg-fm-panel/80 px-6 py-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
+            <p className="flex-1 text-[16px] leading-[1.8] text-[#E8ECF1]">
+              진행 중인 진단이 있습니다. 이어서 진행하시면 처음 함께 시작하신{' '}
+              <b className="font-bold text-fm-gold">{activeCoachName}</b> 코치와 계속됩니다. 아래에서 어느 코치를 고르셔도 기존 진단이 이어집니다.
+              처음부터 다시 하시려면 <b className="text-white">새로 시작</b>을 눌러 주세요.
+            </p>
+            <button
+              type="button"
+              onClick={() => setConfirmNew(true)}
+              className="shrink-0 h-11 px-5 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors"
+            >
+              새로 시작
+            </button>
+          </div>
+        )}
+        {freshStart && !activeCoachName && (
+          <div className="mt-8 border-l-2 border-fm-line bg-fm-panel/60 px-6 py-4 text-[15px] leading-[1.8] text-fm-text">
+            이전 진단은 보관되었습니다. 이제 함께할 코치를 선택하면 새 진단이 시작됩니다.
           </div>
         )}
 
@@ -208,6 +244,38 @@ export default function StartPage() {
           </div>
         )}
       </div>
+
+      {/* '새로 시작' 확인 팝업 */}
+      {confirmNew && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" role="dialog" aria-modal="true" aria-labelledby="fresh-title">
+          <div className="w-full max-w-[440px] bg-fm-panel border border-fm-line rounded p-8 fm-rise">
+            <div className="fm-eyebrow text-[11px] text-fm-gold">Start over</div>
+            <h2 id="fresh-title" className="mt-3 text-xl font-bold text-white">처음부터 다시 시작할까요?</h2>
+            <p className="mt-4 text-[15px] leading-[1.8] text-fm-text">
+              지금까지 <b className="text-white">{activeCoachName}</b> 코치와 나눈 대화는 보관되며 삭제되지 않습니다.
+              다만 그 진단은 더 이상 이어서 진행할 수 없고, 새 진단이 처음부터 시작됩니다.
+            </p>
+            <div className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmNew(false)}
+                disabled={abandoning}
+                className="h-11 px-5 rounded border border-fm-line text-fm-text text-sm font-bold hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
+              >
+                이어서 진행
+              </button>
+              <button
+                type="button"
+                onClick={handleAbandon}
+                disabled={abandoning}
+                className="h-11 px-5 rounded bg-white text-black text-sm font-bold hover:bg-fm-gold transition-colors disabled:opacity-50"
+              >
+                {abandoning ? '보관 중…' : '새로 시작'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
