@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import GoldRibbon from '@/components/GoldRibbon';
+import Fireworks from '@/components/Fireworks';
 
 // FindME 리뉴얼 1A / SIGN IN — 좌: 브랜드·여정 3단계, 우: 참여자 확인 패널.
 // 로직(그룹코드/이름/이메일 → /participants/token → /start)은 기존 그대로.
@@ -100,8 +100,8 @@ export default function LoginPage() {
             데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요. 자가진단과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
           </p>
 
-          {/* 비주얼 "금빛 리본" — 설명문과 여정 3단계 사이 띠. md 미만 숨김. */}
-          <GoldRibbon className="hidden md:block flex-1 min-h-[180px] max-h-[260px] mt-4" />
+          {/* 비주얼 "축하의 불꽃" — 설명문과 여정 3단계 사이 띠. md 미만 숨김. */}
+          <Fireworks className="hidden md:block flex-1 min-h-[180px] max-h-[260px] mt-4" />
 
           {/* 여정 3단계: sm 3열 → md~xl(768~1280, 2열 레이아웃에서 좌측이 좁은 구간) 2단 → xl 3열 */}
           <div className="mt-12 md:mt-0 border-t border-fm-line grid grid-cols-1 sm:grid-cols-3 md:grid-cols-2 xl:grid-cols-3">
