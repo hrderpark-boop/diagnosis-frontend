@@ -12,12 +12,15 @@ interface Coach {
   character_tags: string[] | string;
 }
 
+// FindME 리뉴얼 1B / SELECT COACH — 헤더(눈썹·제목·부제) + 3열 카드(번호·사진·
+// 영문/한글 이름·태그·인용 설명·버튼). 선택/재개 로직은 기존 그대로.
 export default function StartPage() {
   const router = useRouter();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // 진행 중 세션 사전 안내(재개 시 원래 코치로 이어짐을 미리 고지).
   const [activeCoachName, setActiveCoachName] = useState<string | null>(null);
+  const [startingId, setStartingId] = useState<string | null>(null);
 
   // 백엔드 API 주소 (.env.local 의 NEXT_PUBLIC_API_URL 로 override 가능)
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
@@ -53,6 +56,8 @@ export default function StartPage() {
   }, []);
 
   const handleSelectCoach = async (coachId: string, coachName: string, coachAvatar: string) => {
+    if (startingId) return;
+    setStartingId(coachId);
     try {
       // 로그인 시 저장한 '실제' 사용자 ID 사용 (하드코딩 제거 → FK 위반 해결)
       const participantId = localStorage.getItem('participant_id');
@@ -106,118 +111,99 @@ export default function StartPage() {
     } catch (error) {
       console.error(error);
       alert("서버 연결에 실패했습니다.");
+      setStartingId(null);
     }
   };
 
   const parseTags = (tags: string | string[]) => {
-    if (Array.isArray(tags)) return tags;
-    if (typeof tags === 'string') {
-      return tags.split(',').map(t => t.trim()).filter(t => t.startsWith('#'));
-    }
-    return [];
+    const arr = Array.isArray(tags)
+      ? tags
+      : typeof tags === 'string' ? tags.split(',').map(t => t.trim()) : [];
+    return arr.map(t => t.replace(/^#/, '')).filter(Boolean);
   };
 
-  const getCoachDescription = (name: string, desc: string) => {
-    if (desc && desc.trim().length > 5 && desc !== 'string') return `"${desc}"`;
+  // "Ella (엘라)" → { en: "ELLA", ko: "엘라" }
+  const splitName = (name: string) => {
+    const m = name.match(/^([^(]+)\(([^)]+)\)/);
+    if (m) return { en: m[1].trim().toUpperCase(), ko: m[2].trim() };
+    return { en: name.toUpperCase(), ko: name };
+  };
 
-    if (name.includes("Ella") || name.includes("엘라")) {
-        return '"따뜻한 공감과 경청으로\n당신의 고민을 함께 나누고 치유합니다."';
-    }
-    if (name.includes("Jessica") || name.includes("제시카")) {
-        return '"냉철한 데이터 분석과 직설적인 피드백으로\n확실한 성장의 길을 제시합니다."';
-    }
-    if (name.includes("David") || name.includes("데이비드")) {
-        return '"풍부한 현장 경험과 통찰력으로\n실질적이고 전략적인 로드맵을 그립니다."';
-    }
-    if (name.includes("Sarah") || name.includes("사라")) {
-        return '"긍정적인 에너지와 동기부여로\n당신의 잠재력을 최대한 끌어올립니다."';
-    }
-    return '"당신의 리더십 데이터를 분석하여\n가장 개인화된 솔루션을 제공합니다."';
+  const getCoachDescription = (desc: string) => {
+    if (desc && desc.trim().length > 5 && desc !== 'string') return desc.replace(/\n/g, ' ');
+    return '당신의 리더십 데이터를 분석하여 가장 개인화된 솔루션을 제공합니다.';
   };
 
   return (
-    <main className="min-h-screen relative overflow-hidden bg-[#0a0a0c] text-white">
-      {/* 배경 장식 */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
+    <main className="fm-stage fm-rise min-h-screen text-white">
+      <div className="max-w-[1440px] mx-auto px-6 md:px-14 lg:px-[88px] pt-14 md:pt-[72px] pb-16 md:pb-[88px]">
 
-      <div className="relative max-w-7xl mx-auto px-6 py-20 z-10">
-        
-        <div className="text-center mb-20 space-y-4">
-          <h2 className="text-blue-500 font-bold tracking-widest text-sm uppercase animate-pulse">
-            AI Leadership Coaching
-          </h2>
-          <h1 className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-500 pb-2 leading-tight">
-            당신의 성장을 함께할<br /> 
-            최고의 파트너를 선택하세요
-          </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto mt-6 font-light">
-            6명의 전문 AI 코치가 당신의 리더십 데이터를 분석하고, 
-            <span className="text-white font-medium"> 맞춤형 최적의 솔루션</span>을 제공합니다.
-          </p>
+        {/* 헤더 */}
+        <div className="flex flex-col gap-5 pb-10 border-b border-fm-line">
+          <div className="fm-eyebrow text-xs text-fm-gold">Choose your coach</div>
+          <h1 className="text-3xl md:text-[40px] font-light leading-[1.25] text-white">당신의 성장을 함께할 파트너를 선택하세요</h1>
+          <p className="text-[15px] font-light leading-[1.8] text-fm-text">6명의 AI 코치가 리더십 데이터를 분석하고 맞춤형 솔루션을 제공합니다</p>
         </div>
-        
+
+        {activeCoachName && (
+          <div className="mt-8 border-l-2 border-fm-gold bg-fm-panel/60 px-5 py-4 text-sm leading-[1.8] text-fm-text">
+            진행 중인 진단이 있습니다. 이어서 진행하시면 처음 함께 시작하신{' '}
+            <b className="text-white">{activeCoachName}</b> 코치와 계속됩니다. 다른 코치와 새로 진행하고 싶으시더라도, 기존에 진행 중이던 진단이 이어집니다.
+          </div>
+        )}
+
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-gray-500 text-sm">AI 코치 프로필 로딩 중...</p>
+          <div className="py-24 flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border border-fm-line border-t-fm-gold rounded-full animate-spin" />
+            <p className="text-sm text-fm-muted">코치 프로필을 불러오는 중입니다</p>
           </div>
         ) : (
-          <>
-          {activeCoachName && (
-            <div className="mb-6 mx-4 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-4 text-sm text-blue-200">
-              진행 중인 진단이 있습니다. 이어서 진행하시면 처음 함께 시작하신{' '}
-              <b>{activeCoachName}</b> 코치와 계속됩니다. 다른 코치와 새로 진행하고 싶으시더라도, 기존에 진행 중이던 진단이 이어집니다.
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-4">
-            {coaches?.map((coach) => (
-              <div 
-                key={coach.id} 
-                className="group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 hover:bg-white/10 transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] overflow-hidden flex flex-col items-center"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative z-10 w-full flex flex-col items-center">
-                  <div className="w-36 h-36 rounded-full p-[2px] bg-gradient-to-tr from-blue-500 to-purple-500 mb-6 shadow-2xl transition-transform duration-500 group-hover:scale-105">
-                    <div className="w-full h-full rounded-full overflow-hidden bg-gray-900">
-                      <img 
+          <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {coaches?.map((coach, idx) => {
+              const { en, ko } = splitName(coach.name);
+              const busy = startingId === coach.id;
+              return (
+                <div
+                  key={coach.id}
+                  className="group bg-fm-panel border border-fm-line rounded p-7 flex flex-col gap-5 transition-colors hover:border-fm-gold/60"
+                >
+                  <div className="fm-eyebrow text-[11px] text-fm-muted">{String(idx + 1).padStart(2, '0')}</div>
+
+                  <div className="flex justify-center">
+                    <div className="w-24 h-24 rounded-full overflow-hidden border border-fm-line group-hover:border-fm-gold transition-colors bg-[#171717]">
+                      <img
                         src={coach.avatar_url ? `/images/${coach.avatar_url.split('/').pop()}` : "/images/default.png"}
-                        alt={coach.name} 
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                        onError={(e) => {e.currentTarget.src = "/images/default.png"}} 
+                        alt={coach.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.src = "/images/default.png"; }}
                       />
                     </div>
                   </div>
 
-                  <h3 className="text-2xl font-bold text-white mb-3">
-                    {coach.name}
-                  </h3>
-                  
-                  <div className="flex flex-wrap justify-center gap-2 mb-6 min-h-[24px]">
-                    {parseTags(coach.character_tags).map((tag, idx) => (
-                      <span key={idx} className="px-3 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  
-                  <div className="w-full bg-black/30 rounded-xl p-5 mb-8 border border-white/5 min-h-[100px] flex items-center justify-center">
-                    <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line text-center italic">
-                      {getCoachDescription(coach.name, coach.description)}
-                    </p>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="fm-eyebrow text-xs text-fm-gold">{en}</div>
+                    <div className="text-xl font-bold text-white">{ko}</div>
                   </div>
 
-                  <button 
+                  <div className="text-center text-[13px] text-fm-muted">
+                    {parseTags(coach.character_tags).join(' · ')}
+                  </div>
+
+                  <p className="border-l-2 border-fm-gold pl-3.5 text-sm font-light leading-[1.8] text-fm-text">
+                    {getCoachDescription(coach.description)}
+                  </p>
+
+                  <button
                     onClick={() => handleSelectCoach(coach.id, coach.name, coach.avatar_url)}
-                    className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-sm shadow-lg hover:from-blue-500 hover:to-blue-600 transition-all active:scale-95"
+                    disabled={!!startingId}
+                    className="mt-auto h-[46px] rounded border border-fm-line text-white text-sm font-bold transition-colors hover:bg-white hover:text-black hover:border-white disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    이 코치와 시작하기
+                    {busy ? '시작 준비 중…' : '선택 후 시작하기'}
                   </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          </>
         )}
       </div>
     </main>
