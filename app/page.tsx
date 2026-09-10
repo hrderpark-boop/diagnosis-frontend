@@ -78,12 +78,15 @@ export default function LoginPage() {
 
       {/* 본문: 좌 브랜드 / 우 로그인 패널 */}
       {/* 2열 기준점 md(768): 맥 디스플레이 배율 탓에 1440 모니터도 CSS 폭이 1024 아래로 자주 떨어짐 */}
+      {/* 본문 (1440 기준, 왼쪽부터): [텍스트 520] [로그인 패널 480] [영상 — 나머지 전부, 세로 full]
+          · 좌 그룹 = 상단 [텍스트][패널] + 하단 여정 3단계(두 폭의 합산, 같은 왼쪽 패딩)
+          · 영상 열 = 헤더 아래부터 푸터 위까지(3단계 옆까지). 오른쪽·상하 뷰포트 끝까지
+          · 영상 최소 폭 320: 좌 그룹 폭 = pl 64 + 520 + 32 + 480 = 1096 → 뷰포트 1416 이상에서만 영상, 그 아래는 숨김
+          · 1280 미만: [텍스트][패널] 2열(영상 없음) / 768 미만: 세로 스택(텍스트 → 패널 → 3단계) */}
       <div className="flex-1 flex flex-col md:flex-row min-h-0">
-        {/* 좌: 상단 = 텍스트 열(폭 520 + 왼쪽 패딩 md 40 / lg 80 / xl 128) + 영상 슬롯(고정 폭, xl 이상만),
-            하단 = 여정 3단계(왼쪽 열 전체 폭, 같은 왼쪽 패딩). 패널은 항상 오른쪽. */}
-        <section className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 flex flex-col md:flex-row">
-          <div className="box-content w-auto md:w-[520px] min-w-0 shrink px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-32 pt-12 md:pt-[72px] pb-4 flex flex-col break-keep">
+        <section className="flex-1 min-[1416px]:flex-none min-w-0 flex flex-col">
+          <div className="flex flex-col md:flex-row">
+          <div className="box-content w-auto md:w-[520px] min-w-0 shrink px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-16 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col break-keep">
           <div className="fm-eyebrow text-xs text-fm-gold">AI Leadership Coaching</div>
 
           <div className="mt-7 w-max flex flex-col">
@@ -106,35 +109,7 @@ export default function LoginPage() {
 
           </div>
 
-          {/* 영상 슬롯: 고정 폭 min(300px, 열 폭 − 텍스트 열 680px) — 1417 에서 257, 1440 에서 280. flex-1 아님.
-              xl 미만은 숨김·미로드(텍스트 열이 폭을 다 씀). 폭 200px 미만이면 컴포넌트가 스스로 숨김. */}
-          <HeroVideo className="hidden xl:block shrink-0 xl:w-[min(300px,max(0px,100%-680px))]" />
-          </div>
-
-          {/* 여정 3단계: 텍스트 + 영상 아래, 왼쪽 열 전체 폭 한 줄. 정렬선은 텍스트 블록과 같은 왼쪽 패딩.
-              sm 3열 → md·lg(좌측 열이 좁아 제목이 두 줄이 됨) 세로 스택 → xl 3열 */}
-          <div className="px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-32 pb-10 md:pb-12 break-keep">
-          <div className="mt-8 border-t border-fm-line grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <div
-                key={s.no}
-                className={[
-                  'pt-7 pb-6 sm:pb-0 md:pb-6 xl:pb-0',
-                  i === 0 ? 'sm:pr-6 md:pr-0 xl:pr-6' : i === 1 ? 'sm:px-6 md:px-0 xl:px-6' : 'sm:pl-6 md:pl-0 xl:pl-6',
-                  'border-fm-line',
-                  i < 2 ? 'border-b sm:border-b-0 sm:border-r md:border-b md:border-r-0 xl:border-b-0 xl:border-r' : '',
-                ].join(' ')}
-              >
-                <div className="fm-eyebrow text-[11px] text-fm-gold">{s.no}</div>
-                <div className="mt-3 text-[15px] font-bold text-white">{s.title}</div>
-                <div className="mt-2 text-xs font-light leading-[1.7] text-fm-muted">{s.desc}</div>
-                <div className="mt-3 text-[11px] text-fm-muted">{s.time}</div>
-              </div>
-            ))}
-          </div>
-          </div>
-        </section>
-
+          {/* 로그인 패널: 텍스트 블록 바로 옆(가운데). 이동만 — 내부 폼·로직·스타일 무변경. 왼쪽 구분선 + 텍스트 열 pr 32 */}
         <aside className="w-full md:w-[340px] lg:w-[420px] xl:w-[480px] shrink-0 border-t md:border-t-0 md:border-l border-fm-line bg-fm-panel px-6 md:px-8 lg:px-12 xl:px-14 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">
           <div className="fm-eyebrow text-[11px] text-fm-muted">Sign in</div>
           <div className="mt-3 text-xl font-bold text-white">진단 참여자 확인</div>
@@ -196,6 +171,33 @@ export default function LoginPage() {
             <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer" className="text-xs text-white underline underline-offset-4 hover:text-fm-gold">문의</a>
           </div>
         </aside>
+          </div>
+
+          {/* 여정 3단계: 텍스트 + 패널 아래, 두 폭의 합산으로 한 줄 3열. 정렬선은 텍스트 블록과 같은 왼쪽 패딩 */}
+          <div className="px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-16 pb-10 md:pb-12 break-keep">
+          <div className="border-t border-fm-line grid grid-cols-1 sm:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <div
+                key={s.no}
+                className={[
+                  'pt-7 pb-6 sm:pb-0',
+                  i === 0 ? 'sm:pr-6' : i === 1 ? 'sm:px-6' : 'sm:pl-6',
+                  'border-fm-line',
+                  i < 2 ? 'border-b sm:border-b-0 sm:border-r' : '',
+                ].join(' ')}
+              >
+                <div className="fm-eyebrow text-[11px] text-fm-gold">{s.no}</div>
+                <div className="mt-3 text-[15px] font-bold text-white">{s.title}</div>
+                <div className="mt-2 text-xs font-light leading-[1.7] text-fm-muted">{s.desc}</div>
+                <div className="mt-3 text-[11px] text-fm-muted">{s.time}</div>
+              </div>
+            ))}
+          </div>
+          </div>
+        </section>
+
+        {/* 영상 열: 나머지 전부(flex-1), 헤더 아래 ~ 푸터 위 세로 full. 1416 미만 숨김·미로드 */}
+        <HeroVideo className="hidden min-[1416px]:block flex-1 min-w-0" />
       </div>
 
       {/* 하단 바 */}
