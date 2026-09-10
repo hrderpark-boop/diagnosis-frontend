@@ -8,8 +8,9 @@ import { useEffect, useRef, useState } from 'react';
  * 파일: public/hero.webm + public/hero.mp4 (각 3MB 이하, scripts/encode-hero.sh 로 생성),
  *       public/hero-poster.jpg (첫 프레임). 원본은 design/ 에 보관.
  * 규칙:
- *  - 부모 flex 행에서 flex-1 로 나머지 폭을 차지. 그 폭이 MIN_W(320px) 미만이면 영상을 숨기고 로드하지 않음(안전망).
- *    1416px 미만 뷰포트는 부모가 숨김(display:none) — 좌 그룹 1096 + 320.
+ *  - 부모가 폭을 준다: clamp(320px, 27vw, 520px). 그 폭이 MIN_W(320px) 미만이면 영상을 숨기고 로드하지 않음(안전망).
+ *    xl(1280) 미만 뷰포트는 부모가 숨김(display:none).
+ *  - 회색 톤: filter grayscale(GRAY). 골드 기운을 살짝 남기려면 1 미만.
  *  - prefers-reduced-motion → poster 만. 영상 로드 실패(파일 없음 포함) → poster 유지.
  *  - poster 도 없으면 배경(스테이지 그라디언트)만 남는다 — 자리는 유지.
  *  - object-fit: cover(세로 영상이라 위아래 크롭), 왼쪽 가장자리 배경색 페이드(패널과 경계), 어두운 오버레이 10%.
@@ -17,6 +18,7 @@ import { useEffect, useRef, useState } from 'react';
  */
 
 const MIN_W = 320;
+const GRAY = 0.85;       // grayscale 강도(0~1) — 완전 무채색은 차가워 골드 기운을 15% 남김
 
 export default function HeroVideo({ className = '' }: { className?: string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -53,12 +55,14 @@ export default function HeroVideo({ className = '' }: { className?: string }) {
           src="/hero-poster.jpg"
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
+          style={{ filter: `grayscale(${GRAY})` }}
           onError={() => setPosterFailed(true)}
         />
       )}
       {showVideo && (
         <video
           className="absolute inset-0 w-full h-full object-cover"
+          style={{ filter: `grayscale(${GRAY})` }}
           autoPlay
           muted
           loop
