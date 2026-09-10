@@ -8,9 +8,9 @@ import HeroVideo from '@/components/HeroVideo';
 // FindME 리뉴얼 1A / SIGN IN — 좌: 브랜드·여정 3단계, 우: 참여자 확인 패널.
 // 로직(그룹코드/이름/이메일 → /participants/token → /start)은 기존 그대로.
 const STEPS = [
-  { no: '01', title: '자가진단', desc: '5개 대역량에 대한 현재 인식을 기록합니다', time: '약 5분', active: true },
-  { no: '02', title: 'AI 코치와 대화를 통한 진단', desc: '실제 행동 사례를 바탕으로 역량을 진단합니다', time: '역량 별 30분 내외 / 총 약 150분', active: false },
-  { no: '03', title: '진단 리포트', desc: '하위역량 26개 분석과 추천 과정을 받습니다', time: '즉시 발급', active: false },
+  { no: '01', title: '자가진단', desc: '5개 대역량에 대한 현재 인식을 기록합니다', time: '약 5분' },
+  { no: '02', title: 'AI 코치와 대화를 통한 진단', desc: '실제 행동 사례를 바탕으로 역량을 진단합니다', time: '역량 별 30분 내외 / 총 약 150분' },
+  { no: '03', title: '진단 리포트', desc: '하위역량 26개 분석과 추천 과정을 받습니다', time: '즉시 발급' },
 ];
 
 export default function LoginPage() {
@@ -79,10 +79,11 @@ export default function LoginPage() {
       {/* 본문: 좌 브랜드 / 우 로그인 패널 */}
       {/* 2열 기준점 md(768): 맥 디스플레이 배율 탓에 1440 모니터도 CSS 폭이 1024 아래로 자주 떨어짐 */}
       <div className="flex-1 flex flex-col md:flex-row min-h-0">
-        {/* 좌: 텍스트 열(폭 520 + 왼쪽 패딩 md 40 / lg 80 / xl 128) + 영상 열(남는 폭, 열 전체 높이).
-            영상 열은 폭이 200px 미만이면 스스로 숨김(1024·1280 은 텍스트가 열을 다 씀). md 미만은 영상 없음. */}
-        <section className="flex-1 min-w-0 flex flex-col md:flex-row">
-          <div className="box-content w-auto md:w-[520px] min-w-0 shrink px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-32 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col break-keep">
+        {/* 좌: 상단 = 텍스트 열(폭 520 + 왼쪽 패딩 md 40 / lg 80 / xl 128) + 영상 슬롯(고정 폭, xl 이상만),
+            하단 = 여정 3단계(왼쪽 열 전체 폭, 같은 왼쪽 패딩). 패널은 항상 오른쪽. */}
+        <section className="flex-1 min-w-0 flex flex-col">
+          <div className="flex-1 flex flex-col md:flex-row">
+          <div className="box-content w-auto md:w-[520px] min-w-0 shrink px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-32 pt-12 md:pt-[72px] pb-4 flex flex-col break-keep">
           <div className="fm-eyebrow text-xs text-fm-gold">AI Leadership Coaching</div>
 
           <div className="mt-7 w-max flex flex-col">
@@ -103,21 +104,28 @@ export default function LoginPage() {
             데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요. <span className="whitespace-nowrap">자가진단</span>과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
           </p>
 
-          {/* 여정 3단계: 텍스트 블록 바로 아래, 같은 왼쪽 정렬선. sm 3열 → md(좌측 열이 좁음) 2단 → lg 3열 */}
-          <div className="mt-12 border-t border-fm-line grid grid-cols-1 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3">
+          </div>
+
+          {/* 영상 슬롯: 고정 폭 min(300px, 열 폭 − 텍스트 열 680px) — 1417 에서 257, 1440 에서 280. flex-1 아님.
+              xl 미만은 숨김·미로드(텍스트 열이 폭을 다 씀). 폭 200px 미만이면 컴포넌트가 스스로 숨김. */}
+          <HeroVideo className="hidden xl:block shrink-0 xl:w-[min(300px,max(0px,100%-680px))]" />
+          </div>
+
+          {/* 여정 3단계: 텍스트 + 영상 아래, 왼쪽 열 전체 폭 한 줄. 정렬선은 텍스트 블록과 같은 왼쪽 패딩.
+              sm 3열 → md·lg(좌측 열이 좁아 제목이 두 줄이 됨) 세로 스택 → xl 3열 */}
+          <div className="px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-32 pb-10 md:pb-12 break-keep">
+          <div className="mt-8 border-t border-fm-line grid grid-cols-1 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
             {STEPS.map((s, i) => (
               <div
                 key={s.no}
                 className={[
-                  'pt-7 pb-6 sm:pb-0 md:pb-6 lg:pb-0',
-                  i === 0 ? 'sm:pr-5' : i === 1 ? 'sm:px-5 md:pl-5 md:pr-0 lg:px-5' : 'sm:pl-5 md:pl-0 lg:pl-5',
+                  'pt-7 pb-6 sm:pb-0 md:pb-6 xl:pb-0',
+                  i === 0 ? 'sm:pr-6 md:pr-0 xl:pr-6' : i === 1 ? 'sm:px-6 md:px-0 xl:px-6' : 'sm:pl-6 md:pl-0 xl:pl-6',
                   'border-fm-line',
-                  i === 0 ? 'border-b sm:border-b-0 sm:border-r' : '',
-                  i === 1 ? 'border-b sm:border-b-0 sm:border-r md:border-r-0 lg:border-r' : '',
-                  i === 2 ? 'md:col-span-2 md:border-t lg:col-span-1 lg:border-t-0' : '',
+                  i < 2 ? 'border-b sm:border-b-0 sm:border-r md:border-b md:border-r-0 xl:border-b-0 xl:border-r' : '',
                 ].join(' ')}
               >
-                <div className={`fm-eyebrow text-[11px] ${s.active ? 'text-fm-gold' : 'text-fm-muted'}`}>{s.no}</div>
+                <div className="fm-eyebrow text-[11px] text-fm-gold">{s.no}</div>
                 <div className="mt-3 text-[15px] font-bold text-white">{s.title}</div>
                 <div className="mt-2 text-xs font-light leading-[1.7] text-fm-muted">{s.desc}</div>
                 <div className="mt-3 text-[11px] text-fm-muted">{s.time}</div>
@@ -125,9 +133,6 @@ export default function LoginPage() {
             ))}
           </div>
           </div>
-
-          {/* 영상: 텍스트 열 오른쪽 끝 → 패널 직전, 열 전체 높이. md 미만 숨김·미로드 */}
-          <HeroVideo className="hidden md:block flex-1 min-w-0 basis-0" />
         </section>
 
         <aside className="w-full md:w-[340px] lg:w-[420px] xl:w-[480px] shrink-0 border-t md:border-t-0 md:border-l border-fm-line bg-fm-panel px-6 md:px-8 lg:px-12 xl:px-14 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">

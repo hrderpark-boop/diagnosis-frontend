@@ -8,8 +8,8 @@ import { useEffect, useRef, useState } from 'react';
  * 파일: public/hero.webm + public/hero.mp4 (각 3MB 이하, scripts/encode-hero.sh 로 생성),
  *       public/hero-poster.jpg (첫 프레임). 원본은 design/ 에 보관.
  * 규칙:
- *  - 부모 flex 열 안에서 flex-1 로 남는 폭을 차지. 그 폭이 MIN_W(200px) 미만이면 영상을 숨기고 로드하지 않음
- *    (1024·1280 에서는 텍스트 520px 이 열을 다 써서 자연히 숨겨짐). md 미만은 부모가 숨김(display:none).
+ *  - 부모가 고정 폭(min(300px, 열 폭 − 텍스트 열))을 준다(flex-1 아님). 그 폭이 MIN_W(200px) 미만이면 영상을 숨기고 로드하지 않음
+ *    (1280 에서는 120px 뿐이라 숨김). xl 미만은 부모가 숨김(display:none).
  *  - prefers-reduced-motion → poster 만. 영상 로드 실패(파일 없음 포함) → poster 유지.
  *  - poster 도 없으면 배경(스테이지 그라디언트)만 남는다 — 자리는 유지.
  *  - object-fit: cover, 왼쪽 가장자리 배경색 페이드, 어두운 오버레이 25%.
