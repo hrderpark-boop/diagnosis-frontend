@@ -104,7 +104,9 @@ export default function LoginPage() {
 
           <h1 className="mt-8 text-2xl md:text-[28px] font-bold leading-[1.45] text-white">내 안의 진짜 리더를 찾는 여정</h1>
           <p className="mt-[18px] max-w-[600px] text-[15px] md:text-base font-light leading-[1.85] text-fm-text [text-wrap:pretty]">
-            데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요. <span className="whitespace-nowrap">자가진단</span>과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
+            데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요.
+            <br />
+            <span className="whitespace-nowrap">자가진단</span>과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
           </p>
 
           </div>
