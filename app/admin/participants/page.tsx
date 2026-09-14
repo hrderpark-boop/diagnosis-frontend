@@ -6,10 +6,10 @@ import AdminLayout from '../../../components/layouts/AdminLayout';
 import TranscriptModal from '../../../components/admin/TranscriptModal';
 import {
   Search, FileDown, ChevronLeft, ChevronRight, Loader2, MessageSquare, FileText,
-  Trash2, AlertTriangle,
+  Trash2, AlertTriangle, RotateCcw,
 } from 'lucide-react';
 import {
-  fetchParticipants, downloadExcel, bulkDeleteParticipants, Paginated,
+  fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, Paginated,
 } from '@/lib/adminApi';
 
 /**
@@ -97,6 +97,25 @@ const ParticipantsPage = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // 4(b) 보관 세션 복원: 확인 모달 대상 + 진행 상태
+  const [restoreTarget, setRestoreTarget] = useState<{ id: string; name: string; coach_name: string; message_count: number } | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const handleRestore = async () => {
+    if (!restoreTarget) return;
+    setRestoring(true);
+    try {
+      const r = await restoreSession(restoreTarget.id);
+      alert(`복원했습니다. ${restoreTarget.name} 님은 ${r.coach_name} 코치와의 세션을 이어갑니다.` +
+        (r.abandoned_others ? ` (진행 중이던 세션 ${r.abandoned_others}건은 보관)` : ''));
+      setRestoreTarget(null);
+      await load();
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || '복원에 실패했습니다.');
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -343,6 +362,24 @@ const ParticipantsPage = () => {
                       <span className={`rounded-full px-2 py-1 text-xs ${STATUS_STYLE[p.last_status] || 'bg-gray-700/50 text-gray-400'}`}>
                         {STATUS_LABEL[p.last_status] || p.last_status}
                       </span>
+                      {/* 4(b) 보관(abandoned) 세션 — 참가자가 "잘못 눌렀다" 고 하면 여기서 [복원] */}
+                      {Array.isArray(p.abandoned_sessions) && p.abandoned_sessions.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {p.abandoned_sessions.map((s: any) => (
+                            <li key={s.id} className="flex items-center gap-2 text-[11px] text-gray-400">
+                              <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-slate-300">보관</span>
+                              <span>{s.coach_name?.split('(')[0]?.trim() || '-'} · {s.message_count}턴 · {s.updated_at ? new Date(s.updated_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '-'}</span>
+                              <button
+                                onClick={() => setRestoreTarget({ id: s.id, name: p.name, coach_name: s.coach_name, message_count: s.message_count })}
+                                title="이 세션을 in_progress 로 복원 (현재 진행 중 세션은 보관)"
+                                className="flex items-center rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-300 transition hover:bg-amber-500/20"
+                              >
+                                <RotateCcw size={11} className="mr-1" /> 복원
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </td>
                     {/* 진행률 프로그레스 바 */}
                     <td className="p-4">
@@ -461,6 +498,44 @@ const ParticipantsPage = () => {
               >
                 {deleting && <Loader2 size={16} className="mr-2 animate-spin" />}
                 영구 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4(b) 복원 확인 모달 */}
+      {restoreTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-700 bg-gray-800 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-900/40">
+                <RotateCcw size={20} className="text-amber-300" />
+              </div>
+              <h3 className="text-lg font-bold text-white">보관 세션 복원</h3>
+            </div>
+            <p className="mb-6 text-sm leading-relaxed text-gray-300 break-keep">
+              <span className="font-bold text-white">{restoreTarget.name}</span> 님의{' '}
+              <span className="font-bold text-amber-300">{restoreTarget.coach_name?.split('(')[0]?.trim()}</span> 코치 세션
+              ({restoreTarget.message_count}턴)을 복원합니다.
+              <br />
+              현재 진행 중인 세션은 보관되고, 선택한 세션이 이어집니다. 대화·원장은 그대로이며 상태만 바뀝니다.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRestoreTarget(null)}
+                disabled={restoring}
+                className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 transition hover:bg-gray-600 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleRestore}
+                disabled={restoring}
+                className="flex items-center rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-black transition hover:bg-amber-400 disabled:bg-gray-700"
+              >
+                {restoring && <Loader2 size={16} className="mr-2 animate-spin" />}
+                복원
               </button>
             </div>
           </div>

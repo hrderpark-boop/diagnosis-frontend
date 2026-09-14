@@ -1,5 +1,6 @@
 "use client";
 
+import { clearRestoreCandidate } from '@/lib/restoreCandidate';
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
@@ -101,6 +102,8 @@ function ChatContent() {
   //   '50%' 처럼 %가 포함된 코치 문구에서 'URI malformed'가 렌더 중 던져져
   //   화면 전체가 client-side exception 으로 죽었다(배포 전용 증상). 재디코드 제거.
   const initialMsg = searchParams.get('initial_message') || "";
+  // ① 재개로 들어온 화면: 상단 한 줄 "이어서 진행합니다"(팝업 대신). 첫 메시지를 보내면 사라진다.
+  const [resumedNotice, setResumedNotice] = useState(searchParams.get('resumed') === '1');
 
   const rawCoachImg = searchParams.get('coach_img');
   const coachImg = rawCoachImg
@@ -211,6 +214,9 @@ function ChatContent() {
     if (!userMsg || isLoading || isTerminated) return;
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     if (override === undefined) setInput("");
+    // 첫 메시지 = 새 세션이 실질적으로 시작됨 → 되돌리기 후보·재개 안내 정리
+    setResumedNotice(false);
+    clearRestoreCandidate();
     setIsLoading(true);
     setConnError(false);
     setJustCompletedTopic(false);
@@ -444,6 +450,13 @@ function ChatContent() {
             {/* 채팅 히스토리 */}
             <div className="flex-1 px-6 md:px-10 py-6 space-y-8 overflow-y-auto custom-scrollbar">
               <div className="h-8"></div>
+              {resumedNotice && (
+                <div className="flex justify-center animate-[fadeIn_0.3s]">
+                  <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-200">
+                    이어서 진행합니다 — {coachName.split('(')[0].trim()} 코치와의 이전 대화에 이어집니다.
+                  </span>
+                </div>
+              )}
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-[fadeIn_0.3s]`}>
                   {msg.role === 'model' && (

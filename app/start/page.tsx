@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import { RESTORE_KEY, type RestoreCandidate } from '@/lib/restoreCandidate';
 
 interface Coach {
   id: string;
@@ -12,36 +13,30 @@ interface Coach {
   character_tags: string[] | string;
 }
 
+interface ActiveSession { session_id: string; coach_id: string; coach_name: string }
+
 // FindME 리뉴얼 1B / SELECT COACH — 헤더(눈썹·제목·부제) + 3열 카드(번호·사진·
-// 영문/한글 이름·태그·인용 설명·버튼). 선택/재개 로직은 기존 그대로.
+// 영문/한글 이름·태그·인용 설명·버튼).
+//
+// 재개·새로 시작 흐름(세 갈래, docs/session_state_transitions.md):
+//   ① 같은 코치 선택 → 팝업 없이 곧바로 /chat(자가진단 건너뜀). 채팅 상단 한 줄 "이어서 진행합니다".
+//   ② 다른 코치 선택 → 선택 팝업 [기존 코치와 이어하기] [새 코치로 새로 시작]. 닫기도 가능.
+//   ③ 새로 시작 확인 팝업(배너 버튼·②의 새로 시작 모두 여기를 거침) → /abandon → 새 세션 → 자가진단.
+//      되돌리기용으로 방금 보관한 세션을 sessionStorage 에 남긴다(자가진단 상단 배너, 첫 메시지 전까지).
 export default function StartPage() {
   const router = useRouter();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // 진행 중 세션 사전 안내(재개 시 원래 코치로 이어짐을 미리 고지).
-  const [activeCoachName, setActiveCoachName] = useState<string | null>(null);
+  // 진행 중 세션(재개 대상) — 코치 id 로 같은/다른 코치를 가른다.
+  const [active, setActive] = useState<ActiveSession | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
-  // 2단계 '새로 시작': 확인 팝업 → /diagnoses/abandon(기존 세션 보관, 삭제 아님) → 배너 제거
+  // ② 다른 코치를 눌렀을 때의 선택 팝업 대상
+  const [choiceCoach, setChoiceCoach] = useState<Coach | null>(null);
+  // ③ 새로 시작 확인 팝업. pendingCoach 가 있으면 확인 뒤 그 코치로 곧장 새 세션.
   const [confirmNew, setConfirmNew] = useState(false);
+  const [pendingCoach, setPendingCoach] = useState<Coach | null>(null);
   const [abandoning, setAbandoning] = useState(false);
   const [freshStart, setFreshStart] = useState(false);
-
-  const handleAbandon = async () => {
-    const pid = localStorage.getItem('participant_id');
-    if (!pid) { setConfirmNew(false); return; }
-    setAbandoning(true);
-    try {
-      await axios.post(`${API_BASE_URL}/diagnoses/abandon`, { participant_id: pid });
-      setActiveCoachName(null);
-      setFreshStart(true);
-      setConfirmNew(false);
-    } catch (e) {
-      console.error(e);
-      alert("기존 진단을 보관하지 못했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setAbandoning(false);
-    }
-  };
 
   // 백엔드 API 주소 (.env.local 의 NEXT_PUBLIC_API_URL 로 override 가능)
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
@@ -51,10 +46,13 @@ export default function StartPage() {
   const TEMPLATE_ID = process.env.NEXT_PUBLIC_DEFAULT_TEMPLATE_ID || "10000000-0000-0000-0000-000000000008";
 
   // 🚨 [핵심 추가] 시작 화면 진입 시 무조건 과거 기억 완벽 삭제!
+  //   (되돌리기 후보 RESTORE_KEY 는 자가진단 배너가 써야 하므로 남긴다)
   useEffect(() => {
     localStorage.removeItem('diagnosis_id');
     localStorage.removeItem('session_id');
+    const keep = sessionStorage.getItem(RESTORE_KEY);
     sessionStorage.clear();
+    if (keep) sessionStorage.setItem(RESTORE_KEY, keep);
   }, []);
 
   // 진행 중 세션이 있으면 미리 안내(코치를 새로 골라도 재개 시 원래 코치 유지).
@@ -62,7 +60,11 @@ export default function StartPage() {
     const pid = localStorage.getItem('participant_id');
     if (!pid) return;
     axios.get(`${API_BASE_URL}/diagnoses/active`, { params: { participant_id: pid } })
-      .then((r) => { if (r.data?.has_active) setActiveCoachName(r.data.coach_name); })
+      .then((r) => {
+        if (r.data?.has_active) {
+          setActive({ session_id: r.data.session_id, coach_id: r.data.coach_id, coach_name: r.data.coach_name });
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -76,7 +78,11 @@ export default function StartPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const handleSelectCoach = async (coachId: string, coachName: string, coachAvatar: string) => {
+  const avatarOf = (coachId: string, fallback = '') =>
+    coaches.find((c) => c.id === coachId)?.avatar_url || fallback;
+
+  // /start 호출 — 재개(next_action==="resume")면 /chat 으로, 새 세션이면 자가진단으로.
+  const startWith = async (coachId: string, coachName: string, coachAvatar: string) => {
     if (startingId) return;
     setStartingId(coachId);
     try {
@@ -98,19 +104,13 @@ export default function StartPage() {
       const diagnosisId = res.data.diagnosis_id || res.data.id;
       const sessionId = res.data.session_id;
 
-      // 🐛 fix: 진행 중 세션이 있으면 백엔드가 그 세션을 '재개'하고 원래 코치를
-      //   유지한다. 이때 화면은 방금 클릭한 코치가 아니라 '재개 세션의 코치'를
-      //   보여줘야 혼란이 없다. next_action==="resume" 이면 응답의 coach_id/
-      //   coach_name 으로 프로필(이름·아바타)을 덮어쓰고, 이어하기 안내를 띄운다.
+      // 재개면 백엔드가 그 세션의 '원래 코치'를 돌려준다 — 프로필도 그 코치로.
       let effName = coachName;
       let effAvatar = coachAvatar;
       const isResume = res.data.next_action === "resume";
       if (isResume) {
-        const rId = res.data.coach_id;
         effName = res.data.coach_name || coachName;
-        const rCoach = coaches.find((c) => c.id === rId);
-        if (rCoach) effAvatar = rCoach.avatar_url;
-        alert(`이전에 ${effName} 코치와 진행하던 진단이 있어 이어서 시작합니다.`);
+        effAvatar = avatarOf(res.data.coach_id, coachAvatar);
       }
 
       const msgStr = res.data.coach_response_message;
@@ -120,12 +120,21 @@ export default function StartPage() {
       const encodedImg = encodeURIComponent(effAvatar);
       const chatQuery = `diagnosis_id=${diagnosisId}&session_id=${sessionId}&coach_name=${effName}&coach_img=${encodedImg}&initial_message=${encodedMsg}`;
 
-      // 🐛 fix: 재개 세션은 자가진단을 이미 마쳤다. 다시 self-eval 을 거치면
-      //   이미 완료한 설문을 반복하게 되므로, 재개면 /chat 으로 직행한다.
-      //   신규 세션만 자가진단 단계를 거친다.
       if (isResume) {
-        router.push(`/chat?${chatQuery}`);
+        // ① 팝업(alert) 없이 곧바로 채팅. 재개 표시는 채팅 상단 한 줄이 맡는다.
+        router.push(`/chat?${chatQuery}&resumed=1`);
       } else {
+        // 새 세션: 방금 보관한 세션이 있으면 되돌리기 후보에 새 세션 id 를 붙인다(자가진단 배너 조건).
+        try {
+          const raw = sessionStorage.getItem(RESTORE_KEY);
+          if (raw) {
+            const cand = JSON.parse(raw) as RestoreCandidate;
+            if (!cand.new_session_id) {
+              cand.new_session_id = sessionId;
+              sessionStorage.setItem(RESTORE_KEY, JSON.stringify(cand));
+            }
+          }
+        } catch { /* 후보가 깨져 있으면 배너만 안 뜬다 */ }
         router.push(`/assessment/self-eval?${chatQuery}`);
       }
 
@@ -133,6 +142,55 @@ export default function StartPage() {
       console.error(error);
       alert("서버 연결에 실패했습니다.");
       setStartingId(null);
+    }
+  };
+
+  // 카드 버튼: 진행 중 세션 유무와 코치 일치 여부로 세 갈래를 가른다.
+  const handleSelectCoach = (coach: Coach) => {
+    if (startingId) return;
+    if (!active) { startWith(coach.id, coach.name, coach.avatar_url); return; }
+    if (active.coach_id === coach.id) {
+      // ① 같은 코치 → 팝업 없이 바로 이어하기
+      startWith(coach.id, coach.name, coach.avatar_url);
+      return;
+    }
+    // ② 다른 코치 → 선택 팝업
+    setChoiceCoach(coach);
+  };
+
+  // ② "기존 코치와 이어하기" — 재개 세션의 코치로 /start(=resume) → /chat
+  const continueWithActive = () => {
+    if (!active) return;
+    setChoiceCoach(null);
+    startWith(active.coach_id, active.coach_name, avatarOf(active.coach_id));
+  };
+
+  // ③ 확인 후: /abandon → 되돌리기 후보 저장 → (pendingCoach 가 있으면) 새 세션 시작
+  const handleAbandon = async () => {
+    const pid = localStorage.getItem('participant_id');
+    if (!pid) { setConfirmNew(false); return; }
+    setAbandoning(true);
+    try {
+      const r = await axios.post(`${API_BASE_URL}/diagnoses/abandon`, { participant_id: pid });
+      const first = r.data?.sessions?.[0];
+      const cand: RestoreCandidate | null = first
+        ? { session_id: first.session_id, coach_id: first.coach_id, coach_name: first.coach_name }
+        : active ? { session_id: active.session_id, coach_id: active.coach_id, coach_name: active.coach_name } : null;
+      if (cand) sessionStorage.setItem(RESTORE_KEY, JSON.stringify(cand));
+      setActive(null);
+      setConfirmNew(false);
+      const next = pendingCoach;
+      setPendingCoach(null);
+      if (next) {
+        await startWith(next.id, next.name, next.avatar_url);
+      } else {
+        setFreshStart(true);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("기존 진단을 보관하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setAbandoning(false);
     }
   };
 
@@ -149,6 +207,7 @@ export default function StartPage() {
     if (m) return { en: m[1].trim().toUpperCase(), ko: m[2].trim() };
     return { en: name.toUpperCase(), ko: name };
   };
+  const shortName = (name: string) => name.split('(')[0].trim();
 
   const getCoachDescription = (desc: string) => {
     if (desc && desc.trim().length > 5 && desc !== 'string') return desc.replace(/\n/g, ' ');
@@ -166,24 +225,24 @@ export default function StartPage() {
           <p className="text-[15px] font-light leading-[1.8] text-fm-text">6명의 AI 코치가 리더십 데이터를 분석하고 맞춤형 솔루션을 제공합니다</p>
         </div>
 
-        {activeCoachName && (
-          /* 배너 가독성: 16px, 본문 밝게(#E8ECF1), 코치명 골드. 2단계: '새로 시작' 버튼 */
+        {active && (
+          /* 재개 배너: 16px, 본문 밝게(#E8ECF1), 코치명 골드. '새로 시작' 은 ③ 확인 팝업으로 */
           <div className="mt-8 border-l-2 border-fm-gold bg-fm-panel/80 px-6 py-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
             <p className="flex-1 text-[16px] leading-[1.8] text-[#E8ECF1]">
-              진행 중인 진단이 있습니다. 이어서 진행하시면 처음 함께 시작하신{' '}
-              <b className="font-bold text-fm-gold">{activeCoachName}</b> 코치와 계속됩니다. 아래에서 어느 코치를 고르셔도 기존 진단이 이어집니다.
+              진행 중인 진단이 있습니다. <b className="font-bold text-fm-gold">{active.coach_name}</b> 코치를 다시 고르시면 바로 이어서 진행됩니다.
+              다른 코치를 고르시면 이어할지 새로 시작할지 여쭙습니다.
               처음부터 다시 하시려면 <b className="text-white">새로 시작</b>을 눌러 주세요.
             </p>
             <button
               type="button"
-              onClick={() => setConfirmNew(true)}
+              onClick={() => { setPendingCoach(null); setConfirmNew(true); }}
               className="shrink-0 h-11 px-5 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors"
             >
               새로 시작
             </button>
           </div>
         )}
-        {freshStart && !activeCoachName && (
+        {freshStart && !active && (
           <div className="mt-8 border-l-2 border-fm-line bg-fm-panel/60 px-6 py-4 text-[15px] leading-[1.8] text-fm-text">
             이전 진단은 보관되었습니다. 이제 함께할 코치를 선택하면 새 진단이 시작됩니다.
           </div>
@@ -199,12 +258,16 @@ export default function StartPage() {
             {coaches?.map((coach, idx) => {
               const { en, ko } = splitName(coach.name);
               const busy = startingId === coach.id;
+              const isActiveCoach = active?.coach_id === coach.id;
               return (
                 <div
                   key={coach.id}
-                  className="group bg-fm-panel border border-fm-line rounded p-7 flex flex-col gap-5 transition-colors hover:border-fm-gold/60"
+                  className={`group bg-fm-panel border rounded p-7 flex flex-col gap-5 transition-colors hover:border-fm-gold/60 ${isActiveCoach ? 'border-fm-gold/60' : 'border-fm-line'}`}
                 >
-                  <div className="fm-eyebrow text-[11px] text-fm-muted">{String(idx + 1).padStart(2, '0')}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="fm-eyebrow text-[11px] text-fm-muted">{String(idx + 1).padStart(2, '0')}</div>
+                    {isActiveCoach && <div className="fm-eyebrow text-[10px] text-fm-gold">진행 중</div>}
+                  </div>
 
                   {/* 사진 96px → 154px(1.6배). hover 시 사진 확대 + 테두리 골드 */}
                   <div className="flex justify-center">
@@ -232,11 +295,11 @@ export default function StartPage() {
                   </p>
 
                   <button
-                    onClick={() => handleSelectCoach(coach.id, coach.name, coach.avatar_url)}
+                    onClick={() => handleSelectCoach(coach)}
                     disabled={!!startingId}
                     className="mt-auto h-[46px] rounded border border-fm-line text-white text-sm font-bold transition-colors hover:bg-white hover:text-black hover:border-white disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {busy ? '시작 준비 중…' : '선택 후 시작하기'}
+                    {busy ? '시작 준비 중…' : isActiveCoach ? '이어서 진행하기' : '선택 후 시작하기'}
                   </button>
                 </div>
               );
@@ -245,30 +308,67 @@ export default function StartPage() {
         )}
       </div>
 
-      {/* '새로 시작' 확인 팝업 */}
+      {/* ② 다른 코치 선택 팝업 */}
+      {choiceCoach && active && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" role="dialog" aria-modal="true" aria-labelledby="choice-title">
+          <div className="w-full max-w-[460px] bg-fm-panel border border-fm-line rounded p-8 fm-rise">
+            <div className="fm-eyebrow text-[11px] text-fm-gold">Continue or start over</div>
+            <h2 id="choice-title" className="mt-3 text-xl font-bold text-white break-keep">
+              {shortName(active.coach_name)} 코치와 진행 중인 진단이 있습니다.
+            </h2>
+            <p className="mt-3 text-[15px] leading-[1.8] text-fm-text">어떻게 하시겠어요?</p>
+            <div className="mt-8 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={continueWithActive}
+                className="h-12 px-5 rounded bg-white text-black text-sm font-bold hover:bg-fm-gold transition-colors"
+              >
+                {shortName(active.coach_name)}와 이어하기
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPendingCoach(choiceCoach); setChoiceCoach(null); setConfirmNew(true); }}
+                className="h-12 px-5 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors"
+              >
+                {shortName(choiceCoach.name)}로 새로 시작
+              </button>
+              <button
+                type="button"
+                onClick={() => setChoiceCoach(null)}
+                className="h-10 text-sm text-fm-muted hover:text-white transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ③ '새로 시작' 확인 팝업 — 실수 방지(배너 버튼·②의 새로 시작 모두 여기를 거친다) */}
       {confirmNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" role="dialog" aria-modal="true" aria-labelledby="fresh-title">
-          <div className="w-full max-w-[440px] bg-fm-panel border border-fm-line rounded p-8 fm-rise">
+          <div className="w-full max-w-[460px] bg-fm-panel border border-fm-line rounded p-8 fm-rise">
             <div className="fm-eyebrow text-[11px] text-fm-gold">Start over</div>
-            <h2 id="fresh-title" className="mt-3 text-xl font-bold text-white">처음부터 다시 시작할까요?</h2>
-            <p className="mt-4 text-[15px] leading-[1.8] text-fm-text">
-              지금까지 <b className="text-white">{activeCoachName}</b> 코치와 나눈 대화는 보관되며 삭제되지 않습니다.
-              다만 그 진단은 더 이상 이어서 진행할 수 없고, 새 진단이 처음부터 시작됩니다.
+            <h2 id="fresh-title" className="mt-3 text-xl font-bold text-white">새로 시작하시겠습니까?</h2>
+            <p className="mt-4 text-[15px] leading-[1.8] text-fm-text break-keep">
+              이전에 <b className="text-white">{active ? shortName(active.coach_name) : '이전'}</b> 코치와 진행하던 진단이 있습니다.
+              지금까지의 대화는 보관되지만, 새로 시작하면 처음부터 다시 진행합니다.
+              {pendingCoach && <> 새 진단은 <b className="text-white">{shortName(pendingCoach.name)}</b> 코치와 시작합니다.</>}
             </p>
             <div className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
               <button
                 type="button"
-                onClick={() => setConfirmNew(false)}
+                onClick={() => { setConfirmNew(false); setPendingCoach(null); }}
                 disabled={abandoning}
                 className="h-11 px-5 rounded border border-fm-line text-fm-text text-sm font-bold hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
               >
-                이어서 진행
+                취소
               </button>
               <button
                 type="button"
                 onClick={handleAbandon}
                 disabled={abandoning}
-                className="h-11 px-5 rounded bg-white text-black text-sm font-bold hover:bg-fm-gold transition-colors disabled:opacity-50"
+                className="h-11 px-5 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50"
               >
                 {abandoning ? '보관 중…' : '새로 시작'}
               </button>

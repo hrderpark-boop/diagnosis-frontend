@@ -125,6 +125,12 @@ export const fetchParticipants = async (params: {
   return data;
 };
 
+/** 4(b) 관리자 복원: 보관(abandoned) 세션 → in_progress. 현재 진행 중 세션은 abandoned 로 */
+export const restoreSession = async (sessionId: string) => {
+  const { data } = await adminApi.post(`/admin/sessions/${sessionId}/restore`);
+  return data as { restored: boolean; already_in_progress: boolean; abandoned_others: number; coach_name: string };
+};
+
 export interface BulkDeleteResult {
   deleted_participants: number;
   deleted_sessions: number;

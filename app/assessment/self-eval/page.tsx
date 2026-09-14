@@ -4,6 +4,7 @@ import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { COMPETENCY_ORDER, toKoreanCompetency } from '@/lib/competencyLabels';
+import { clearRestoreCandidate, readRestoreCandidate, type RestoreCandidate } from '@/lib/restoreCandidate';
 
 /**
  * 자가진단(Self-Assessment) — AI 코칭 대화 시작 직전 단계.
@@ -65,6 +66,44 @@ function SelfEvalContent() {
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // 4(a) 즉시 되돌리기: '새로 시작' 직후(첫 메시지 전)에만 뜨는 배너. 후보의 new_session_id 가
+  //   지금 세션과 같을 때만 — 다른 경로로 들어온 자가진단에는 뜨지 않는다.
+  const [restoreCand, setRestoreCand] = useState<RestoreCandidate | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  useEffect(() => {
+    const c = readRestoreCandidate();
+    setRestoreCand(c && sessionId && c.new_session_id === sessionId ? c : null);
+  }, [sessionId]);
+
+  // 보관된 세션을 in_progress 로 복원하고(방금 만든 빈 세션은 abandoned), 그 코치의 채팅으로 간다.
+  const handleRestore = async () => {
+    if (!restoreCand || restoring) return;
+    const pid = localStorage.getItem('participant_id');
+    if (!pid) return;
+    setRestoring(true);
+    try {
+      const r = await axios.post(`${API_BASE_URL}/diagnoses/restore`, { session_id: restoreCand.session_id });
+      clearRestoreCandidate();
+      // 복원된 세션으로 /start → 재개 응답(마지막 코치 메시지·코치) → 채팅
+      const TEMPLATE_ID = process.env.NEXT_PUBLIC_DEFAULT_TEMPLATE_ID || '10000000-0000-0000-0000-000000000008';
+      const st = await axios.post(`${API_BASE_URL}/diagnoses/start`, {
+        coach_id: r.data.coach_id, participant_id: pid, template_id: TEMPLATE_ID,
+      });
+      let avatar = '';
+      try {
+        const cs = await axios.get(`${API_BASE_URL}/coaches`);
+        avatar = (cs.data as Array<{ id: string; avatar_url: string }>).find((c) => c.id === r.data.coach_id)?.avatar_url || '';
+      } catch { /* 아바타는 기본 이미지로 */ }
+      const name = st.data.coach_name || r.data.coach_name;
+      const msg = st.data.coach_response_message || '';
+      const q = `diagnosis_id=${st.data.diagnosis_id || st.data.session_id}&session_id=${st.data.session_id}&coach_name=${name}&coach_img=${encodeURIComponent(avatar)}&initial_message=${encodeURIComponent(msg)}&resumed=1`;
+      router.push(`/chat?${q}`);
+    } catch (err) {
+      console.error(err);
+      setRestoring(false);
+      setError('이전 진단을 되돌리지 못했습니다. 잠시 후 다시 시도하거나 관리자에게 문의해주세요.');
+    }
+  };
 
   // 자가진단을 마친 뒤 이동할 채팅 URL (진단 시작 단계에서 받은 파라미터 보존)
   //   ※ 아래 게이트 effect 보다 먼저 선언(선언 전 접근 lint 해소).
@@ -127,6 +166,23 @@ function SelfEvalContent() {
   return (
     <main className="fm-stage fm-rise min-h-screen text-white">
       <div className="mx-auto max-w-[1040px] px-6 md:px-12 pt-14 md:pt-[72px] pb-16 md:pb-[88px]">
+        {/* 4(a) 되돌리기 배너 — 새로 시작 직후, 첫 메시지 전까지만 */}
+        {restoreCand && (
+          <div className="mb-10 border-l-2 border-fm-gold bg-fm-panel/80 px-6 py-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-6 break-keep">
+            <p className="flex-1 text-[15px] leading-[1.8] text-[#E8ECF1]">
+              <b className="font-bold text-fm-gold">{restoreCand.coach_name.split('(')[0].trim()}</b> 코치와의 이전 진단을 보관했습니다.
+              실수라면 이전 진단으로 돌아갈 수 있습니다.
+            </p>
+            <button
+              type="button"
+              onClick={handleRestore}
+              disabled={restoring}
+              className="shrink-0 h-10 px-4 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50"
+            >
+              {restoring ? '되돌리는 중…' : '이전 진단으로 돌아가기'}
+            </button>
+          </div>
+        )}
         {/* 헤더 */}
         <div className="fm-eyebrow text-xs text-fm-gold">Step 01 · 자가진단</div>
         <h1 className="mt-6 text-[28px] md:text-4xl font-light leading-[1.35]">
