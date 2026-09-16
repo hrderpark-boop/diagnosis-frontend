@@ -327,6 +327,11 @@ function ChatContent() {
     }
   };
 
+  // 2(2026-09-16) 챕터 종료 대기 중 입력 잠금: 전환 팝업('다음 챕터로 이동' / '계속·휴식')이 떠 있는 동안은
+  //   채팅창에 "네"를 치는 대신 버튼으로만 선택하게 한다(백엔드는 텍스트가 와도 안내만 돌려주는 이중 방어).
+  //   버튼들은 sendMessage(override) 로 보내므로 잠금과 무관하게 동작한다.
+  const awaitingChoice = !connError && sessionStatus !== 'paused' && (justCompletedTopic || awaitingContinue);
+
   // 1D 시각: 현재 챕터 번호/이름(진행 목록과 같은 파생값 — 로직 변경 아님)
   const currentTopicIdx = allTopics.findIndex((t) => !completedTopics.includes(t));
   const currentTopicName = currentTopicIdx >= 0 ? allTopics[currentTopicIdx] : (allTopics.length ? '완료' : '');
@@ -572,12 +577,12 @@ function ChatContent() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="답변을 입력하세요"
+                  placeholder={awaitingChoice ? "위 버튼으로 다음 단계를 선택해 주세요" : "답변을 입력하세요"}
                   rows={1}
-                  disabled={isTerminated}
+                  disabled={isTerminated || awaitingChoice}
                   className="w-full bg-transparent text-white placeholder:text-fm-dim text-[15px] leading-[1.7] px-5 py-3.5 focus:outline-none resize-none max-h-[150px] custom-scrollbar disabled:cursor-not-allowed"
                 />
-                <button onClick={() => sendMessage()} disabled={isLoading || isTerminated || !input.trim()} aria-label="보내기" className="mb-2 mr-2 p-2 rounded text-fm-gold hover:bg-fm-gold/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent">
+                <button onClick={() => sendMessage()} disabled={isLoading || isTerminated || awaitingChoice || !input.trim()} aria-label="보내기" className="mb-2 mr-2 p-2 rounded text-fm-gold hover:bg-fm-gold/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                     <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
                   </svg>
