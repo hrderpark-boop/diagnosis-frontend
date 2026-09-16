@@ -60,7 +60,7 @@ const FinaleModal = ({ onAnalyze }: { onAnalyze: () => void }) => {
         </p>
 
         <button onClick={onAnalyze} className="mt-8 w-full h-12 rounded bg-white text-black font-bold text-[15px] hover:bg-fm-gold transition-colors">
-          🚀 최종 리포트 생성하기
+          최종 리포트 생성하기
         </button>
       </div>
     </div>
@@ -474,32 +474,32 @@ function ChatContent() {
           {/* 상태 인지 액션바 — 오류(Sync) / 일시중지 / 다음 챕터 (항상 활성). 문구·동작 그대로, 색만 토큰 */}
           {connError && (
             <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border border-red-500/40 bg-red-500/10 px-5 py-3">
-              <span className="text-sm text-red-300 break-keep">⚠️ 네트워크 통신 오류가 발생했어요. 대화는 안전하게 저장돼 있어요.</span>
+              <span className="text-sm text-red-300 break-keep">네트워크 통신 오류가 발생했어요. 대화는 안전하게 저장돼 있어요.</span>
               <button
                 onClick={() => syncState()}
                 disabled={isLoading}
                 className="shrink-0 h-9 rounded border border-red-400/60 px-4 text-sm font-bold text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
               >
-                🔄 다시 시도 (상태 동기화)
+                다시 시도 (상태 동기화)
               </button>
             </div>
           )}
           {!connError && sessionStatus === 'paused' && (
             <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
-              <span className="text-sm text-[#E8ECF1] break-keep">⏸ 진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.</span>
+              <span className="text-sm text-[#E8ECF1] break-keep">진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.</span>
               <button
                 onClick={resumeDiagnosis}
                 disabled={isLoading}
                 className="shrink-0 h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
               >
-                ▶ 진단 계속하기
+                진단 계속하기
               </button>
             </div>
           )}
           {!connError && sessionStatus !== 'paused' && needsDecision && (
             <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex flex-wrap items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
               <span className="text-sm text-[#E8ECF1] break-keep">
-                💜 코치가 오늘은 쉬어가는 것을 제안했어요. 어떻게 할까요?
+                코치가 오늘은 쉬어가는 것을 제안했어요. 어떻게 할까요?
               </span>
               <div className="flex gap-2 shrink-0">
                 <button
@@ -507,14 +507,14 @@ function ChatContent() {
                   disabled={isLoading}
                   className="h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
                 >
-                  ▶ 계속 진행하기
+                  계속 진행하기
                 </button>
                 <button
                   onClick={() => { setNeedsDecision(false); sendMessage(PAUSE_LATER_MESSAGE); }}
                   disabled={isLoading}
                   className="h-9 rounded border border-fm-line px-4 text-sm font-bold text-fm-text hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
                 >
-                  🌙 다음에 하기
+                  다음에 하기
                 </button>
               </div>
             </div>
@@ -522,7 +522,7 @@ function ChatContent() {
           {!connError && sessionStatus !== 'paused' && !needsDecision && awaitingContinue && (
             <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex flex-wrap items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
               <span className="text-sm text-[#E8ECF1] break-keep">
-                🌿 이 영역을 마쳤어요. 어떻게 할까요?{nextTopic ? ` (다음: '${nextTopic}')` : ''}
+                이 영역을 마쳤어요. 어떻게 할까요?{nextTopic ? ` (다음: '${nextTopic}')` : ''}
               </span>
               <div className="flex gap-2 shrink-0">
                 <button
@@ -530,14 +530,14 @@ function ChatContent() {
                   disabled={isLoading}
                   className="h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
                 >
-                  ▶ 계속 진행
+                  계속 진행
                 </button>
                 <button
                   onClick={takeBreak}
                   disabled={isLoading}
                   className="h-9 rounded border border-fm-line px-4 text-sm font-bold text-fm-text hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
                 >
-                  ⏸ 잠시 쉬기
+                  잠시 쉬기
                 </button>
               </div>
             </div>
@@ -545,14 +545,14 @@ function ChatContent() {
           {!connError && sessionStatus !== 'paused' && !awaitingContinue && justCompletedTopic && (
             <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
               <span className="text-sm text-[#E8ECF1] break-keep">
-                ✅ 이 영역을 마쳤어요{nextTopic ? ` — 다음은 '${nextTopic}'` : ''}. 이어서 진행할 수 있어요.
+                이 영역을 마쳤어요{nextTopic ? ` — 다음은 '${nextTopic}'` : ''}. 이어서 진행할 수 있어요.
               </span>
               <button
                 onClick={goNextChapter}
                 disabled={isLoading}
                 className="shrink-0 h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
               >
-                ➡ 다음 챕터로 이동
+                다음 챕터로 이동
               </button>
             </div>
           )}
