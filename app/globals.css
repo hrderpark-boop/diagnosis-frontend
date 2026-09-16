@@ -102,7 +102,7 @@ body {
   /* Firefox용 설정 */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(59, 130, 246, 0.5) transparent;
+    scrollbar-color: rgba(176, 141, 92, 0.45) transparent;
   }
 
   /* Chrome, Edge, Safari용 상세 설정 */
@@ -116,12 +116,12 @@ body {
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(to bottom, #3b82f6, #2563eb); /* 파란색 그라데이션 */
+    background: rgba(176, 141, 92, 0.45); /* 골드(1A~1D 토큰) */
     border-radius: 10px; /* 둥근 모서리 */
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #1d4ed8; /* 호버 시 진한 파랑 */
+    background: rgba(176, 141, 92, 0.7); /* 호버 시 골드 진하게 */
   }
 }
 

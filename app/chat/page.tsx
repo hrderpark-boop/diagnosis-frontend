@@ -28,27 +28,14 @@ interface Message {
 // ----------------------------------------------------------------------
 const LevelUpModal = ({ data, onClose }: { data: { title: string, desc: string }, onClose: () => void }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]">
-      <div className="relative w-full max-w-sm bg-[#121214] border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[2px] bg-gradient-to-r from-transparent via-yellow-500/50 to-transparent blur-sm"></div>
-        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-32 h-32 bg-yellow-500/10 rounded-full blur-[60px] pointer-events-none"></div>
-
-        <div className="flex justify-center mb-6">
-          <div className="relative w-16 h-16 bg-gradient-to-b from-[#2a2a2d] to-[#1a1a1d] border border-white/5 rounded-2xl flex items-center justify-center shadow-lg group">
-            <div className="absolute inset-0 bg-yellow-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-yellow-400 drop-shadow-md">
-              <path fillRule="evenodd" d="M9 4.5a.75.75 0 01.721.544l.813 2.846a3.75 3.75 0 002.576 2.576l2.846.813a.75.75 0 010 1.442l-2.846.813a3.75 3.75 0 00-2.576 2.576l-.813 2.846a.75.75 0 01-1.442 0l-.813-2.846a3.75 3.75 0 00-2.576-2.576l-2.846-.813a.75.75 0 010-1.442l2.846-.813a3.75 3.75 0 002.576-2.576l.813-2.846A.75.75 0 019 4.5zM6.97 6.97a.75.75 0 00-1.06 0l-.478.477a.75.75 0 01-1.06-1.06l.477-.478a.75.75 0 000-1.06l-.477-.478a.75.75 0 111.06-1.06l.478.477a.75.75 0 001.06 0l.477-.477a.75.75 0 111.06 1.06l-.477.478a.75.75 0 000 1.06l.477.478a.75.75 0 11-1.06 1.06l-.478-.477z" clipRule="evenodd" />
-            </svg>
-          </div>
-        </div>
-        <div className="text-center space-y-3">
-          <h3 className="text-[11px] font-bold text-yellow-600/80 tracking-[0.2em] uppercase">Competency Unlocked</h3>
-          <h1 className="text-2xl font-bold text-white leading-tight">{data.title}</h1>
-          <div className="w-10 h-[1px] bg-white/10 mx-auto my-4"></div>
-          <p className="text-sm text-gray-400 leading-relaxed font-light px-2 whitespace-pre-wrap">{data.desc}</p>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/70 animate-[fadeIn_0.3s_ease-out]">
+      <div className="relative w-full max-w-[440px] bg-fm-panel border border-fm-line rounded p-8 fm-rise">
+        <div className="fm-eyebrow text-[11px] text-fm-gold">Competency Unlocked</div>
+        <h1 className="mt-3 text-xl font-bold text-white leading-tight break-keep">{data.title}</h1>
+        <div className="w-10 h-px bg-fm-line my-5"></div>
+        <p className="text-[15px] text-fm-text leading-[1.8] font-light whitespace-pre-wrap break-keep">{data.desc}</p>
         <div className="mt-8">
-          <button onClick={onClose} className="w-full py-4 bg-white hover:bg-gray-100 text-black text-sm font-bold rounded-xl transition-all duration-200 transform hover:scale-[1.02] shadow-[0_0_20px_rgba(255,255,255,0.1)]">다음 여정 계속하기</button>
+          <button onClick={onClose} className="w-full h-11 bg-white hover:bg-fm-gold text-black text-sm font-bold rounded transition-colors">다음 여정 계속하기</button>
         </div>
       </div>
     </div>
@@ -60,27 +47,19 @@ const LevelUpModal = ({ data, onClose }: { data: { title: string, desc: string }
 // ----------------------------------------------------------------------
 const FinaleModal = ({ onAnalyze }: { onAnalyze: () => void }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/80 backdrop-blur-md animate-[fadeIn_0.5s_ease-out]">
-      <div className="relative w-full max-w-md bg-gradient-to-b from-[#1a1a2e] to-[#0f0f16] border border-blue-500/30 rounded-[32px] p-10 shadow-[0_0_80px_rgba(59,130,246,0.3)] overflow-hidden text-center animate-[slideUp_0.5s_cubic-bezier(0.16,1,0.3,1)]">
-        <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-48 h-48 bg-blue-500/20 rounded-full blur-[80px] pointer-events-none"></div>
-
-        <div className="flex justify-center mb-8">
-          <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(59,130,246,0.5)] animate-[bounce_3s_infinite]">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 text-white">
-              <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
-            </svg>
-          </div>
-        </div>
-
-        <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 mb-4 tracking-tight">진단 완료!</h2>
-        <p className="text-gray-300 text-sm leading-relaxed mb-8 break-keep">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/80 animate-[fadeIn_0.5s_ease-out]">
+      <div className="relative w-full max-w-[460px] bg-fm-panel border border-fm-line rounded p-10 text-center fm-rise">
+        <div className="fm-eyebrow text-[11px] text-fm-gold">Diagnosis complete</div>
+        <h2 className="mt-4 text-3xl font-light text-white">진단 완료</h2>
+        <div className="w-10 h-px bg-fm-line mx-auto my-6"></div>
+        <p className="text-fm-text text-[15px] leading-[1.8] font-light break-keep">
           긴 여정을 무사히 마치신 것을 축하합니다.<br/><br/>
           이제 리더님이 남겨주신 소중한 답변들을 모아,<br/>
-          <strong>최첨단 HR 알고리즘</strong>으로<br/>
+          <strong className="font-bold text-white">최첨단 HR 알고리즘</strong>으로<br/>
           맞춤형 리더십 심층 리포트를 생성합니다.
         </p>
 
-        <button onClick={onAnalyze} className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-lg shadow-lg hover:shadow-blue-500/50 transition-all active:scale-95">
+        <button onClick={onAnalyze} className="mt-8 w-full h-12 rounded bg-white text-black font-bold text-[15px] hover:bg-fm-gold transition-colors">
           🚀 최종 리포트 생성하기
         </button>
       </div>
@@ -348,257 +327,263 @@ function ChatContent() {
     }
   };
 
-  return (
-    <main className="h-screen bg-[#050508] text-gray-100 flex relative font-sans overflow-hidden">
-      {/* 배경 장식 */}
-      <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-blue-900/20 rounded-full blur-[180px] pointer-events-none opacity-50" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[800px] h-[800px] bg-purple-900/20 rounded-full blur-[180px] pointer-events-none opacity-50" />
-      
-      <div className="flex w-full h-full max-w-[1600px] mx-auto relative z-10">
-        {/* 왼쪽 패널 */}
-        <section className="hidden md:flex w-[400px] flex-col h-full relative border-r border-white/5 bg-black/20 backdrop-blur-sm">
-          {/* 오른쪽 채팅창(mt-24 + p-8 = 128px 오프셋, 높이 92vh)과 위·아래 선을 맞춘다.
-              프로필 상단 = 채팅창 상단, 마지막 버튼 하단 = 채팅창 하단(mt-auto). */}
-          {/* 상단은 채팅창 상단선보다 72px 아래, 하단은 채팅창 하단선 유지(높이에서 72px 차감). */}
-          <div className="flex flex-col items-center w-full px-8 gap-10 mt-[200px] h-[calc(92vh-72px)] shrink-0">
-            {/* 코치 프로필 */}
-            <div className="flex flex-col items-center space-y-6">
-              <div className="relative group">
-                <div className="absolute -inset-6 bg-gradient-to-t from-blue-600/30 to-purple-600/30 rounded-full blur-2xl opacity-60 animate-pulse-slow"></div>
-                <div className="relative w-44 h-44 rounded-full p-1.5 bg-gradient-to-b from-white/20 to-white/5 shadow-2xl backdrop-blur-sm">
-                  <div className="w-full h-full rounded-full overflow-hidden bg-[#0a0a0c]">
-                    <img 
-                      src={coachImg} 
-                      alt={coachName} 
-                      className="w-full h-full object-cover scale-110 group-hover:scale-105 transition-transform duration-1000" 
-                      onError={(e) => {e.currentTarget.src = "/images/default.png"}} 
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="text-center space-y-2">
-                <h1 className="text-3xl font-bold text-white tracking-tight">{coachName}</h1>
-                <p className="text-xs text-blue-400 font-semibold tracking-widest uppercase">AI Leadership Coach</p>
-                <div className="flex items-center justify-center gap-2 pt-1">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-                  </span>
-                  <span className="text-[11px] font-bold text-green-400 tracking-wider">세션 진행 중</span>
-                </div>
-              </div>
-            </div>
+  // 1D 시각: 현재 챕터 번호/이름(진행 목록과 같은 파생값 — 로직 변경 아님)
+  const currentTopicIdx = allTopics.findIndex((t) => !completedTopics.includes(t));
+  const currentTopicName = currentTopicIdx >= 0 ? allTopics[currentTopicIdx] : (allTopics.length ? '완료' : '');
+  const coachShort = coachName.split('(')[0].trim();
+  const coachKo = (coachName.match(/\(([^)]+)\)/) || [])[1] || coachShort;
 
-            {/* 진행 상황 — 역량 순서 목록 (완료: 금색 점 / 진행 중: 흰 링 / 대기: 흐림) */}
-            <div className="w-full max-w-[300px] flex flex-col my-auto">
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-[0.25em]">Progress</p>
-              <h3 className="text-sm font-bold text-white mt-1 mb-4">진행 상황</h3>
-              <ol className="w-full">
-                {allTopics.map((topic, idx) => {
-                  const isCompleted = completedTopics.includes(topic);
-                  // 현재 진행 중 = 아직 완료되지 않은 첫 번째 역량 (역량은 순서대로 진행)
-                  const currentIdx = allTopics.findIndex((t) => !completedTopics.includes(t));
-                  const isCurrent = !isCompleted && idx === currentIdx;
-                  const isUpcoming = !isCompleted && !isCurrent;
-                  return (
-                    <li
-                      key={topic}
-                      className="flex items-center justify-between py-3.5 border-b border-white/[0.06] last:border-b-0"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={`text-[11px] font-mono tabular-nums ${isUpcoming ? 'text-gray-600' : 'text-gray-500'}`}>
-                          {String(idx + 1).padStart(2, '0')}
-                        </span>
-                        <span className={`text-sm transition-colors duration-500 ${
-                          isCompleted ? 'text-gray-200 font-medium'
-                            : isCurrent ? 'text-white font-semibold'
-                            : 'text-gray-600'
-                        }`}>
-                          {topic}
-                        </span>
-                      </div>
+  return (
+    <main className="fm-stage h-screen text-fm-text flex relative font-sans overflow-hidden">
+      <div className="flex w-full h-full relative z-10">
+        {/* 왼쪽 패널 — 1D: 280px(xl 320px), line 테두리, 사진 104px, 골드 눈썹 이름, PROGRESS 목록, 하단 버튼 2개 */}
+        <section className="hidden md:flex w-[280px] xl:w-[320px] shrink-0 flex-col h-full border-r border-fm-line bg-black/10 px-7 xl:px-9 pt-10 pb-8 overflow-y-auto custom-scrollbar">
+          {/* 코치 프로필 */}
+          <div className="flex flex-col">
+            <div className="w-[104px] h-[104px] rounded-full overflow-hidden border border-fm-line bg-[#171717]">
+              <img
+                src={coachImg}
+                alt={coachName}
+                className="w-full h-full object-cover"
+                onError={(e) => {e.currentTarget.src = "/images/default.png"}}
+              />
+            </div>
+            <div className="mt-5 fm-eyebrow text-xs text-fm-gold">{coachShort}</div>
+            <h1 className="mt-1 text-xl font-bold text-white">{coachKo}</h1>
+            <p className="mt-3 fm-eyebrow text-[11px] text-fm-muted">AI Leadership Coach</p>
+            <div className="mt-[18px] flex items-center gap-2">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-fm-gold" />
+              <span className="text-[11px] text-fm-muted">세션 진행 중</span>
+            </div>
+          </div>
+
+          {/* 진행 상황 — 역량 순서 목록 (완료: 골드 체크 / 진행 중: 골드 점·골드 이름 / 대기: muted) */}
+          <div className="mt-10 pt-7 border-t border-fm-line flex flex-col">
+            <p className="fm-eyebrow text-[11px] text-fm-muted">Progress</p>
+            <h3 className="mt-1 text-sm font-bold text-white">진행 상황</h3>
+            <ol className="mt-5 w-full">
+              {allTopics.map((topic, idx) => {
+                const isCompleted = completedTopics.includes(topic);
+                // 현재 진행 중 = 아직 완료되지 않은 첫 번째 역량 (역량은 순서대로 진행)
+                const currentIdx = allTopics.findIndex((t) => !completedTopics.includes(t));
+                const isCurrent = !isCompleted && idx === currentIdx;
+                return (
+                  <li
+                    key={topic}
+                    className="flex items-center justify-between py-3.5 border-b border-fm-line last:border-b-0"
+                  >
+                    <div className="flex items-baseline gap-2.5">
+                      <span className={`fm-eyebrow text-[11px] ${isCurrent ? 'text-fm-gold' : 'text-fm-muted'}`}>
+                        {String(idx + 1).padStart(2, '0')}
+                      </span>
+                      <span className={`text-sm transition-colors duration-500 ${
+                        isCompleted ? 'text-white'
+                          : isCurrent ? 'text-fm-gold font-bold'
+                          : 'text-fm-muted'
+                      }`}>
+                        {topic}
+                      </span>
+                    </div>
+                    {isCompleted ? (
+                      <svg aria-label="완료" viewBox="0 0 16 16" className="w-3.5 h-3.5 text-fm-gold" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 8.5l3 3 7-7" />
+                      </svg>
+                    ) : (
                       <span
-                        aria-label={isCompleted ? '완료' : isCurrent ? '진행 중' : '대기'}
-                        className={`inline-block rounded-full transition-all duration-500 ${
-                          isCompleted ? 'w-2 h-2 bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]'
-                            : isCurrent ? 'w-2 h-2 border-[1.5px] border-white bg-transparent'
-                            : 'w-1.5 h-1.5 bg-white/10'
+                        aria-label={isCurrent ? '진행 중' : '대기'}
+                        className={`inline-block w-2 h-2 rounded-full transition-all duration-500 ${
+                          isCurrent ? 'bg-fm-gold shadow-[0_0_8px_rgba(176,141,92,0.6)]' : 'bg-fm-line'
                         }`}
                       />
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
 
-            {/* 하단 버튼 — mt-auto 로 패널 바닥(=채팅창 하단선)에 붙인다 */}
-            <div className="flex flex-col gap-3 w-full max-w-[300px] mt-auto">
-              <button onClick={() => router.push('/start')} className="w-full py-3.5 rounded-xl border border-white/10 bg-transparent hover:bg-white/5 text-gray-200 transition-all text-sm font-medium">
-                저장하고 나가기
-              </button>
-              <button onClick={handleFinishDiagnosis} disabled={isAnalyzing} className="w-full py-3.5 rounded-xl bg-white text-black text-sm font-bold hover:bg-gray-100 transition-all disabled:opacity-60">
-                {isAnalyzing ? "분석 중..." : "진단 완료 및 결과 보기"}
-              </button>
-            </div>
+          {/* 하단 버튼 — 1A 패널 버튼과 같은 스타일(아웃라인 / 흰색 채움). mt-auto 로 패널 바닥에 */}
+          <div className="flex flex-col gap-3 w-full mt-auto pt-8">
+            <button onClick={() => router.push('/start')} className="w-full h-11 rounded border border-fm-line text-white text-[13px] font-bold hover:border-white/40 transition-colors">
+              저장하고 나가기
+            </button>
+            <button onClick={handleFinishDiagnosis} disabled={isAnalyzing} className="w-full h-11 rounded bg-white text-black text-[13px] font-bold hover:bg-fm-gold transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+              {isAnalyzing ? "분석 중..." : "진단 완료 및 결과 보기"}
+            </button>
           </div>
         </section>
 
-        {/* 오른쪽 채팅창 */}
-        <section className="flex-1 h-full p-4 md:p-8 flex items-start justify-center">
-          {/* #4: 넓은 화면에서는 대화창을 더 넓게(4xl 896px → xl 이상 6xl 1152px), 모바일은 기존대로 */}
-          <div className="w-full max-w-4xl xl:max-w-6xl h-[92vh] mt-24 bg-white/[0.09] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex flex-col overflow-hidden relative shadow-2xl">
-            {/* 채팅 히스토리 */}
-            <div className="flex-1 px-6 md:px-10 py-6 space-y-8 overflow-y-auto custom-scrollbar">
-              <div className="h-8"></div>
-              {resumedNotice && (
-                <div className="flex justify-center animate-[fadeIn_0.3s]">
-                  <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-200">
-                    이어서 진행합니다 — {coachName.split('(')[0].trim()} 코치와의 이전 대화에 이어집니다.
-                  </span>
-                </div>
-              )}
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-[fadeIn_0.3s]`}>
-                  {msg.role === 'model' && (
-                    <div className="w-8 h-8 rounded-full overflow-hidden mr-3 border border-white/10 bg-black flex-shrink-0">
-                      <img src={coachImg} alt="AI" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "/images/default.png"}} />
-                    </div>
-                  )}
-                  {/* #4: 말풍선 최대 폭 85% → 모바일 92% / md 이상 88%. break-keep 으로 한국어
-                      단어 중간 줄바꿈(끝 한 글자만 다음 줄로 떨어짐) 방지 */}
-                  <div className={`max-w-[92%] md:max-w-[88%] px-6 py-4 rounded-2xl whitespace-pre-wrap break-keep shadow-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-[#1a1a1d]/60 text-gray-100 border border-white/10'}`}>
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              
-              {/* 물결 wave 애니메이션 */}
-              {(isLoading || isAnalyzing) && (
-                <div className="flex justify-start pl-11">
-                  <div className="bg-white/5 px-4 py-3 rounded-full flex gap-1.5 items-center border border-white/5 w-fit">
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0s' }}></span>
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.2s' }}></span>
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.4s' }}></span>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
+        {/* 오른쪽 채팅 — 1D: 세션 헤더 바 / 메시지 영역 / 상태 배너 / border-top 입력 바 */}
+        <section className="flex-1 min-w-0 h-full flex flex-col">
+          {/* 세션 헤더 바 */}
+          <div className="shrink-0 px-5 md:px-8 xl:px-12 py-4 md:py-6 border-b border-fm-line flex items-baseline justify-between gap-4">
+            <div className="flex items-baseline gap-3 min-w-0">
+              <span className="fm-eyebrow text-[11px] text-fm-gold whitespace-nowrap">
+                Session {String(currentTopicIdx >= 0 ? currentTopicIdx + 1 : Math.max(allTopics.length, 1)).padStart(2, '0')}
+              </span>
+              <span className="text-sm text-white truncate">{currentTopicName || '진단 대화'}</span>
             </div>
-            
-            {/* 상태 인지 액션바 — 오류(Sync) / 일시중지 / 다음 챕터 (항상 활성) */}
-            {connError && (
-              <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3">
-                <span className="text-sm text-red-300">⚠️ 네트워크 통신 오류가 발생했어요. 대화는 안전하게 저장돼 있어요.</span>
-                <button
-                  onClick={() => syncState()}
-                  disabled={isLoading}
-                  className="shrink-0 rounded-xl bg-red-500 hover:bg-red-400 px-4 py-2 text-sm font-bold text-white transition-colors disabled:opacity-50"
-                >
-                  🔄 다시 시도 (상태 동기화)
-                </button>
+            <div className="md:hidden flex items-center gap-2 shrink-0">
+              <img src={coachImg} alt={coachName} className="w-6 h-6 rounded-full object-cover border border-fm-line" onError={(e) => {e.currentTarget.src = "/images/default.png"}} />
+              <span className="text-[11px] text-fm-muted">{coachShort}</span>
+            </div>
+            <div className="hidden md:block text-[11px] text-fm-muted shrink-0">{coachShort} 코치</div>
+          </div>
+
+          {/* 채팅 히스토리 */}
+          <div className="flex-1 min-h-0 px-5 md:px-8 xl:px-12 py-8 md:py-10 space-y-8 md:space-y-10 overflow-y-auto custom-scrollbar">
+            {resumedNotice && (
+              <div className="flex justify-center animate-[fadeIn_0.3s]">
+                <span className="rounded border border-fm-gold/50 bg-fm-panel/80 px-4 py-1.5 text-xs text-[#E8ECF1] break-keep">
+                  이어서 진행합니다 — {coachName.split('(')[0].trim()} 코치와의 이전 대화에 이어집니다.
+                </span>
               </div>
             )}
-            {!connError && sessionStatus === 'paused' && (
-              <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3">
-                <span className="text-sm text-amber-200">⏸ 진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.</span>
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-[fadeIn_0.3s]`}>
+                {msg.role === 'model' && (
+                  <div className="w-8 h-8 rounded-full overflow-hidden mr-3 border border-fm-line bg-[#171717] flex-shrink-0">
+                    <img src={coachImg} alt="AI" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "/images/default.png"}} />
+                  </div>
+                )}
+                {/* 1D 말풍선: 코치 = panel 배경 + line 테두리(최대 680px), 사용자 = 한 단계 밝은 회색 + 골드 아웃라인(최대 560px).
+                    Pretendard 15px/1.7, break-keep(한국어 단어 중간 줄바꿈 방지), 모서리 4px(1A~1C 토큰) */}
+                <div className={`max-w-[88%] px-5 md:px-6 py-4 rounded whitespace-pre-wrap break-keep text-[15px] leading-[1.7] ${
+                  msg.role === 'user'
+                    ? 'md:max-w-[560px] bg-[#262B32] border border-fm-gold/60 text-white'
+                    : 'md:max-w-[680px] bg-fm-panel border border-fm-line text-fm-text'
+                }`}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+
+            {/* 물결 wave 애니메이션 — 1D 타이핑 점 3개 */}
+            {(isLoading || isAnalyzing) && (
+              <div className="flex justify-start pl-11">
+                <div className="bg-fm-panel px-4 py-3 rounded flex gap-1.5 items-center border border-fm-line w-fit">
+                  <span className="w-[5px] h-[5px] bg-fm-muted rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0s' }}></span>
+                  <span className="w-[5px] h-[5px] bg-fm-muted rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.2s' }}></span>
+                  <span className="w-[5px] h-[5px] bg-fm-muted rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.4s' }}></span>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* 상태 인지 액션바 — 오류(Sync) / 일시중지 / 다음 챕터 (항상 활성). 문구·동작 그대로, 색만 토큰 */}
+          {connError && (
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border border-red-500/40 bg-red-500/10 px-5 py-3">
+              <span className="text-sm text-red-300 break-keep">⚠️ 네트워크 통신 오류가 발생했어요. 대화는 안전하게 저장돼 있어요.</span>
+              <button
+                onClick={() => syncState()}
+                disabled={isLoading}
+                className="shrink-0 h-9 rounded border border-red-400/60 px-4 text-sm font-bold text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+              >
+                🔄 다시 시도 (상태 동기화)
+              </button>
+            </div>
+          )}
+          {!connError && sessionStatus === 'paused' && (
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
+              <span className="text-sm text-[#E8ECF1] break-keep">⏸ 진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.</span>
+              <button
+                onClick={resumeDiagnosis}
+                disabled={isLoading}
+                className="shrink-0 h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
+              >
+                ▶ 진단 계속하기
+              </button>
+            </div>
+          )}
+          {!connError && sessionStatus !== 'paused' && needsDecision && (
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex flex-wrap items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
+              <span className="text-sm text-[#E8ECF1] break-keep">
+                💜 코치가 오늘은 쉬어가는 것을 제안했어요. 어떻게 할까요?
+              </span>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => { setNeedsDecision(false); sendMessage("괜찮아요, 계속 진행할게요."); }}
+                  disabled={isLoading}
+                  className="h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
+                >
+                  ▶ 계속 진행하기
+                </button>
+                <button
+                  onClick={() => { setNeedsDecision(false); sendMessage(PAUSE_LATER_MESSAGE); }}
+                  disabled={isLoading}
+                  className="h-9 rounded border border-fm-line px-4 text-sm font-bold text-fm-text hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
+                >
+                  🌙 다음에 하기
+                </button>
+              </div>
+            </div>
+          )}
+          {!connError && sessionStatus !== 'paused' && !needsDecision && awaitingContinue && (
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex flex-wrap items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
+              <span className="text-sm text-[#E8ECF1] break-keep">
+                🌿 이 영역을 마쳤어요. 어떻게 할까요?{nextTopic ? ` (다음: '${nextTopic}')` : ''}
+              </span>
+              <div className="flex gap-2 shrink-0">
                 <button
                   onClick={resumeDiagnosis}
                   disabled={isLoading}
-                  className="shrink-0 rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-sm font-bold text-black transition-colors disabled:opacity-50"
+                  className="h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
                 >
-                  ▶ 진단 계속하기
+                  ▶ 계속 진행
                 </button>
-              </div>
-            )}
-            {!connError && sessionStatus !== 'paused' && needsDecision && (
-              <div className="mx-6 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-purple-500/30 bg-purple-500/10 px-5 py-3">
-                <span className="text-sm text-purple-200">
-                  💜 코치가 오늘은 쉬어가는 것을 제안했어요. 어떻게 할까요?
-                </span>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => { setNeedsDecision(false); sendMessage("괜찮아요, 계속 진행할게요."); }}
-                    disabled={isLoading}
-                    className="rounded-xl bg-purple-500 hover:bg-purple-400 px-4 py-2 text-sm font-bold text-white transition-colors disabled:opacity-50"
-                  >
-                    ▶ 계속 진행하기
-                  </button>
-                  <button
-                    onClick={() => { setNeedsDecision(false); sendMessage(PAUSE_LATER_MESSAGE); }}
-                    disabled={isLoading}
-                    className="rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 px-4 py-2 text-sm font-bold text-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    🌙 다음에 하기
-                  </button>
-                </div>
-              </div>
-            )}
-            {!connError && sessionStatus !== 'paused' && !needsDecision && awaitingContinue && (
-              <div className="mx-6 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-3">
-                <span className="text-sm text-emerald-200">
-                  🌿 이 영역을 마쳤어요. 어떻게 할까요?{nextTopic ? ` (다음: '${nextTopic}')` : ''}
-                </span>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={resumeDiagnosis}
-                    disabled={isLoading}
-                    className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2 text-sm font-bold text-black transition-colors disabled:opacity-50"
-                  >
-                    ▶ 계속 진행
-                  </button>
-                  <button
-                    onClick={takeBreak}
-                    disabled={isLoading}
-                    className="rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 px-4 py-2 text-sm font-bold text-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    ⏸ 잠시 쉬기
-                  </button>
-                </div>
-              </div>
-            )}
-            {!connError && sessionStatus !== 'paused' && !awaitingContinue && justCompletedTopic && (
-              <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-3">
-                <span className="text-sm text-blue-200">
-                  ✅ 이 영역을 마쳤어요{nextTopic ? ` — 다음은 '${nextTopic}'` : ''}. 이어서 진행할 수 있어요.
-                </span>
                 <button
-                  onClick={goNextChapter}
+                  onClick={takeBreak}
                   disabled={isLoading}
-                  className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-sm font-bold text-white transition-colors disabled:opacity-50"
+                  className="h-9 rounded border border-fm-line px-4 text-sm font-bold text-fm-text hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
                 >
-                  ➡ 다음 챕터로 이동
+                  ⏸ 잠시 쉬기
+                </button>
+              </div>
+            </div>
+          )}
+          {!connError && sessionStatus !== 'paused' && !awaitingContinue && justCompletedTopic && (
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
+              <span className="text-sm text-[#E8ECF1] break-keep">
+                ✅ 이 영역을 마쳤어요{nextTopic ? ` — 다음은 '${nextTopic}'` : ''}. 이어서 진행할 수 있어요.
+              </span>
+              <button
+                onClick={goNextChapter}
+                disabled={isLoading}
+                className="shrink-0 h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
+              >
+                ➡ 다음 챕터로 이동
+              </button>
+            </div>
+          )}
+
+          {/* 입력창 — 1D: border-top 입력 바, panel 배경 + line 테두리, 포커스 골드, 전송 아이콘 골드. 세션 영구 종료(3-Strike/완료)면 잠금 */}
+          <div className="shrink-0 px-5 md:px-8 xl:px-12 pt-4 pb-5 md:pb-7 border-t border-fm-line">
+            {isTerminated ? (
+              <div className="rounded border border-fm-line bg-fm-panel px-6 py-4 text-center text-sm font-semibold text-fm-muted break-keep">
+                {sessionStatus === 'aborted'
+                  ? '이 진단은 종료되었습니다. 준비가 되셨을 때 다시 접속해 주세요.'
+                  : '진단이 완료되어 대화가 종료되었습니다.'}
+              </div>
+            ) : (
+              <div className="relative bg-fm-panel border border-fm-line rounded flex items-end transition-colors focus-within:border-fm-gold">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="답변을 입력하세요"
+                  rows={1}
+                  disabled={isTerminated}
+                  className="w-full bg-transparent text-white placeholder:text-fm-dim text-[15px] leading-[1.7] px-5 py-3.5 focus:outline-none resize-none max-h-[150px] custom-scrollbar disabled:cursor-not-allowed"
+                />
+                <button onClick={() => sendMessage()} disabled={isLoading || isTerminated || !input.trim()} aria-label="보내기" className="mb-2 mr-2 p-2 rounded text-fm-gold hover:bg-fm-gold/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                  </svg>
                 </button>
               </div>
             )}
-
-            {/* 입력창 — 세션이 영구 종료(3-Strike/완료)되면 잠금 */}
-            <div className="p-6 pt-2">
-              {isTerminated ? (
-                <div className="rounded-[24px] border border-gray-200 bg-gray-100 px-6 py-4 text-center text-sm font-semibold text-gray-500">
-                  {sessionStatus === 'aborted'
-                    ? '이 진단은 종료되었습니다. 준비가 되셨을 때 다시 접속해 주세요.'
-                    : '진단이 완료되어 대화가 종료되었습니다.'}
-                </div>
-              ) : (
-                <div className="relative group bg-white border border-gray-200 rounded-[24px] flex items-end shadow-xl">
-                  <textarea
-                    ref={textareaRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="대화를 입력하세요..."
-                    rows={1}
-                    disabled={isTerminated}
-                    className="w-full bg-transparent text-gray-900 px-6 py-4 focus:outline-none resize-none max-h-[150px] custom-scrollbar disabled:cursor-not-allowed"
-                  />
-                  <button onClick={() => sendMessage()} disabled={isLoading || isTerminated || !input.trim()} className="mb-2 mr-2 p-2.5 bg-blue-600 rounded-full disabled:opacity-50">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white">
-                      <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </section>
       </div>
