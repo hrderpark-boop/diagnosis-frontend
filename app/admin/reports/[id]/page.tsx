@@ -452,6 +452,15 @@ export default function ReportEditPage() {
                   {Number(value.score ?? 0).toFixed(1)}점
                 </span>
               </div>
+              {/* 2026-09-17 직무 일관성 참고 플래그(관리자 뷰 전용, 점수 무관): 온보딩에서 말한 담당 업무와
+                  명백히 무관한 직무 사례가 근거로 쓰인 하위역량 */}
+              {Array.isArray(value.consistency_flags) && value.consistency_flags.length > 0 && (
+                <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200">
+                  직무 일관성 확인 필요 — 담당 업무와 무관해 보이는 사례가 근거로 쓰였습니다:{' '}
+                  <span className="font-bold">{value.consistency_flags.join(', ')}</span>
+                  <span className="ml-2 text-amber-200/60">(점수에는 반영되지 않음)</span>
+                </div>
+              )}
 
               {/* 코치 피드백 */}
               <div className="mb-5">
