@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
 import { getTopicNames } from '@/lib/framework';
+import { User } from 'lucide-react';
 
 // ----------------------------------------------------------------------
 // [상수] 일시중지 요청 문구 — 백엔드 PAUSE 전용 키워드("잠시 쉬"/"쉴게")만 포함.
@@ -442,15 +443,22 @@ function ChatContent() {
                     <img src={coachImg} alt="AI" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "/images/default.png"}} />
                   </div>
                 )}
-                {/* 1D 말풍선: 코치 = panel 배경 + line 테두리(최대 680px), 사용자 = 한 단계 밝은 회색 + 골드 아웃라인(최대 560px).
-                    Pretendard 15px/1.7, break-keep(한국어 단어 중간 줄바꿈 방지), 모서리 4px(1A~1C 토큰) */}
-                <div className={`max-w-[88%] px-5 md:px-6 py-4 rounded whitespace-pre-wrap break-keep text-[15px] leading-[1.7] ${
+                {/* 1D 말풍선: 코치 = panel 배경 + line 테두리, 사용자 = 한 단계 밝은 회색 + 골드 아웃라인.
+                    크기는 4a784be 이전 값으로 복원(max-w 92%/md 88%, px-6 py-4, 기본 16px) — 색·테두리·모서리 4px 만 1D 토큰.
+                    break-keep(한국어 단어 중간 줄바꿈 방지) */}
+                <div className={`max-w-[92%] md:max-w-[88%] px-6 py-4 rounded whitespace-pre-wrap break-keep ${
                   msg.role === 'user'
-                    ? 'md:max-w-[560px] bg-[#262B32] border border-fm-gold/60 text-white'
-                    : 'md:max-w-[680px] bg-fm-panel border border-fm-line text-fm-text'
+                    ? 'bg-[#262B32] border border-fm-gold/60 text-white'
+                    : 'bg-fm-panel border border-fm-line text-fm-text'
                 }`}>
                   {msg.content}
                 </div>
+                {msg.role === 'user' && (
+                  /* 사용자 아바타: 코치 아바타와 같은 32px 원형. panel 보다 한 단계 밝은 회색 + line 테두리, User 아이콘 muted */
+                  <div className="w-8 h-8 rounded-full ml-3 border border-fm-line bg-[#262B32] flex-shrink-0 flex items-center justify-center" aria-hidden="true">
+                    <User size={16} className="text-fm-muted" strokeWidth={1.75} />
+                  </div>
+                )}
               </div>
             ))}
 
