@@ -107,7 +107,6 @@ function ChatContent() {
   const [hasNextChapter, setHasNextChapter] = useState(false);
   const [nextTopic, setNextTopic] = useState<string | null>(null);
   const [justCompletedTopic, setJustCompletedTopic] = useState(false);
-  const [awaitingContinue, setAwaitingContinue] = useState(false); // 챕터 경계 '계속/휴식' 대기
   const [needsDecision, setNeedsDecision] = useState(false); // 코치의 조기 종료 '제안' — 선택 버튼
   const [connError, setConnError] = useState(false); // 네트워크 오류 → '다시 시도(Sync)'
 
@@ -142,7 +141,6 @@ function ChatContent() {
       setSessionStatus(d.status || 'in_progress');
       setHasNextChapter(!!d.has_next_chapter);
       setNextTopic(d.next_topic || null);
-      setAwaitingContinue(!!d.is_awaiting_continue);
       setNeedsDecision(!!d.needs_user_decision);
       setConnError(false); // 동기화 성공 → 오류 상태 해제
       return true;
@@ -199,7 +197,6 @@ function ChatContent() {
     setIsLoading(true);
     setConnError(false);
     setJustCompletedTopic(false);
-    setAwaitingContinue(false);
     setNeedsDecision(false);
 
     try {
@@ -244,8 +241,6 @@ function ChatContent() {
       );
       setHasNextChapter(nextExists);
       setNextTopic(res.data.next_topic || null);
-      // 챕터 경계 '계속/휴식' 선택 대기 — 선택 버튼 노출
-      setAwaitingContinue(res.data.is_awaiting_continue === true);
       // 코치의 조기 종료 '제안' — '다음에 하기/계속 진행하기' 버튼 노출
       setNeedsDecision(res.data.needs_user_decision === true);
       // 챕터를 방금 마쳤고(=전진 지점) 다음 역량이 남았으면 '다음 챕터로 이동' 노출
@@ -287,13 +282,9 @@ function ChatContent() {
     setJustCompletedTopic(false);
     sendMessage("네, 다음으로 이어가 주세요.");
   };
-  // 챕터 경계에서 '잠시 쉬기' 선택 — 백엔드 PAUSE 전용 키워드("잠시 쉬"/"쉴게")만
-  // 포함하는 문구를 보낸다. ⚠️ "오늘은 여기까지 하고…" 류는 이탈(refusal) 패턴과
-  // 겹쳐 ABORT_CONFIRM 체인을 탔다(H4) — pause 문구는 refusal 표지를 피한다.
-  const takeBreak = () => {
-    setAwaitingContinue(false);
-    sendMessage(PAUSE_MESSAGE);
-  };
+  // (2026-09-17) 챕터 경계 '계속/휴식' 배너와 takeBreak 삭제 — 백엔드가 그 대기 마커를 어디서도
+  //   세우지 않던 죽은 경로. PAUSE_MESSAGE 상수는 그대로 둔다(잠시 쉬기 문구의 단일 정의).
+  void PAUSE_MESSAGE;
 
   // 5. 진단 종료
   const handleFinishDiagnosis = async () => {
@@ -330,7 +321,7 @@ function ChatContent() {
   // 2(2026-09-16) 챕터 종료 대기 중 입력 잠금: 전환 팝업('다음 챕터로 이동' / '계속·휴식')이 떠 있는 동안은
   //   채팅창에 "네"를 치는 대신 버튼으로만 선택하게 한다(백엔드는 텍스트가 와도 안내만 돌려주는 이중 방어).
   //   버튼들은 sendMessage(override) 로 보내므로 잠금과 무관하게 동작한다.
-  const awaitingChoice = !connError && sessionStatus !== 'paused' && (justCompletedTopic || awaitingContinue);
+  const awaitingChoice = !connError && sessionStatus !== 'paused' && justCompletedTopic;
 
   // 1D 시각: 현재 챕터 번호/이름(진행 목록과 같은 파생값 — 로직 변경 아님)
   const currentTopicIdx = allTopics.findIndex((t) => !completedTopics.includes(t));
@@ -524,30 +515,7 @@ function ChatContent() {
               </div>
             </div>
           )}
-          {!connError && sessionStatus !== 'paused' && !needsDecision && awaitingContinue && (
-            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex flex-wrap items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
-              <span className="text-sm text-[#E8ECF1] break-keep">
-                이 영역을 마쳤어요. 어떻게 할까요?{nextTopic ? ` (다음: '${nextTopic}')` : ''}
-              </span>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  onClick={resumeDiagnosis}
-                  disabled={isLoading}
-                  className="h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
-                >
-                  계속 진행
-                </button>
-                <button
-                  onClick={takeBreak}
-                  disabled={isLoading}
-                  className="h-9 rounded border border-fm-line px-4 text-sm font-bold text-fm-text hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
-                >
-                  잠시 쉬기
-                </button>
-              </div>
-            </div>
-          )}
-          {!connError && sessionStatus !== 'paused' && !awaitingContinue && justCompletedTopic && (
+          {!connError && sessionStatus !== 'paused' && justCompletedTopic && (
             <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
               <span className="text-sm text-[#E8ECF1] break-keep">
                 이 영역을 마쳤어요{nextTopic ? ` — 다음은 '${nextTopic}'` : ''}. 이어서 진행할 수 있어요.
