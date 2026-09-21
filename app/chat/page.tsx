@@ -13,6 +13,8 @@ import { User } from 'lucide-react';
 //   겹쳐 ABORT_CONFIRM → aborted_disengaged 체인을 탔다(H4). 여기 문구를 바꿀 땐
 //   백엔드 tests/test_abort.py::test_pause_intent_is_not_refusal 과 맞출 것.
 // ----------------------------------------------------------------------
+// (2026-09-21) 채팅 영역 배경 — 밝은 회색. 순백 비교는 '#FFFFFF'
+const CHAT_BG = '#F5F6F8';
 const PAUSE_MESSAGE = "잠시 쉬었다가 다시 할게요.";
 const PAUSE_LATER_MESSAGE = "오늘은 여기서 잠시 쉴게요.";
 
@@ -411,27 +413,28 @@ function ChatContent() {
         </section>
 
         {/* 오른쪽 채팅 — 1D: 세션 헤더 바 / 메시지 영역 / 상태 배너 / border-top 입력 바 */}
-        <section className="flex-1 min-w-0 h-full flex flex-col">
+        {/* (2026-09-21) 채팅 영역은 밝은 배경(CHAT_BG) + ink 텍스트, 좌측 패널은 어두운 톤 유지 — 대비로 구분 */}
+        <section className="flex-1 min-w-0 h-full flex flex-col text-[#1B1F24]" style={{ backgroundColor: CHAT_BG }}>
           {/* 세션 헤더 바 */}
-          <div className="shrink-0 px-5 md:px-8 xl:px-12 py-4 md:py-6 border-b border-fm-line flex items-baseline justify-between gap-4">
+          <div className="shrink-0 px-5 md:px-8 xl:px-12 py-4 md:py-6 border-b border-[#E3E6EA] flex items-baseline justify-between gap-4">
             <div className="flex items-baseline gap-3 min-w-0">
               <span className="fm-eyebrow text-[11px] text-fm-gold whitespace-nowrap">
                 Session {String(currentTopicIdx >= 0 ? currentTopicIdx + 1 : Math.max(allTopics.length, 1)).padStart(2, '0')}
               </span>
-              <span className="text-sm text-white truncate">{currentTopicName || '진단 대화'}</span>
+              <span className="text-sm text-[#1B1F24] truncate">{currentTopicName || '진단 대화'}</span>
             </div>
             <div className="md:hidden flex items-center gap-2 shrink-0">
-              <img src={coachImg} alt={coachName} className="w-6 h-6 rounded-full object-cover border border-fm-line" onError={(e) => {e.currentTarget.src = "/images/default.png"}} />
-              <span className="text-[11px] text-fm-muted">{coachShort}</span>
+              <img src={coachImg} alt={coachName} className="w-6 h-6 rounded-full object-cover border border-[#E3E6EA]" onError={(e) => {e.currentTarget.src = "/images/default.png"}} />
+              <span className="text-[11px] text-[#6B727C]">{coachShort}</span>
             </div>
-            <div className="hidden md:block text-[11px] text-fm-muted shrink-0">{coachShort} 코치</div>
+            <div className="hidden md:block text-[11px] text-[#6B727C] shrink-0">{coachShort} 코치</div>
           </div>
 
           {/* 채팅 히스토리 */}
           <div className="flex-1 min-h-0 px-5 md:px-8 xl:px-12 py-8 md:py-10 space-y-8 md:space-y-10 overflow-y-auto custom-scrollbar">
             {resumedNotice && (
               <div className="flex justify-center animate-[fadeIn_0.3s]">
-                <span className="rounded border border-fm-gold/50 bg-fm-panel/80 px-4 py-1.5 text-xs text-[#E8ECF1] break-keep">
+                <span className="rounded-full border border-fm-gold/50 bg-[#FBF7F0] px-4 py-1.5 text-xs text-[#5C4A2E] break-keep">
                   이어서 진행합니다 — {coachName.split('(')[0].trim()} 코치와의 이전 대화에 이어집니다.
                 </span>
               </div>
@@ -439,24 +442,24 @@ function ChatContent() {
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-[fadeIn_0.3s]`}>
                 {msg.role === 'model' && (
-                  <div className="w-8 h-8 rounded-full overflow-hidden mr-3 border border-fm-line bg-[#171717] flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden mr-3 border border-[#E3E6EA] bg-[#171717] flex-shrink-0">
                     <img src={coachImg} alt="AI" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "/images/default.png"}} />
                   </div>
                 )}
                 {/* 1D 말풍선: 코치 = panel 배경 + line 테두리, 사용자 = 한 단계 밝은 회색 + 골드 아웃라인.
                     크기는 4a784be 이전 값으로 복원(max-w 92%/md 88%, px-6 py-4, 기본 16px) — 색·테두리·모서리 4px 만 1D 토큰.
                     break-keep(한국어 단어 중간 줄바꿈 방지) */}
-                <div className={`max-w-[92%] md:max-w-[88%] px-6 py-4 rounded whitespace-pre-wrap break-keep ${
+                <div className={`max-w-[92%] md:max-w-[88%] px-6 py-4 rounded-2xl whitespace-pre-wrap break-keep ${
                   msg.role === 'user'
-                    ? 'bg-[#262B32] border border-fm-gold/60 text-white'
-                    : 'bg-fm-panel border border-fm-line text-fm-text'
+                    ? 'bg-[#F3EBDD] border border-[#E6D7BC] text-[#1B1F24]'
+                    : 'bg-white border border-[#E3E6EA] text-[#1B1F24]'
                 }`}>
                   {msg.content}
                 </div>
                 {msg.role === 'user' && (
                   /* 사용자 아바타: 코치 아바타와 같은 32px 원형. panel 보다 한 단계 밝은 회색 + line 테두리, User 아이콘 muted */
-                  <div className="w-8 h-8 rounded-full ml-3 border border-fm-line bg-[#262B32] flex-shrink-0 flex items-center justify-center" aria-hidden="true">
-                    <User size={16} className="text-fm-muted" strokeWidth={1.75} />
+                  <div className="w-8 h-8 rounded-full ml-3 border border-[#E6D7BC] bg-[#F3EBDD] flex-shrink-0 flex items-center justify-center" aria-hidden="true">
+                    <User size={16} className="text-[#8A6C3F]" strokeWidth={1.75} />
                   </div>
                 )}
               </div>
@@ -465,10 +468,10 @@ function ChatContent() {
             {/* 물결 wave 애니메이션 — 1D 타이핑 점 3개 */}
             {(isLoading || isAnalyzing) && (
               <div className="flex justify-start pl-11">
-                <div className="bg-fm-panel px-4 py-3 rounded flex gap-1.5 items-center border border-fm-line w-fit">
-                  <span className="w-[5px] h-[5px] bg-fm-muted rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0s' }}></span>
-                  <span className="w-[5px] h-[5px] bg-fm-muted rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.2s' }}></span>
-                  <span className="w-[5px] h-[5px] bg-fm-muted rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.4s' }}></span>
+                <div className="bg-white px-4 py-3 rounded-2xl flex gap-1.5 items-center border border-[#E3E6EA] w-fit">
+                  <span className="w-[5px] h-[5px] bg-[#9BA2AC] rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0s' }}></span>
+                  <span className="w-[5px] h-[5px] bg-[#9BA2AC] rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.2s' }}></span>
+                  <span className="w-[5px] h-[5px] bg-[#9BA2AC] rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0.4s' }}></span>
                 </div>
               </div>
             )}
@@ -477,46 +480,46 @@ function ChatContent() {
 
           {/* 상태 인지 액션바 — 오류(Sync) / 일시중지 / 다음 챕터 (항상 활성). 문구·동작 그대로, 색만 토큰 */}
           {connError && (
-            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border border-red-500/40 bg-red-500/10 px-5 py-3">
-              <span className="text-sm text-red-300 break-keep">네트워크 통신 오류가 발생했어요. 대화는 안전하게 저장돼 있어요.</span>
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 px-5 py-3">
+              <span className="text-sm text-red-700 break-keep">네트워크 통신 오류가 발생했어요. 대화는 안전하게 저장돼 있어요.</span>
               <button
                 onClick={() => syncState()}
                 disabled={isLoading}
-                className="shrink-0 h-9 rounded border border-red-400/60 px-4 text-sm font-bold text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                className="shrink-0 h-9 rounded-xl border border-red-400 px-4 text-sm font-bold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
               >
                 다시 시도 (상태 동기화)
               </button>
             </div>
           )}
           {!connError && sessionStatus === 'paused' && (
-            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
-              <span className="text-sm text-[#E8ECF1] break-keep">진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.</span>
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded-2xl border border-[#E6D7BC] border-l-2 border-l-fm-gold bg-white px-5 py-3">
+              <span className="text-sm text-[#1B1F24] break-keep">진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.</span>
               <button
                 onClick={resumeDiagnosis}
                 disabled={isLoading}
-                className="shrink-0 h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
+                className="shrink-0 h-9 rounded-xl bg-[#1B1F24] px-4 text-sm font-bold text-white hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50"
               >
                 진단 계속하기
               </button>
             </div>
           )}
           {!connError && sessionStatus !== 'paused' && needsDecision && (
-            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex flex-wrap items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
-              <span className="text-sm text-[#E8ECF1] break-keep">
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E6D7BC] border-l-2 border-l-fm-gold bg-white px-5 py-3">
+              <span className="text-sm text-[#1B1F24] break-keep">
                 코치가 오늘은 쉬어가는 것을 제안했어요. 어떻게 할까요?
               </span>
               <div className="flex gap-2 shrink-0">
                 <button
                   onClick={() => { setNeedsDecision(false); sendMessage("괜찮아요, 계속 진행할게요."); }}
                   disabled={isLoading}
-                  className="h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
+                  className="h-9 rounded-xl bg-[#1B1F24] px-4 text-sm font-bold text-white hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50"
                 >
                   계속 진행하기
                 </button>
                 <button
                   onClick={() => { setNeedsDecision(false); sendMessage(PAUSE_LATER_MESSAGE); }}
                   disabled={isLoading}
-                  className="h-9 rounded border border-fm-line px-4 text-sm font-bold text-fm-text hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
+                  className="h-9 rounded-xl border border-[#D5D9DF] px-4 text-sm font-bold text-[#1B1F24] hover:border-fm-gold transition-colors disabled:opacity-50"
                 >
                   다음에 하기
                 </button>
@@ -524,14 +527,14 @@ function ChatContent() {
             </div>
           )}
           {!connError && sessionStatus !== 'paused' && justCompletedTopic && (
-            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded border-l-2 border-fm-gold bg-fm-panel/80 px-5 py-3">
-              <span className="text-sm text-[#E8ECF1] break-keep">
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded-2xl border border-[#E6D7BC] border-l-2 border-l-fm-gold bg-white px-5 py-3">
+              <span className="text-sm text-[#1B1F24] break-keep">
                 이 영역을 마쳤어요{nextTopic ? ` — 다음은 '${nextTopic}'` : ''}. 이어서 진행할 수 있어요.
               </span>
               <button
                 onClick={goNextChapter}
                 disabled={isLoading}
-                className="shrink-0 h-9 rounded bg-white px-4 text-sm font-bold text-black hover:bg-fm-gold transition-colors disabled:opacity-50"
+                className="shrink-0 h-9 rounded-xl bg-[#1B1F24] px-4 text-sm font-bold text-white hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50"
               >
                 다음 챕터로 이동
               </button>
@@ -539,15 +542,15 @@ function ChatContent() {
           )}
 
           {/* 입력창 — 1D: border-top 입력 바, panel 배경 + line 테두리, 포커스 골드, 전송 아이콘 골드. 세션 영구 종료(3-Strike/완료)면 잠금 */}
-          <div className="shrink-0 px-5 md:px-8 xl:px-12 pt-4 pb-5 md:pb-7 border-t border-fm-line">
+          <div className="shrink-0 px-5 md:px-8 xl:px-12 pt-4 pb-5 md:pb-7 border-t border-[#E3E6EA]">
             {isTerminated ? (
-              <div className="rounded border border-fm-line bg-fm-panel px-6 py-4 text-center text-sm font-semibold text-fm-muted break-keep">
+              <div className="rounded-2xl border border-[#E3E6EA] bg-white px-6 py-4 text-center text-sm font-semibold text-[#6B727C] break-keep">
                 {sessionStatus === 'aborted'
                   ? '이 진단은 종료되었습니다. 준비가 되셨을 때 다시 접속해 주세요.'
                   : '진단이 완료되어 대화가 종료되었습니다.'}
               </div>
             ) : (
-              <div className="relative bg-fm-panel border border-fm-line rounded flex items-end transition-colors focus-within:border-fm-gold">
+              <div className="relative bg-white border border-[#E3E6EA] rounded-2xl flex items-end transition-colors focus-within:border-fm-gold">
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -556,7 +559,7 @@ function ChatContent() {
                   placeholder={awaitingChoice ? "위 버튼으로 다음 단계를 선택해 주세요" : "답변을 입력하세요"}
                   rows={1}
                   disabled={isTerminated || awaitingChoice}
-                  className="w-full bg-transparent text-white placeholder:text-fm-dim text-[15px] leading-[1.7] px-5 py-3.5 focus:outline-none resize-none max-h-[150px] custom-scrollbar disabled:cursor-not-allowed"
+                  className="w-full bg-transparent text-[#1B1F24] placeholder:text-[#9BA2AC] text-[15px] leading-[1.7] px-5 py-3.5 focus:outline-none resize-none max-h-[150px] custom-scrollbar disabled:cursor-not-allowed"
                 />
                 <button onClick={() => sendMessage()} disabled={isLoading || isTerminated || awaitingChoice || !input.trim()} aria-label="보내기" className="mb-2 mr-2 p-2 rounded text-fm-gold hover:bg-fm-gold/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
