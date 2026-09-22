@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, FileText, Settings, LogOut, Menu,
   Building2, ShieldCheck, Loader2,
 } from 'lucide-react';
-import { fetchMe, clearAdminSession, AdminProfile } from '@/lib/adminApi';
+import { fetchMe, clearAdminSession, AdminProfile, fetchAlerts, AdminAlerts } from '@/lib/adminApi';
 
 /**
  * 어드민 공통 레이아웃.
@@ -58,6 +58,16 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
       .catch(() => { /* 401 처리는 adminApi 인터셉터가 담당 */ })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
+  }, []);
+
+  // (2026-09-22) 운영 알림 배너 — Gemini 크레딧 소진(402) 등. 60초마다 갱신.
+  const [alerts, setAlerts] = useState<AdminAlerts | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => fetchAlerts().then(a => { if (alive) setAlerts(a); }).catch(() => {});
+    load();
+    const t = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(t); };
   }, []);
 
   const handleLogout = () => {
@@ -140,6 +150,12 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </header>
 
+        {alerts?.gemini_credit_depleted && (
+          <div className="shrink-0 border-b border-rose-800 bg-rose-950/80 px-8 py-3 text-sm text-rose-200">
+            <span className="font-bold">Gemini 선불 크레딧 소진(402)</span> — 코치 대화 턴이 전부 실패하고 있습니다. AI Studio에서 충전해야 합니다.
+            {alerts.credit_depleted_at && <span className="ml-2 text-rose-300/80">감지 {alerts.credit_depleted_at} UTC</span>}
+          </div>
+        )}
         <main className="flex-1 overflow-auto p-8">{children}</main>
       </div>
     </div>

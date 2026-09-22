@@ -86,6 +86,8 @@ function ChatContent() {
   const initialMsg = searchParams.get('initial_message') || "";
   // ① 재개로 들어온 화면: 상단 한 줄 "이어서 진행합니다"(팝업 대신). 첫 메시지를 보내면 사라진다.
   const [resumedNotice, setResumedNotice] = useState(searchParams.get('resumed') === '1');
+  // (2026-09-22) 코치 턴 LLM 실패: 코치 말풍선 대신 시스템 안내 + [다시 시도]. 실패한 사용자 문장을 보관해 재전송한다.
+  const [llmError, setLlmError] = useState<{ message: string; lastMsg: string; paused: boolean } | null>(null);
 
   const rawCoachImg = searchParams.get('coach_img');
   const coachImg = rawCoachImg
@@ -188,11 +190,13 @@ function ChatContent() {
   }, [input]);
 
   // 4. 메시지 전송 (override 를 주면 입력창 대신 그 텍스트로 전송 — 계속하기/다음챕터 버튼용)
-  const sendMessage = async (override?: string) => {
+  const sendMessage = async (override?: string, opts?: { retry?: boolean }) => {
     const userMsg = (override ?? input).trim();
     // 영구 종료(3-Strike/완료) 후에는 어떤 경로(엔터·버튼·override)로도 전송 차단.
     if (!userMsg || isLoading || isTerminated) return;
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    // 재시도는 이미 화면에 있는 사용자 말풍선을 다시 붙이지 않는다(서버에는 저장되지 않았던 문장).
+    if (!opts?.retry) setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setLlmError(null);
     if (override === undefined) setInput("");
     // 첫 메시지 = 새 세션이 실질적으로 시작됨 → 되돌리기 후보·재개 안내 정리
     setResumedNotice(false);
@@ -209,6 +213,13 @@ function ChatContent() {
         content: userMsg
       });
 
+      // (2026-09-22) LLM 실패 턴: 서버가 이 턴을 통째로 되돌렸다(상태 전진 없음). 코치 말풍선 없이 시스템 안내만.
+      if (res.data.llm_error === true) {
+        const pausedNow = res.data.is_session_paused === true;
+        setLlmError({ message: res.data.coach_response_message, lastMsg: userMsg, paused: pausedNow });
+        if (pausedNow) setSessionStatus('paused');
+        return;
+      }
       const aiText = res.data.coach_response_message;
       const rewardData = res.data.reward;
       const completedList = res.data.completed_topics || [];
@@ -480,6 +491,18 @@ function ChatContent() {
           </div>
 
           {/* 상태 인지 액션바 — 오류(Sync) / 일시중지 / 다음 챕터 (항상 활성). 문구·동작 그대로, 색만 토큰 */}
+          {!connError && llmError && !llmError.paused && (
+            <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded-2xl border border-[#E6D7BC] border-l-2 border-l-fm-gold bg-white px-5 py-3">
+              <span className="text-sm text-[#1B1F24] break-keep">{llmError.message}</span>
+              <button
+                onClick={() => sendMessage(llmError.lastMsg, { retry: true })}
+                disabled={isLoading}
+                className="shrink-0 h-9 rounded-xl bg-[#1B1F24] px-4 text-sm font-bold text-white hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50"
+              >
+                다시 시도
+              </button>
+            </div>
+          )}
           {connError && (
             <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 px-5 py-3">
               <span className="text-sm text-red-700 break-keep">네트워크 통신 오류가 발생했어요. 대화는 안전하게 저장돼 있어요.</span>
@@ -494,7 +517,7 @@ function ChatContent() {
           )}
           {!connError && sessionStatus === 'paused' && (
             <div className="mx-5 md:mx-8 xl:mx-12 mb-3 flex items-center justify-between gap-3 rounded-2xl border border-[#E6D7BC] border-l-2 border-l-fm-gold bg-white px-5 py-3">
-              <span className="text-sm text-[#1B1F24] break-keep">진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.</span>
+              <span className="text-sm text-[#1B1F24] break-keep">{llmError?.paused ? llmError.message : '진단이 잠시 멈춰 있어요. 준비되시면 이어서 진행하세요.'}</span>
               <button
                 onClick={resumeDiagnosis}
                 disabled={isLoading}

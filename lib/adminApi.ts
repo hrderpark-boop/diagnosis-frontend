@@ -325,3 +325,16 @@ export const downloadExcel = async () => {
 };
 
 export default adminApi;
+
+
+// (2026-09-22) 운영 알림 — Gemini 크레딧 소진(402) 등. AdminLayout 상단 배너가 읽는다.
+export interface AdminAlerts {
+  gemini_credit_depleted: boolean;
+  credit_depleted_at: string | null;
+  last_llm_error_at: string | null;
+  last_llm_error: string | null;
+}
+export const fetchAlerts = async (): Promise<AdminAlerts> => {
+  const res = await adminApi.get('/admin/alerts');
+  return res.data;
+};
