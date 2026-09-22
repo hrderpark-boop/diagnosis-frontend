@@ -335,10 +335,11 @@ function ChatContent() {
   return (
     <main className="fm-stage h-screen text-fm-text flex relative font-sans overflow-hidden">
       <div className="flex w-full h-full relative z-10">
-        {/* 왼쪽 패널 — 1D: 280px(xl 320px), line 테두리, 사진 104px, 골드 눈썹 이름, PROGRESS 목록, 하단 버튼 2개 */}
-        <section className="hidden md:flex w-[280px] xl:w-[320px] shrink-0 flex-col h-full border-r border-fm-line bg-black/10 px-7 xl:px-9 pt-10 pb-8 overflow-y-auto custom-scrollbar">
-          {/* 코치 프로필 */}
-          <div className="flex flex-col">
+        {/* 왼쪽 패널 — 1D: 280px, line 테두리, 사진 104px, 골드 눈썹 이름, PROGRESS 목록, 하단 버튼 2개
+            (Option A) xl(≥1280)에서는 200px 로 줄이고 코치 프로필 블록은 숨김 — 프로필은 오른쪽 240px 컬럼으로 이동 */}
+        <section className="hidden md:flex w-[280px] xl:w-[200px] shrink-0 flex-col h-full border-r border-fm-line bg-black/10 px-7 xl:px-5 pt-10 pb-8 overflow-y-auto custom-scrollbar">
+          {/* 코치 프로필 — xl 미만 전용(xl 이상은 오른쪽 컬럼) */}
+          <div className="flex flex-col xl:hidden">
             <div className="w-[104px] h-[104px] rounded-full overflow-hidden border border-fm-line bg-[#171717]">
               <img
                 src={coachImg}
@@ -357,7 +358,7 @@ function ChatContent() {
           </div>
 
           {/* 진행 상황 — 역량 순서 목록 (완료: 골드 체크 / 진행 중: 골드 점·골드 이름 / 대기: muted) */}
-          <div className="mt-10 pt-7 border-t border-fm-line flex flex-col">
+          <div className="mt-10 pt-7 border-t border-fm-line xl:mt-0 xl:pt-0 xl:border-t-0 flex flex-col">
             <p className="fm-eyebrow text-[11px] text-fm-muted">Progress</p>
             <h3 className="mt-1 text-sm font-bold text-white">진행 상황</h3>
             <ol className="mt-5 w-full">
@@ -570,6 +571,25 @@ function ChatContent() {
             )}
           </div>
         </section>
+
+        {/* (Option A) 오른쪽 코치 프로필 컬럼 — xl(≥1280) 전용 240px, panel 배경 + line 왼쪽 테두리. 1280 미만은 왼쪽 패널 상단 블록이 대신 표시 */}
+        <aside className="hidden xl:flex w-[240px] shrink-0 flex-col items-center h-full border-l border-fm-line bg-fm-panel px-6 pt-12 pb-8 overflow-y-auto custom-scrollbar">
+          <div className="w-[180px] h-[180px] shrink-0 rounded-full overflow-hidden border border-fm-line bg-[#171717]">
+            <img
+              src={coachImg}
+              alt={coachName}
+              className="w-full h-full object-cover"
+              onError={(e) => {e.currentTarget.src = "/images/default.png"}}
+            />
+          </div>
+          <div className="mt-7 fm-eyebrow text-xs text-fm-gold text-center">{coachShort}</div>
+          <h1 className="mt-1.5 text-[22px] font-bold text-white text-center break-keep">{coachKo}</h1>
+          <p className="mt-3 fm-eyebrow text-[10px] text-fm-muted text-center">AI Leadership Coach</p>
+          <div className="mt-5 flex items-center gap-2">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-fm-gold" />
+            <span className="text-[11px] text-fm-muted">세션 진행 중</span>
+          </div>
+        </aside>
       </div>
       
       {/* 🚨 [수정] 보상 모달 닫을 때 피날레 체크 로직 추가 */}
