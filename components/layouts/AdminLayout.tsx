@@ -156,6 +156,23 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
             {alerts.credit_depleted_at && <span className="ml-2 text-rose-300/80">감지 {alerts.credit_depleted_at} UTC</span>}
           </div>
         )}
+        {alerts?.errors_5xx_alert && (
+          <div className="shrink-0 border-b border-rose-800 bg-rose-950/80 px-8 py-3 text-sm text-rose-200">
+            <span className="font-bold">서버 오류(5xx) 최근 1시간 {alerts.errors_5xx_last_hour}건</span> — 참가자 대화가 실패하고 있을 수 있습니다.
+            {alerts.recent_5xx && alerts.recent_5xx.length > 0 && (
+              <span className="ml-2 text-rose-300/80">
+                최근: {alerts.recent_5xx[alerts.recent_5xx.length - 1].path} {alerts.recent_5xx[alerts.recent_5xx.length - 1].status}
+                {alerts.recent_5xx[alerts.recent_5xx.length - 1].error_id ? ` (error_id ${alerts.recent_5xx[alerts.recent_5xx.length - 1].error_id})` : ''}
+              </span>
+            )}
+          </div>
+        )}
+        {alerts?.synthetic_check?.ok === false && (
+          <div className="shrink-0 border-b border-rose-800 bg-rose-950/80 px-8 py-3 text-sm text-rose-200">
+            <span className="font-bold">쓰기 경로 합성 점검 실패</span> — 새 메시지를 저장하지 못하는 상태입니다.
+            <span className="ml-2 text-rose-300/80">{alerts.synthetic_check.last_run_at} UTC · {alerts.synthetic_check.error}</span>
+          </div>
+        )}
         <main className="flex-1 overflow-auto p-8">{children}</main>
       </div>
     </div>

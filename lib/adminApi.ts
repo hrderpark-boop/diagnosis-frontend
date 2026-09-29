@@ -333,6 +333,12 @@ export interface AdminAlerts {
   credit_depleted_at: string | null;
   last_llm_error_at: string | null;
   last_llm_error: string | null;
+  // (2026-09-29) 5xx·합성 쓰기 점검
+  errors_5xx_last_hour?: number;
+  errors_5xx_alert?: boolean;
+  errors_5xx_threshold?: number;
+  recent_5xx?: { at: string; path: string; status: number; error_id: string | null }[];
+  synthetic_check?: { last_run_at: string | null; ok: boolean | null; error: string | null; elapsed_ms: number | null };
 }
 export const fetchAlerts = async (): Promise<AdminAlerts> => {
   const res = await adminApi.get('/admin/alerts');
