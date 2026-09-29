@@ -3,6 +3,8 @@
 import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
+import { AnalysisProgress, fetchAnalysisProgress, isProgressRunning } from '@/lib/analysisProgress';
+import AnalysisChecklist from '@/components/AnalysisChecklist';
 import { getKeyToNameMap, getSubCompetenciesMap, fetchFramework, FrameworkCompetency } from '@/lib/framework';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -380,6 +382,8 @@ function ReportContent() {
   const [statusMsg, setStatusMsg] = useState("데이터 분석 중...");
   const [canRetry, setCanRetry] = useState(false);  // item4: 지연/실패 재시도
   const [retryCount, setRetryCount] = useState(0);  // B: 재시도 상한(3)
+  // item6: 서버가 분석 중이면 진행 단계(라벨·경과)를 보여준다.
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null);
   const _MAX_POLLS = 30;   // 2초 × 30 = 60초 (분석 중 대기 상한)
   const _MAX_RETRY = 3;
   // 기본 상태 '항상 펼침(Always Expanded)': 리포트 진입 즉시 5개 역량 상세가
@@ -428,12 +432,26 @@ function ReportContent() {
         // 오염: 기다려도 안 나옴 → 폴링 중단, 재시도 유도.
         setStatusMsg("리포트 생성이 일시적으로 실패했습니다. 다시 시도해 주세요. (대화 내용은 저장되어 있어 이어서 진행할 수 있습니다)");
         setCanRetry(true);
-      } else if (st === 404 && attempt < _MAX_POLLS) {
-        setStatusMsg("AI가 정밀 분석 중입니다...");
-        setTimeout(() => loadReport(attempt + 1), 2000);
       } else if (st === 404) {
-        setStatusMsg("리포트 생성이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.");
-        setCanRetry(true);
+        // item6: 서버 진행 상태로 분기 — 분석(수 분)이 실제로 돌고 있으면 60초
+        //   상한과 무관하게 계속 기다린다(상한에 걸려 '지연 → 재시도'로 같은
+        //   분석을 한 번 더 돌리던 문제). 상태가 없으면(시작 전·서버 재시작)
+        //   기존처럼 60초 폴링 후 재시도 유도.
+        const p = sessionId ? await fetchAnalysisProgress(sessionId) : null;
+        setProgress(p);
+        if (p?.stage === 'failed') {
+          setStatusMsg("리포트 생성 중 오류가 발생했습니다. 다시 시도해 주세요. (대화 내용은 저장되어 있어 이어서 진행할 수 있습니다)");
+          setCanRetry(true);
+        } else if (isProgressRunning(p)) {
+          setStatusMsg("AI가 정밀 분석 중입니다...");
+          setTimeout(() => loadReport(attempt), 2000);
+        } else if (attempt < _MAX_POLLS) {
+          setStatusMsg("AI가 정밀 분석 중입니다...");
+          setTimeout(() => loadReport(attempt + 1), 2000);
+        } else {
+          setStatusMsg("리포트 생성이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.");
+          setCanRetry(true);
+        }
       } else {
         setStatusMsg("오류가 발생했습니다. 다시 시도해주세요.");
         setCanRetry(true);
@@ -450,10 +468,13 @@ function ReportContent() {
     setRetryCount((c) => c + 1);
     setCanRetry(false);
     setStatusMsg("AI가 다시 분석 중입니다...");
-    try {
-      await apiClient.post(`/reports/${sessionId}/analyze`);
-    } catch { /* 재분석 실패해도 아래 폴링이 상태를 다시 판정 */ }
-    loadReport(0);
+    setProgress(null);
+    // item6: 분석 완료(수 분)를 기다리지 않고 바로 폴링 — 폴링이 진행 단계를
+    //   보여주고, 끝나면 리포트를 띄운다. 실패는 서버 진행 상태(failed)나
+    //   degraded 마커로 폴링이 판정한다. 409(이미 분석 중)도 폴링으로 합류.
+    apiClient.post(`/reports/${sessionId}/analyze`)
+      .catch(() => { /* 폴링이 상태를 다시 판정 */ });
+    setTimeout(() => loadReport(0), 1500);
   };
 
   const handleDownloadPDF = async () => {
@@ -521,10 +542,17 @@ function ReportContent() {
   if (!report) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center px-4 text-center">
-        {!canRetry && (
+        {!canRetry && !isProgressRunning(progress) && (
           <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
         )}
         <h2 className={`text-lg font-bold mb-2 ${canRetry ? 'text-slate-700' : 'text-blue-600'}`}>{statusMsg}</h2>
+        {/* A-4: 서버가 분석 중이면 챕터별 단계표(✓/분석 중…/대기) + 종합 */}
+        {!canRetry && isProgressRunning(progress) && progress && (
+          <div className="mt-3 flex flex-col items-center gap-2">
+            <AnalysisChecklist progress={progress} estimate={null} />
+            <p className="text-xs text-slate-400">이 화면을 닫지 말고 기다려 주세요.</p>
+          </div>
+        )}
         {canRetry && (
           <button
             onClick={handleRetry}

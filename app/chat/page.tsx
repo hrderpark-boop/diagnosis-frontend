@@ -6,6 +6,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
 import { getTopicNames } from '@/lib/framework';
 import { User } from 'lucide-react';
+import { useAnalysisProgress, fetchAnalysisEstimate, AnalysisEstimate } from '@/lib/analysisProgress';
+import AnalysisChecklist from '@/components/AnalysisChecklist';
 
 // ----------------------------------------------------------------------
 // [상수] 일시중지 요청 문구 — 백엔드 PAUSE 전용 키워드("잠시 쉬"/"쉴게")만 포함.
@@ -98,6 +100,10 @@ function ChatContent() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  // item6: 분석(수 분) 중 단계 라벨 폴링 — 스피너만 보여 멈춘 것처럼 보이던 문제
+  const analysisProgress = useAnalysisProgress(sessionId, isAnalyzing);
+  // A-4: 결과 보기 클릭 시 예상 시간 + 사전분석이 끝난 챕터(✓) 표시용
+  const [analysisEstimate, setAnalysisEstimate] = useState<AnalysisEstimate | null>(null);
   const [reward, setReward] = useState<{title: string, desc: string} | null>(null);
   
   // 🚨 [수정] 피날레 모달을 띄우기 위한 상태 추가
@@ -310,10 +316,24 @@ function ChatContent() {
     if (isAnalyzing) return;
     setIsAnalyzing(true);
     try {
-      setMessages(prev => [...prev, { role: 'model', content: "진단을 종료하고 결과를 분석 중입니다..." }]);
+      // A-4: 스피너 대신 예상 시간부터 알린다(챕터 사전분석 캐시 기준).
+      const est = sessionId ? await fetchAnalysisEstimate(sessionId) : null;
+      setAnalysisEstimate(est);
+      const etaText = !est
+        ? "리포트를 준비하고 있습니다. 잠시만 기다려 주세요."
+        : est.eta_label.startsWith('약')
+          ? `리포트를 준비하고 있습니다. ${est.eta_label} 걸립니다.`
+          : `리포트를 준비하고 있습니다. ${est.eta_label}에 끝납니다.`;
+      setMessages(prev => [...prev, { role: 'model', content: etaText }]);
       await apiClient.post(`/reports/${sessionId}/analyze`);
       router.push(`/report?session_id=${sessionId}`);
     } catch (error) {
+      // item6: 이미 분석이 돌고 있으면(다른 탭·새로고침 후 재클릭) 중복 실행 대신
+      //   리포트 화면으로 넘어가 그쪽에서 진행 상태를 이어서 본다.
+      if ((error as { response?: { status?: number } })?.response?.status === 409) {
+        router.push(`/report?session_id=${sessionId}`);
+        return;
+      }
       console.error("Analysis failed:", error);
       // 딱딱한 alert 대신 대화 안에서 친절히 안내 + 버튼 재시도 유도
       setMessages(prev => [...prev, {
@@ -419,7 +439,11 @@ function ChatContent() {
               저장하고 나가기
             </button>
             <button onClick={handleFinishDiagnosis} disabled={isAnalyzing} className="w-full h-11 rounded bg-white text-black text-[13px] font-bold hover:bg-fm-gold transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-              {isAnalyzing ? "분석 중..." : "진단 완료 및 결과 보기"}
+              {isAnalyzing
+                ? (analysisProgress?.stage === 'analyze'
+                    ? `분석 중 ${analysisProgress.done}/${analysisProgress.total}`
+                    : "분석 중...")
+                : "진단 완료 및 결과 보기"}
             </button>
           </div>
         </section>
@@ -478,7 +502,14 @@ function ChatContent() {
             ))}
 
             {/* 물결 wave 애니메이션 — 1D 타이핑 점 3개 */}
-            {(isLoading || isAnalyzing) && (
+            {/* A-4: 분석 중에는 챕터별 단계표(✓ 완료 / 분석 중… / 대기) + 종합 */}
+            {isAnalyzing && (
+              <div className="flex flex-col items-start pl-11 gap-1.5">
+                <AnalysisChecklist progress={analysisProgress} estimate={analysisEstimate} />
+                <p className="text-[11px] text-[#9BA2AC]">이 화면을 닫지 말고 기다려 주세요. 끝나면 리포트로 이동합니다.</p>
+              </div>
+            )}
+            {isLoading && !isAnalyzing && (
               <div className="flex justify-start pl-11">
                 <div className="bg-white px-4 py-3 rounded-2xl flex gap-1.5 items-center border border-[#E3E6EA] w-fit">
                   <span className="w-[5px] h-[5px] bg-[#9BA2AC] rounded-full" style={{ animation: 'wave 1.4s ease-in-out infinite', animationDelay: '0s' }}></span>
