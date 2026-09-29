@@ -32,10 +32,11 @@ const RadarChart = ({
 }) => {
   const safeData = data || {};
   const safeMax = maxScore || 5;
-  const stats = competencies.map((c) => ({
-    label: c.name,
-    value: safeData[c.name] || safeData[c.key] || 0,  // 과거 포맷 호환 유지
-  }));
+  // B: 미측정(null) 역량은 0점이 아니라 '빈 점 + 회색 점선 축'으로 그려 빈칸이 보이게 한다.
+  const stats = competencies.map((c) => {
+    const raw = safeData[c.name] ?? safeData[c.key];  // 과거 포맷 호환 유지
+    return { label: c.name, value: typeof raw === 'number' ? raw : null };
+  });
 
   const size = 300; const center = size / 2; const radius = 85;
   const angleStep = stats.length > 0 ? (Math.PI * 2) / stats.length : 0;
@@ -47,7 +48,10 @@ const RadarChart = ({
   };
 
   const levels = Array.from({ length: safeMax }, (_, i) => i + 1);
-  const points = stats.map((stat, i) => getPoint(stat.value, i)).map(p => `${p.x},${p.y}`).join(" ");
+  const measuredPts = stats
+    .map((stat, i) => (stat.value === null ? null : getPoint(stat.value, i)))
+    .filter((p): p is { x: number; y: number } => p !== null);
+  const points = measuredPts.map(p => `${p.x},${p.y}`).join(" ");
 
   return (
     <div className="flex justify-center items-center py-2 w-full h-full">
@@ -61,21 +65,33 @@ const RadarChart = ({
         {levels.map((level) => (
           <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#e2e8f0" strokeWidth="1" />
         ))}
-        {stats.map((_, i) => {
-          const p = getPoint(safeMax, i);
-          return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#e2e8f0" strokeWidth="1" />;
-        })}
-        <polygon points={points} fill="rgba(59,130,246,0.12)" stroke="#3b82f6" strokeWidth="2" filter="url(#glow-light)" />
         {stats.map((stat, i) => {
+          const p = getPoint(safeMax, i);
+          return stat.value === null
+            ? <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#94a3b8" strokeWidth="1.2" strokeDasharray="4 3" />
+            : <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#e2e8f0" strokeWidth="1" />;
+        })}
+        {measuredPts.length >= 3 && (
+          <polygon points={points} fill="rgba(59,130,246,0.12)" stroke="#3b82f6" strokeWidth="2" filter="url(#glow-light)" />
+        )}
+        {measuredPts.length === 2 && (
+          <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="2" />
+        )}
+        {stats.map((stat, i) => {
+          if (stat.value === null) {
+            const p = getPoint(safeMax, i);
+            return <circle key={i} cx={p.x} cy={p.y} r="4.5" fill="white" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="2 2" />;
+          }
           const p = getPoint(stat.value, i);
           return <circle key={i} cx={p.x} cy={p.y} r="4" fill="#3b82f6" stroke="white" strokeWidth="2" />;
         })}
         {stats.map((stat, i) => {
           const pLabel = getPoint(6.8, i);
+          const unmeasured = stat.value === null;
           return (
             <g key={i}>
-              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill="#475569" fontSize="12" fontWeight="700">{stat.label}</text>
-              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill="#2563eb" fontSize="13" fontWeight="800">{Number(stat.value).toFixed(1)}</text>
+              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#94a3b8' : '#475569'} fontSize="12" fontWeight="700">{stat.label}</text>
+              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#94a3b8' : '#2563eb'} fontSize={unmeasured ? '11' : '13'} fontWeight="800">{unmeasured ? '미측정' : Number(stat.value).toFixed(1)}</text>
             </g>
           );
         })}
@@ -89,13 +105,11 @@ const RadarChart = ({
 // ----------------------------------------------------------------------
 const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any, fallbackScore: number, maxScore: number }) => {
   const safeMax = maxScore || 5;
-  // P0-1: 미측정(null) 하위역량은 레이더 축에서 제외 (값이 아니라 미측정)
+  // B: 미측정(null) 하위역량도 축으로 남기고 '빈 점 + 회색 점선'으로 그려 빈칸을 드러낸다
+  //   (P0-1: 값은 0 이 아니라 미측정 — 다각형에는 넣지 않는다).
   const stats = Object.entries(subScores || {})
-    .filter(([, score]) => typeof score === 'number')
-    .map(([label, score]) => ({ label, value: score as number }));
+    .map(([label, score]) => ({ label, value: typeof score === 'number' ? score : null }));
   if (stats.length < 3) return null;  // 축이 3개 미만이면 레이더 생략
-
-  if (stats.length === 0) return <div className="text-xs text-slate-400">데이터가 없습니다.</div>;
 
   // 반경 80→62: 라벨이 viewBox 밖으로 벗어나 잘리던 현상 복구.
   // 확대된 폰트(13px)는 유지하되, 라벨이 온전히 보이도록 내부 여백 확보
@@ -109,7 +123,10 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
   };
 
   const levels = Array.from({ length: safeMax }, (_, i) => i + 1).filter((_, i) => i === 0 || i === 2 || i === safeMax - 1);
-  const points = stats.map((stat, i) => getPoint(stat.value, i)).map(p => `${p.x},${p.y}`).join(" ");
+  const measuredPts = stats
+    .map((stat, i) => (stat.value === null ? null : getPoint(stat.value, i)))
+    .filter((p): p is { x: number; y: number } => p !== null);
+  const points = measuredPts.map(p => `${p.x},${p.y}`).join(" ");
 
   return (
     <div className="flex justify-center items-center w-full h-full">
@@ -117,12 +134,23 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
         {levels.map((level) => (
           <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#f1f5f9" strokeWidth="1" />
         ))}
-        {stats.map((_, i) => {
-          const p = getPoint(safeMax, i);
-          return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#f1f5f9" strokeWidth="1" />;
-        })}
-        <polygon points={points} fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" strokeWidth="2" />
         {stats.map((stat, i) => {
+          const p = getPoint(safeMax, i);
+          return stat.value === null
+            ? <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 3" />
+            : <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#f1f5f9" strokeWidth="1" />;
+        })}
+        {measuredPts.length >= 3 && (
+          <polygon points={points} fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" strokeWidth="2" />
+        )}
+        {measuredPts.length === 2 && (
+          <polyline points={points} fill="none" stroke="#10b981" strokeWidth="2" />
+        )}
+        {stats.map((stat, i) => {
+          if (stat.value === null) {
+            const p = getPoint(safeMax, i);
+            return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="white" stroke="#94a3b8" strokeWidth="1.2" strokeDasharray="2 2" />;
+          }
           const p = getPoint(stat.value, i);
           return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#10b981" />;
         })}
@@ -130,10 +158,11 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
           // 라벨 배율 6.8: 다각형 모서리(5.0 지점)와 22px 가량 간격을 두면서도
           // viewBox 경계(반폭 110) 안에 라벨·점수가 온전히 들어오는 위치
           const pLabel = getPoint(6.8, i);
+          const unmeasured = stat.value === null;
           return (
             <g key={i}>
-              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill="#475569" fontSize="13" fontWeight="800">{stat.label}</text>
-              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill="#10b981" fontSize="12" fontWeight="800">{Number(stat.value).toFixed(1)}</text>
+              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#94a3b8' : '#475569'} fontSize="13" fontWeight="800">{stat.label}</text>
+              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#94a3b8' : '#10b981'} fontSize="12" fontWeight="800">{unmeasured ? '–' : Number(stat.value).toFixed(1)}</text>
             </g>
           );
         })}
@@ -319,11 +348,12 @@ const SubScoresTable = ({ subScores, subLedger, totalScore, maxScore }: { subSco
   // 🧭 T3 2-tier + 게이트 상태. 표시 우선순위:
   //   gate_status='pending'(검증 미완료, 도구 상태) > status(대상자 응답 상태:
   //   측정 / 근거미확보 / 미탐색). 셋은 서로 다른 의미다.
-  const dispStateOf = (label: string): 'measured' | 'gate_pending' | 'evidence_missing' | 'unexplored' => {
+  //   G: not_explored = 원장엔 대상으로 잡혔지만 앵커 질문이 실제로 전달되지 않음(미탐색).
+  const dispStateOf = (label: string): 'measured' | 'gate_pending' | 'evidence_missing' | 'unexplored' | 'not_explored' => {
     const row = subLedger?.[label];
     if (row?.gate_status === 'pending') return 'gate_pending';
     const st = row?.status;
-    if (st === 'measured' || st === 'evidence_missing' || st === 'unexplored') return st;
+    if (st === 'measured' || st === 'evidence_missing' || st === 'unexplored' || st === 'not_explored') return st;
     return 'unexplored'; // ledger 없으면 보수적으로 미탐색
   };
 
@@ -344,6 +374,8 @@ const SubScoresTable = ({ subScores, subLedger, totalScore, maxScore }: { subSco
           ? '역량 판정 검증(레벨 게이트)이 완료되지 않아 점수를 보류했습니다. 대상자 역량과 무관한 도구 상태입니다 — 재생성 시 해소됩니다.'
           : isEvMissing
           ? '질문은 드렸으나 구체 사례가 확인되지 않아 점수를 산출하지 않았습니다.'
+          : ds === 'not_explored'
+          ? '이번 진단에서 이 하위역량에 대한 질문이 실제로 전달되지 않아 다루지 못했습니다(미탐색). 근거 미확보와 다릅니다.'
           : '이 하위역량은 이번 진단에서 다루지 않았습니다(미탐색).';
         const labelColor = measured ? 'text-slate-700' : isPending ? 'text-violet-700' : isEvMissing ? 'text-amber-700' : 'text-slate-400';
         const valColor = isPending ? 'text-violet-600' : isEvMissing ? 'text-amber-600' : 'text-slate-400';
@@ -675,50 +707,47 @@ function ReportContent() {
                 </div>
               )}
             </div>
-            {!report.coverage?.composite_shown ? (
-              /* V-6(1): 종합 섹션은 커버리지가 넓을 때만 추가되는 부가물이다.
-                 없는 것이 기본 출력 — '부족/미달/제한' 함의 금지. 확인 개수를
-                 숫자로 밝히고, 나머지는 다음 세션에서 이어볼 수 있음을 안내. */
-              <>
-                <div className="text-center my-auto">
-                  <span className="text-xl font-black text-slate-700">이번 진단에서 26개 역량 지표 중<br />{report.coverage?.measured}개를 확인했습니다</span>
-                </div>
-                <p className="text-center text-sm font-semibold text-slate-500 mt-6">
-                  아래 심층 분석과 성장 제안은 확인된 역량 근거로 구성됩니다.
-                  종합 점수·레이더는 더 넓은 범위가 확인될 때 함께 제공되며,
-                  남은 역량은 다음 세션에서 이어볼 수 있습니다.
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="text-center my-auto">
-                  <span className="text-7xl font-black text-blue-600">{Number(report.total_score).toFixed(1)}</span>
-                  <span className="text-slate-400 text-2xl font-bold ml-1">/ {maxScore.toFixed(1)}</span>
-                </div>
-                <p className="text-center text-sm font-semibold text-slate-500 mt-6">
-                  측정된 역량의 심층 평가 평균치
-                  {report.coverage?.is_low_confidence && (
-                    <span className="mt-1 block text-xs font-bold text-amber-600">측정 범위가 좁아 참고용입니다 — 재진단을 권장합니다.</span>
-                  )}
-                </p>
-              </>
-            )}
+            {(() => {
+              /* B(2026-09-29): 종합 점수는 항상 보인다. composite_mode(과거 리포트는
+                 composite_shown)로 '정식/참고치'만 구분 — 숨기지 않는다. */
+              const cov = report.coverage;
+              const official = cov ? (cov.composite_mode ? cov.composite_mode === 'official' : !!cov.composite_shown) : true;
+              const measuredCnt = cov?.measured_total ?? cov?.measured ?? 0;
+              const hasScore = typeof report.total_score === 'number' && (!cov || measuredCnt > 0);
+              const note = cov?.composite_note
+                || `26개 지표 중 ${measuredCnt}개가 확인되었습니다. 남은 지표는 다음 세션에서 이어볼 수 있습니다.`;
+              return (
+                <>
+                  <div className="text-center my-auto">
+                    {!official && (
+                      <span className="mb-2 inline-block rounded-md bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">{cov?.composite_badge || '참고치'}</span>
+                    )}
+                    <div>
+                      <span className={`text-7xl font-black ${official ? 'text-blue-600' : 'text-slate-500'}`}>{hasScore ? Number(report.total_score).toFixed(1) : '—'}</span>
+                      <span className="text-slate-400 text-2xl font-bold ml-1">/ {maxScore.toFixed(1)}</span>
+                    </div>
+                  </div>
+                  <p className="text-center text-sm font-semibold text-slate-500 mt-6">
+                    측정된 역량의 심층 평가 평균치
+                    {!official && (
+                      <span className="mt-1 block text-xs font-bold text-amber-600">{note}</span>
+                    )}
+                  </p>
+                </>
+              );
+            })()}
           </div>
 
-          {/* V-6(1): 레이더·상대비교는 종합 섹션의 일부 — 커버리지가 넓을
-              때(composite_shown)만 추가한다. 좁은 측정으로 6역량 평균을 26
-              종합처럼 오해시키지 않기 위함. */}
           {/* H6: '상대적 비교 분석'(팀/부문/전사 평균)은 실데이터 소스가 없어
               하드코딩 수치(3.8/3.6/3.5)를 보여주고 있었다 → 제거. 비교 집계 API 가
               생기면 그때 다시 추가한다. 레이더가 남은 2칸을 차지한다. */}
-          {report.coverage?.composite_shown && (
-            <div className="print:break-inside-avoid lg:col-span-2 print:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
-              <h3 className="text-xl font-black text-slate-900 w-full mb-2">역량 밸런스</h3>
-              <div className="w-full h-full flex-1 min-h-[220px]">
-                <RadarChart data={report.radar_chart} competencies={frameworkCompetencies} maxScore={maxScore} />
-              </div>
+          {/* B: 레이더도 항상 표시 — 미측정 역량은 빈 점·회색 점선으로 빈칸을 드러낸다. */}
+          <div className="print:break-inside-avoid lg:col-span-2 print:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col items-center">
+            <h3 className="text-xl font-black text-slate-900 w-full mb-2">역량 밸런스</h3>
+            <div className="w-full h-full flex-1 min-h-[220px]">
+              <RadarChart data={report.radar_chart} competencies={frameworkCompetencies} maxScore={maxScore} />
             </div>
-          )}
+          </div>
         </div>
 
         {/* ── [섹션 3] 종합 피드백 & 키워드 — 요구사항: 점수/차트/피드백/
@@ -844,7 +873,10 @@ function ReportContent() {
                           )}
                         </span>
                         {/* 역량 요약 설명 — 시인성 극대화 (text-sm → text-lg, 톤 업) */}
-                        <span className="block text-lg text-slate-700 font-semibold leading-snug">{strengthPoint || "역량 상세 분석 클릭"}</span>
+                        <span className={`block text-lg font-semibold leading-snug ${measured ? 'text-slate-700' : 'text-slate-400'}`}>
+                          {/* F: 측정 0 역량엔 평가 문장을 쓰지 않는다(과거 리포트 포함). */}
+                          {measured ? (strengthPoint || "역량 상세 분석 클릭") : "이번 세션에서 확인되지 않았습니다."}
+                        </span>
                       </div>
                     </div>
                     <ChevronIcon className={`w-6 h-6 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
