@@ -706,7 +706,7 @@ function ReportContent() {
 
         {/* ── [섹션 2] 3단 대시보드 ── */}
         <div className="print-section grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-6 mb-6">
-          <div className="print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] p-7 flex flex-col justify-between">
+          <div className="print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] p-7 flex flex-col justify-start">
             <div className="flex flex-wrap items-start justify-between gap-2 mb-6">
               <div>
                 <p className="fm-eyebrow text-[11px] text-[#6B727C]">Overall Level</p>
