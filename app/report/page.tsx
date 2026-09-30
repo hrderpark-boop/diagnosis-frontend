@@ -32,6 +32,17 @@ const SectionHead = ({ no, en, ko, className = '' }: { no: string; en: string; k
   </div>
 );
 
+// 02 Self View 표의 한 줄 — 백엔드(/reports/{sid} → self_view.rows) 값 그대로 표시한다.
+type SelfViewRow = {
+  key: string;
+  name: string;
+  self: number | null;
+  measured: number | null;
+  diff: number | null;
+  kind: 'self_higher' | 'self_lower' | 'match' | 'unmeasured';
+  interpretation: string;
+};
+
 // ----------------------------------------------------------------------
 // [MAIN RADAR CHART - 메인 역량 밸런스]
 // ----------------------------------------------------------------------
@@ -39,13 +50,24 @@ const RadarChart = ({
   data,
   competencies,
   maxScore,
+  selfScores,
+  groupAverages,
 }: {
   data: any;
   competencies: Array<{ key: string; name: string }>;
   maxScore: number;
+  /** 자가진단 대역량 점수(같은 1~5 축). null 이면 자가 폴리곤을 그리지 않는다. */
+  selfScores?: Record<string, number | null> | null;
+  /** 그룹 평균(available 일 때만 전달). 값이 null 인 축은 건너뛴다(0 처리 금지). */
+  groupAverages?: Record<string, number | null> | null;
 }) => {
   const safeData = data || {};
   const safeMax = maxScore || 5;
+  // 겹침 폴리곤용 값 추출 — 백엔드 값 그대로(계산 없음). 숫자가 아니면 null.
+  const overlayValues = (src?: Record<string, number | null> | null): Array<number | null> | null =>
+    src ? competencies.map((c) => { const v = src[c.key] ?? src[c.name]; return typeof v === 'number' ? v : null; }) : null;
+  const selfVals = overlayValues(selfScores);
+  const groupVals = overlayValues(groupAverages);
   // B: 미측정(null) 역량은 0점이 아니라 '빈 점 + 회색 점선 축'으로 그려 빈칸이 보이게 한다.
   const stats = competencies.map((c) => {
     const raw = safeData[c.name] ?? safeData[c.key];  // 과거 포맷 호환 유지
@@ -66,6 +88,28 @@ const RadarChart = ({
     .map((stat, i) => (stat.value === null ? null : getPoint(stat.value, i)))
     .filter((p): p is { x: number; y: number } => p !== null);
   const points = measuredPts.map(p => `${p.x},${p.y}`).join(" ");
+
+  // 겹침 폴리곤(채움 없음): 인접한 두 축에 모두 값이 있을 때만 선분으로 잇는다.
+  //  값이 없는 축은 0 으로 내리지 않고 건너뛴다 → 그 축 양옆 선분이 비어 빈칸이 보인다.
+  const renderOverlay = (vals: Array<number | null>, stroke: string, dash: string | undefined, keyPrefix: string) => {
+    const n = vals.length;
+    return (
+      <g>
+        {vals.map((v, i) => {
+          const j = (i + 1) % n;
+          const w = vals[j];
+          if (v === null || w === null || n < 2) return null;
+          const a = getPoint(v, i); const b = getPoint(w, j);
+          return <line key={`${keyPrefix}-l${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth="1.6" strokeDasharray={dash} strokeLinecap="round" />;
+        })}
+        {vals.map((v, i) => {
+          if (v === null) return null;
+          const p = getPoint(v, i);
+          return <circle key={`${keyPrefix}-c${i}`} cx={p.x} cy={p.y} r="2.6" fill="white" stroke={stroke} strokeWidth="1.4" />;
+        })}
+      </g>
+    );
+  };
 
   return (
     <div className="flex justify-center items-center py-2 w-full h-full">
@@ -91,6 +135,9 @@ const RadarChart = ({
         {measuredPts.length === 2 && (
           <polyline points={points} fill="none" stroke="#B08D5C" strokeWidth="2" />
         )}
+        {/* 그룹 평균(회색 실선) → 스스로 보는 나(골드 점선) 순으로 측정 폴리곤 위에 겹친다 */}
+        {groupVals && renderOverlay(groupVals, '#9BA2AC', undefined, 'grp')}
+        {selfVals && renderOverlay(selfVals, '#B08D5C', '5 4', 'self')}
         {stats.map((stat, i) => {
           if (stat.value === null) {
             const p = getPoint(safeMax, i);
@@ -707,7 +754,7 @@ function ReportContent() {
         {/* ── [섹션 2] 3단 대시보드 ── */}
         <div className="print-section grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-6 mb-6">
           <div className="print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] p-7 flex flex-col justify-start">
-            <div className="flex flex-wrap items-start justify-between gap-2 mb-6">
+            <div className="flex flex-wrap items-start justify-between gap-2 mb-5">
               <div>
                 <p className="fm-eyebrow text-[11px] text-[#6B727C]">Overall Level</p>
                 <h3 className="mt-1 text-lg font-bold text-[#1B1F24]">종합 리더십 점수</h3>
@@ -739,24 +786,50 @@ function ReportContent() {
               const measuredCnt = cov?.measured_total ?? cov?.measured ?? 0;
               const hasScore = typeof report.total_score === 'number' && (!cov || measuredCnt > 0);
               const note = cov?.composite_note
-                || `26개 지표 중 ${measuredCnt}개가 확인되었습니다. 남은 지표는 다음 세션에서 이어볼 수 있습니다.`;
+                || `${cov?.total ?? 26}개 지표 중 ${measuredCnt}개 확인`;
               return (
                 <>
-                  <div className="my-auto py-4">
-                    {!official && (
-                      <span className="mb-3 inline-block rounded-md border border-[#E6D7BC] bg-[#F3EBDD] px-2 py-0.5 text-[11px] font-semibold text-[#8A6C3F]">{cov?.composite_badge || '참고치'}</span>
-                    )}
+                  {/* 큰 점수 — 눈썹·칩 바로 아래(위에서부터 채운다) */}
+                  <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
                     <div className="flex items-baseline gap-2">
                       <span className={`text-[64px] leading-none font-light tabular-nums ${official ? 'text-[#1B1F24]' : 'text-[#6B727C]'}`}>{hasScore ? Number(report.total_score).toFixed(1) : '—'}</span>
                       <span className="text-[#9BA2AC] text-sm">/ {maxScore.toFixed(1)}</span>
                     </div>
-                  </div>
-                  <p className="text-[13px] text-[#6B727C] mt-5 pt-4 border-t border-[#E3E6EA] break-keep">
-                    측정된 역량의 심층 평가 평균치
                     {!official && (
-                      <span className="mt-1.5 block text-xs font-light leading-relaxed text-[#8A6C3F]">{note}</span>
+                      <span className="mb-1.5 inline-block rounded-md border border-[#E6D7BC] bg-[#F3EBDD] px-2 py-0.5 text-[11px] font-semibold text-[#8A6C3F]">{cov?.composite_badge || '참고치'}</span>
                     )}
-                  </p>
+                  </div>
+                  <p className="mt-3 text-[13px] text-[#6B727C] break-keep">측정된 역량의 심층 평가 평균치</p>
+
+                  {/* 대역량 5개 미니 막대 — 레이더와 같은 값(report.radar_chart). 계산 없음. */}
+                  {frameworkCompetencies.length > 0 && (
+                    <div className="mt-6 pt-5 border-t border-[#E3E6EA] space-y-3.5">
+                      {frameworkCompetencies.map((c) => {
+                        const raw = report.radar_chart?.[c.name] ?? report.radar_chart?.[c.key];
+                        const v = typeof raw === 'number' ? raw : null;
+                        return (
+                          <div key={c.key} className="flex items-center gap-3">
+                            <span className={`w-[60px] shrink-0 text-[13px] font-semibold break-keep ${v === null ? 'text-[#9BA2AC]' : 'text-[#1B1F24]'}`}>{c.name}</span>
+                            <div className={`flex-1 h-2 rounded-full overflow-hidden ${v === null ? 'border border-dashed border-[#9BA2AC]' : 'bg-[#E6D7BC]'}`}>
+                              {v !== null && (
+                                <div className="h-full rounded-full bg-[#B08D5C]" style={{ width: `${Math.min(100, Math.max(0, (v / (maxScore || 5)) * 100))}%` }} />
+                              )}
+                            </div>
+                            <span
+                              title={v === null ? '이번 세션에서 확인되지 않은 영역입니다(미측정).' : undefined}
+                              className={`w-8 shrink-0 text-right text-sm tabular-nums ${v === null ? 'text-[#9BA2AC]' : 'font-semibold text-[#8A6C3F]'}`}>
+                              {v === null ? '—' : v.toFixed(1)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* 맨 아래 한 줄 — 확인된 지표 수(백엔드 composite_note 우선). 카드가 늘어나면 바닥에 붙는다. */}
+                  {cov && (
+                    <p className="mt-auto pt-6 text-xs font-light leading-relaxed text-[#6B727C] break-keep">{note}</p>
+                  )}
                 </>
               );
             })()}
@@ -772,10 +845,43 @@ function ReportContent() {
               <h3 className="mt-1 text-lg font-bold text-[#1B1F24]">역량 밸런스</h3>
             </div>
             <div className="w-full h-full flex-1 min-h-[220px]">
-              <RadarChart data={report.radar_chart} competencies={frameworkCompetencies} maxScore={maxScore} />
+              <RadarChart
+                data={report.radar_chart}
+                competencies={frameworkCompetencies}
+                maxScore={maxScore}
+                selfScores={report.self_assessment?.scores ?? null}
+                groupAverages={report.group_comparison?.available ? (report.group_comparison.averages ?? null) : null}
+              />
+            </div>
+            {/* 범례 — 실선: 대화에 드러난 나 / 점선: 스스로 보는 나 / (조건부) 회색 실선: 그룹 평균 */}
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[#6B727C]">
+              <span className="inline-flex items-center gap-2">
+                <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#B08D5C" strokeWidth="2" /></svg>
+                대화에 드러난 나
+              </span>
+              {report.self_assessment?.scores && (
+                <span className="inline-flex items-center gap-2">
+                  <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#B08D5C" strokeWidth="1.6" strokeDasharray="5 4" /></svg>
+                  스스로 보는 나
+                </span>
+              )}
+              {report.group_comparison?.available && report.group_comparison.averages && (
+                <span className="inline-flex items-center gap-2">
+                  <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#9BA2AC" strokeWidth="1.6" /></svg>
+                  {report.group_comparison.label || '그룹 평균'}
+                </span>
+              )}
             </div>
           </div>
         </div>
+
+        {/* 조직 내 위치 — 비교 대상이 모이기 전에는 백엔드 안내 문구만(가짜 숫자 금지) */}
+        {report.group_comparison && !report.group_comparison.available && report.group_comparison.label && (
+          <div className="print:break-inside-avoid -mt-2 mb-6 flex flex-col lg:flex-row lg:items-baseline gap-1 lg:gap-4 px-1">
+            <span className="fm-eyebrow text-[11px] text-[#6B727C] shrink-0">조직 내 위치</span>
+            <span className="text-[13px] font-light text-[#6B727C] break-keep">{report.group_comparison.label}</span>
+          </div>
+        )}
 
         {/* ── [섹션 3] 종합 피드백 & 키워드 — 요구사항: 점수/차트/피드백/
               키워드를 여백 없이 '단일 1페이지'에 모두 압축. 별도 페이지 블록을
@@ -817,35 +923,113 @@ function ReportContent() {
         </div>
         {/* ══ [PDF 페이지 1] 끝 — 점수·차트·피드백·키워드 1페이지 압축 ══ */}
 
-        {/* ══ [PDF 페이지 2] 사각지대 & IDP ══ */}
-        {/* ── [섹션 4] 사각지대 & IDP ── */}
+        {/* ══ [PDF 페이지 2] 스스로 보는 나 · 대화에 드러난 나 & IDP ══ */}
+        {/* ── [섹션 4] 자가진단 비교(Self View) & IDP — 문구·차이·해석은 전부 백엔드 값 그대로 ── */}
         <div className="pdf-page-block print:break-after-page print-section mb-16">
-          {/* 02 BLIND SPOT & IDP */}
-          <SectionHead no="02" en="Blind Spot & Development Plan" ko="사각지대와 개인 발전 계획" className="mb-8" />
-          <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
-          {report.blind_spot && report.blind_spot !== "-" && (
-            <div className="print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] border-l-2 border-l-fm-gold p-7 md:p-8">
-              <p className="fm-eyebrow text-[11px] text-fm-gold">Blind Spot</p>
-              <h3 className="mt-1 text-lg font-bold text-[#1B1F24] mb-4">사각지대</h3>
-              <p className="text-[#1B1F24] text-base font-light leading-[1.9] break-keep">{report.blind_spot}</p>
-            </div>
-          )}
-          
-          {report.idp && report.idp.length > 0 && (
-            <div className="print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] p-7 md:p-8">
-              <p className="fm-eyebrow text-[11px] text-fm-gold">Individual Development Plan</p>
-              <h3 className="mt-1 text-lg font-bold text-[#1B1F24] mb-5">개인 발전 계획 (IDP)</h3>
-              <div className="divide-y divide-[#E3E6EA]">
-                {report.idp.map((item: string, idx: number) => (
-                  <div key={idx} className="flex gap-4 py-4 first:pt-0 last:pb-0">
-                    <span className="fm-eyebrow text-[11px] text-fm-gold shrink-0 pt-1 tabular-nums">{String(idx + 1).padStart(2, '0')}</span>
-                    <p className="text-[#1B1F24] text-[15px] font-light leading-[1.8] break-keep">{item}</p>
+          <SectionHead no="02" en="Self View & Discovery" ko="스스로 보는 나와 대화에 드러난 나" className="mb-8" />
+          {(() => {
+            const sv = report.self_view;
+            // 자가진단 미제출: 섹션 전체를 안내 한 줄 카드로.
+            if (sv && sv.submitted === false) {
+              return (
+                <div className="bg-white rounded-2xl border border-[#E3E6EA] p-7 md:p-8">
+                  <p className="text-[15px] font-light leading-[1.8] text-[#6B727C] break-keep">{sv.message}</p>
+                </div>
+              );
+            }
+            const rows: SelfViewRow[] = Array.isArray(sv?.rows) ? sv.rows : [];
+            const num = (v: unknown) => (typeof v === 'number' ? v.toFixed(1) : '—');
+            // 차이 표기: 부호 포함(+2.0 / −1.1). 값 자체는 백엔드 diff 그대로.
+            const diffText = (d: unknown) => (typeof d === 'number' ? `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d).toFixed(1)}` : '—');
+            const badgeCls = (kind: string) =>
+              kind === 'self_higher' || kind === 'self_lower'
+                ? 'border-[#E6D7BC] bg-[#F3EBDD] text-[#8A6C3F]'
+                : kind === 'unmeasured'
+                ? 'border-dashed border-[#9BA2AC] bg-white text-[#9BA2AC]'
+                : 'border-[#E3E6EA] bg-[#F5F6F8] text-[#6B727C]';
+            const diffBadge = (row: SelfViewRow) => (
+              <span className={`inline-block min-w-[52px] rounded-md border px-2 py-0.5 text-center text-xs font-semibold tabular-nums ${badgeCls(row.kind)}`}>{diffText(row.diff)}</span>
+            );
+            return (
+              <>
+                {rows.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-[#E3E6EA] overflow-hidden">
+                    {/* 표(768px 초과·인쇄) */}
+                    <table className="hidden lg:table print:table w-full text-left">
+                      <thead>
+                        <tr className="border-b border-[#E3E6EA] bg-[#F5F6F8] text-xs font-semibold text-[#6B727C]">
+                          <th className="px-7 py-3.5 font-semibold w-[13%]">영역</th>
+                          <th className="px-3 py-3.5 font-semibold text-right w-[14%] whitespace-nowrap">스스로 보는 나</th>
+                          <th className="px-3 py-3.5 font-semibold text-right w-[15%] whitespace-nowrap">대화에 드러난 나</th>
+                          <th className="px-3 py-3.5 font-semibold text-center w-[11%]">차이</th>
+                          <th className="px-7 py-3.5 font-semibold">해석</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E3E6EA]">
+                        {rows.map((row) => (
+                          <tr key={row.key}>
+                            <td className="px-7 py-4 text-[15px] font-semibold text-[#1B1F24] whitespace-nowrap">{row.name}</td>
+                            <td className="px-3 py-4 text-right text-lg font-light tabular-nums text-[#6B727C]">{num(row.self)}</td>
+                            <td className={`px-3 py-4 text-right text-lg tabular-nums ${typeof row.measured === 'number' ? 'font-medium text-[#8A6C3F]' : 'font-light text-[#9BA2AC]'}`}>{num(row.measured)}</td>
+                            <td className="px-3 py-4 text-center">{diffBadge(row)}</td>
+                            <td className={`px-7 py-4 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-[#9BA2AC]' : 'text-[#1B1F24]'}`}>{row.interpretation}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {/* 카드 목록(1024px 미만) — 좁은 화면에서 표가 깨지지 않게 접는다 */}
+                    <div className="lg:hidden print:hidden divide-y divide-[#E3E6EA]">
+                      {rows.map((row) => (
+                        <div key={row.key} className="p-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[15px] font-semibold text-[#1B1F24]">{row.name}</span>
+                            <span className="inline-flex items-center gap-2 text-[11px] text-[#6B727C]">차이 {diffBadge(row)}</span>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            <div className="rounded-xl bg-[#F5F6F8] px-4 py-3">
+                              <div className="text-[11px] text-[#6B727C]">스스로 보는 나</div>
+                              <div className="mt-0.5 text-xl font-light tabular-nums text-[#6B727C]">{num(row.self)}</div>
+                            </div>
+                            <div className="rounded-xl bg-[#F5F6F8] px-4 py-3">
+                              <div className="text-[11px] text-[#6B727C]">대화에 드러난 나</div>
+                              <div className={`mt-0.5 text-xl tabular-nums ${typeof row.measured === 'number' ? 'font-medium text-[#8A6C3F]' : 'font-light text-[#9BA2AC]'}`}>{num(row.measured)}</div>
+                            </div>
+                          </div>
+                          <p className={`mt-3 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-[#9BA2AC]' : 'text-[#1B1F24]'}`}>{row.interpretation}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-          </div>
+                )}
+
+                {/* 요약 한 단락 — 백엔드 self_view.summary */}
+                {sv?.summary && (
+                  <div className="mt-4 bg-white rounded-2xl border border-[#E3E6EA] border-l-2 border-l-fm-gold p-7 md:p-8">
+                    <p className="fm-eyebrow text-[11px] text-fm-gold mb-3">Discovery</p>
+                    <p className="text-[#1B1F24] text-base font-light leading-[1.9] break-keep">{sv.summary}</p>
+                  </div>
+                )}
+
+                {/* IDP — 있으면 번호 01/02/03, 없으면 04 추천 교육으로 잇는 한 줄 */}
+                {Array.isArray(report.idp) && report.idp.length > 0 ? (
+                  <div className="print:break-inside-avoid mt-4 bg-white rounded-2xl border border-[#E3E6EA] p-7 md:p-8">
+                    <p className="fm-eyebrow text-[11px] text-fm-gold">Individual Development Plan</p>
+                    <h3 className="mt-1 text-lg font-bold text-[#1B1F24] mb-5">개인 발전 계획 (IDP)</h3>
+                    <div className="divide-y divide-[#E3E6EA]">
+                      {report.idp.map((item: string, idx: number) => (
+                        <div key={idx} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+                          <span className="fm-eyebrow text-[11px] text-fm-gold shrink-0 pt-1 tabular-nums">{String(idx + 1).padStart(2, '0')}</span>
+                          <p className="text-[#1B1F24] text-[15px] font-light leading-[1.8] break-keep">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-5 px-1 text-sm font-light text-[#6B727C] break-keep">구체적인 다음 걸음은 04 추천 교육에서 이어집니다.</p>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* ── [섹션 5] 역량별 심층 진단 ── */}
