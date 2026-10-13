@@ -39,7 +39,7 @@ type SelfViewRow = {
   self: number | null;
   measured: number | null;
   diff: number | null;
-  kind: 'self_higher' | 'self_lower' | 'match' | 'unmeasured';
+  kind: 'self_higher' | 'self_lower' | 'match' | 'unmeasured' | 'reference';
   interpretation: string;
 };
 
@@ -752,7 +752,8 @@ function ReportContent() {
         <SectionHead no="01" en="Overall Summary" ko="종합 요약 · 종합 점수와 대역량 5개 밸런스" className="mb-8" />
 
         {/* ── [섹션 2] 3단 대시보드 ── */}
-        <div className="print-section grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-6 mb-6">
+        {/* (2026-10-13) 카드 높이는 내용 높이로 — 레이더 높이에 맞춰 늘리지 않는다(items-start). 상단만 정렬 */}
+        <div className="print-section grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-6 mb-6 items-start">
           <div className="print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] p-7 flex flex-col justify-start">
             <div className="flex flex-wrap items-start justify-between gap-2 mb-5">
               <div>
@@ -944,6 +945,8 @@ function ReportContent() {
             const badgeCls = (kind: string) =>
               kind === 'self_higher' || kind === 'self_lower'
                 ? 'border-[#E6D7BC] bg-[#F3EBDD] text-[#8A6C3F]'
+                : kind === 'reference'   // 참고치 챕터: 수치는 보이되 단정하지 않음 — 골드 점선
+                ? 'border-dashed border-[#E6D7BC] bg-[#FBF7F0] text-[#8A6C3F]'
                 : kind === 'unmeasured'
                 ? 'border-dashed border-[#9BA2AC] bg-white text-[#9BA2AC]'
                 : 'border-[#E3E6EA] bg-[#F5F6F8] text-[#6B727C]';
@@ -972,7 +975,7 @@ function ReportContent() {
                             <td className="px-3 py-4 text-right text-lg font-light tabular-nums text-[#6B727C]">{num(row.self)}</td>
                             <td className={`px-3 py-4 text-right text-lg tabular-nums ${typeof row.measured === 'number' ? 'font-medium text-[#8A6C3F]' : 'font-light text-[#9BA2AC]'}`}>{num(row.measured)}</td>
                             <td className="px-3 py-4 text-center">{diffBadge(row)}</td>
-                            <td className={`px-7 py-4 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-[#9BA2AC]' : 'text-[#1B1F24]'}`}>{row.interpretation}</td>
+                            <td className={`px-7 py-4 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-[#9BA2AC]' : row.kind === 'reference' ? 'text-[#8A6C3F]' : 'text-[#1B1F24]'}`}>{row.interpretation}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -995,7 +998,7 @@ function ReportContent() {
                               <div className={`mt-0.5 text-xl tabular-nums ${typeof row.measured === 'number' ? 'font-medium text-[#8A6C3F]' : 'font-light text-[#9BA2AC]'}`}>{num(row.measured)}</div>
                             </div>
                           </div>
-                          <p className={`mt-3 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-[#9BA2AC]' : 'text-[#1B1F24]'}`}>{row.interpretation}</p>
+                          <p className={`mt-3 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-[#9BA2AC]' : row.kind === 'reference' ? 'text-[#8A6C3F]' : 'text-[#1B1F24]'}`}>{row.interpretation}</p>
                         </div>
                       ))}
                     </div>
