@@ -27,6 +27,8 @@ interface Company {
   code: string;
   contact_email: string | null;
   is_active: boolean;
+  /** 고객사별 LLM provider. null = 환경 기본값 */
+  llm_provider: 'gemini' | 'claude' | null;
   participant_count: number;
   created_at: string | null;
 }
@@ -40,7 +42,7 @@ export default function CompaniesPage() {
 
   // 고객사 등록 모달
   const [companyModal, setCompanyModal] = useState(false);
-  const [companyForm, setCompanyForm] = useState({ name: '', code: '', contact_email: '' });
+  const [companyForm, setCompanyForm] = useState({ name: '', code: '', contact_email: '', llm_provider: '' });
   const [companySubmitting, setCompanySubmitting] = useState(false);
   const [companyError, setCompanyError] = useState('');
 
@@ -75,7 +77,7 @@ export default function CompaniesPage() {
 
   // ── 고객사 등록 ──
   const openCompanyModal = () => {
-    setCompanyForm({ name: '', code: '', contact_email: '' });
+    setCompanyForm({ name: '', code: '', contact_email: '', llm_provider: '' });
     setCompanyError('');
     setCompanyModal(true);
   };
@@ -89,6 +91,7 @@ export default function CompaniesPage() {
         name: companyForm.name.trim(),
         code: companyForm.code.trim(),
         contact_email: companyForm.contact_email.trim() || null,
+        llm_provider: (companyForm.llm_provider as 'gemini' | 'claude' | '') || null,
       });
       setCompanyModal(false);
       await load();
@@ -191,6 +194,7 @@ export default function CompaniesPage() {
               <th className="border-b border-gray-700 p-4">고객사명</th>
               <th className="border-b border-gray-700 p-4">코드</th>
               <th className="border-b border-gray-700 p-4">담당자 이메일</th>
+              <th className="border-b border-gray-700 p-4">LLM</th>
               <th className="border-b border-gray-700 p-4">참여자</th>
               <th className="border-b border-gray-700 p-4">발급 계정</th>
               <th className="border-b border-gray-700 p-4">등록일</th>
@@ -216,6 +220,13 @@ export default function CompaniesPage() {
                 </td>
                 <td className="p-4 font-mono text-xs text-violet-300">{c.code}</td>
                 <td className="p-4 text-gray-400">{c.contact_email || '-'}</td>
+                <td className="p-4">
+                  {/* (2026-10-15) 고객사별 LLM provider — null 은 환경 기본값 */}
+                  <span className={`rounded px-1.5 py-0.5 font-mono text-[11px] ${
+                    c.llm_provider === 'claude' ? 'bg-amber-500/15 text-amber-300' :
+                    c.llm_provider === 'gemini' ? 'bg-sky-500/15 text-sky-300' : 'bg-gray-700/60 text-gray-400'
+                  }`}>{c.llm_provider || '기본'}</span>
+                </td>
                 <td className="p-4 font-bold text-blue-400">{c.participant_count}명</td>
                 <td className="p-4">
                   {adminCounts[c.id] ? (
@@ -290,6 +301,22 @@ export default function CompaniesPage() {
             />
             <p className="mt-1.5 text-xs text-gray-500">
               계정 발급 시 이 주소가 기본값으로 채워집니다.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-bold text-gray-400">LLM provider</label>
+            <select
+              value={companyForm.llm_provider}
+              onChange={(e) => setCompanyForm({ ...companyForm, llm_provider: e.target.value })}
+              className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-violet-500"
+            >
+              <option value="">기본(서버 환경변수)</option>
+              <option value="gemini">gemini</option>
+              <option value="claude">claude</option>
+            </select>
+            <p className="mt-1.5 text-xs text-gray-500">
+              이 코드로 시작하는 세션에 고정됩니다(세션 중간에 바뀌지 않음). 비우면 서버 기본값.
             </p>
           </div>
 

@@ -271,6 +271,8 @@ export const createCompany = async (payload: {
   name: string;
   code: string;
   contact_email?: string | null;
+  /** (2026-10-15) 고객사별 LLM provider. null = 환경변수 기본값(gemini). */
+  llm_provider?: 'gemini' | 'claude' | null;
 }) => {
   const { data } = await adminApi.post('/admin/companies', payload);
   return data;

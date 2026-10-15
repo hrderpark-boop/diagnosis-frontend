@@ -357,7 +357,15 @@ const ParticipantsPage = () => {
                       <div className="font-bold text-white">{p.name}</div>
                       <div className="text-xs text-gray-500">{p.email}</div>
                     </td>
-                    <td className="p-4 text-gray-400">{p.company_name}</td>
+                    <td className="p-4 text-gray-400">
+                      <div>{p.company_name}</div>
+                      {/* (2026-10-15) 최근 세션에 고정된 LLM provider(null = 환경 기본값/구 세션) */}
+                      {p.llm_provider && (
+                        <span className={`mt-1 inline-block rounded px-1.5 py-0.5 font-mono text-[10px] ${
+                          p.llm_provider === 'claude' ? 'bg-amber-500/15 text-amber-300' : 'bg-sky-500/15 text-sky-300'
+                        }`}>{p.llm_provider}</span>
+                      )}
+                    </td>
                     <td className="p-4">
                       <span className={`rounded-full px-2 py-1 text-xs ${STATUS_STYLE[p.last_status] || 'bg-gray-700/50 text-gray-400'}`}>
                         {STATUS_LABEL[p.last_status] || p.last_status}
@@ -368,7 +376,7 @@ const ParticipantsPage = () => {
                           {p.abandoned_sessions.map((s: any) => (
                             <li key={s.id} className="flex items-center gap-2 text-[11px] text-gray-400">
                               <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-slate-300">보관</span>
-                              <span>{s.coach_name?.split('(')[0]?.trim() || '-'} · {s.message_count}턴 · {s.updated_at ? new Date(s.updated_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '-'}</span>
+                              <span>{s.coach_name?.split('(')[0]?.trim() || '-'} · {s.message_count}턴{s.llm_provider ? ` · ${s.llm_provider}` : ''} · {s.updated_at ? new Date(s.updated_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '-'}</span>
                               <button
                                 onClick={() => setRestoreTarget({ id: s.id, name: p.name, coach_name: s.coach_name, message_count: s.message_count })}
                                 title="이 세션을 in_progress 로 복원 (현재 진행 중 세션은 보관)"
