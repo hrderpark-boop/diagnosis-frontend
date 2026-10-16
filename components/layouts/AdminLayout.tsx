@@ -167,6 +167,13 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
             )}
           </div>
         )}
+        {/* (2026-10-16) Claude API 키 미설정 — 키가 '없을 때만'(false). undefined(구 백엔드)는 표시하지 않는다. */}
+        {alerts?.anthropic_key_configured === false && (
+          <div className="shrink-0 border-b border-amber-800 bg-amber-950/70 px-8 py-3 text-sm text-amber-200">
+            <span className="font-bold">Claude API 키 미설정</span> — 서버에 ANTHROPIC_API_KEY 가 없습니다. provider 가 claude 인 고객사(CNC-CLAUDE 등)의 세션 시작이 실패합니다. Render Environment 에 키를 등록하세요.
+            {alerts.llm_provider_default && <span className="ml-2 text-amber-300/80">서버 기본 provider: {alerts.llm_provider_default}</span>}
+          </div>
+        )}
         {alerts?.synthetic_check?.ok === false && (
           <div className="shrink-0 border-b border-rose-800 bg-rose-950/80 px-8 py-3 text-sm text-rose-200">
             <span className="font-bold">쓰기 경로 합성 점검 실패</span> — 새 메시지를 저장하지 못하는 상태입니다.

@@ -341,6 +341,9 @@ export interface AdminAlerts {
   errors_5xx_threshold?: number;
   recent_5xx?: { at: string; path: string; status: number; error_id: string | null }[];
   synthetic_check?: { last_run_at: string | null; ok: boolean | null; error: string | null; elapsed_ms: number | null };
+  // (2026-10-16) Claude API 키 존재 여부(값 없음) · 서버 기본 provider. 구 백엔드에서는 undefined.
+  anthropic_key_configured?: boolean;
+  llm_provider_default?: string;
 }
 export const fetchAlerts = async (): Promise<AdminAlerts> => {
   const res = await adminApi.get('/admin/alerts');
