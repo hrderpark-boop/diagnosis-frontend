@@ -102,7 +102,7 @@ export default function SelectCoachPage() {
         if (e.response && e.response.status === 401) {
             alert("로그인 세션이 만료되었습니다. 다시 로그인해주세요.");
             localStorage.removeItem('accessToken');
-            router.push('/login');
+            router.push('/'); // 참가자 진입점은 / → /start (구 /login 페이지는 삭제됨)
             return;
         }
         throw e;
