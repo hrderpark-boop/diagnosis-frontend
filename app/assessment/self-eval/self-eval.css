@@ -1,0 +1,83 @@
+/* ============================================================
+   Find Me 라이트 리디자인 · 03 자가진단 화면 고유 스타일
+   원본: design/light-sample/b/self-eval.html 의 <style>. 공통 요소는 app/fm-light.css.
+   ============================================================ */
+.fm-self-page { padding: 64px 0 96px; }
+.fm-self-page .fm-mstep { justify-content: center; margin: 0 auto 22px; }
+.fm-self-page .fm-sec-head h1 { font-size: 32px; }
+
+/* 본문 열: 760 중앙 */
+.fm-self-col { max-width: 760px; margin: 0 auto; }
+
+/* 되돌리기 배너: 가로형 카드 */
+.fm-self-restore { margin: 0 auto 32px; max-width: 760px; display: flex; align-items: center; gap: 20px; padding: 18px 22px; }
+.fm-self-restore p { flex: 1; margin: 0; font-size: 14px; line-height: 1.7; color: var(--fm-ink-body); word-break: keep-all; }
+.fm-self-restore p b { font-weight: 700; color: var(--fm-ink); }
+.fm-self-restore .fm-btn { flex-shrink: 0; }
+
+/* 진행 행 (응답 추적이 없으므로 문항 수·평균만 정적으로 표시) */
+.fm-self-progress { margin-top: 48px; }
+.fm-self-progress .row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.fm-self-progress .row .left { font-size: 13px; font-weight: 600; color: var(--fm-ink); }
+.fm-self-progress .row .left span { font-family: var(--fm-font-display); letter-spacing: .02em; color: var(--fm-accent); }
+.fm-self-progress .row .fm-caption b { font-family: var(--fm-font-display); font-weight: 600; letter-spacing: .02em; color: var(--fm-ink); }
+
+/* 문항 카드 */
+.fm-self-qs { margin-top: 24px; display: grid; gap: 16px; }
+.fm-self-q .head { display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 12px; align-items: start; }
+.fm-self-q .head .fm-num { font-size: 13px; line-height: 24px; }
+.fm-self-q .head h2 { margin: 0; font-size: 18px; line-height: 24px; font-weight: 700; color: var(--fm-ink); letter-spacing: -.01em; }
+.fm-self-q .head p { margin: 4px 0 0; font-size: 14px; line-height: 1.6; color: var(--fm-gray-500); }
+
+/* 세그먼트 컨트롤 */
+.fm-self-seg { margin-top: 22px; display: flex; }
+.fm-self-seg button {
+  flex: 1 1 0; height: 48px; margin-left: -1px; padding: 0;
+  border: 1px solid var(--fm-gray-100); border-radius: 0;
+  background: var(--fm-paper); color: var(--fm-ink-body);
+  font: 500 15px/1 var(--fm-font-display); letter-spacing: .02em; cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+  position: relative;
+}
+.fm-self-seg button:first-child { margin-left: 0; border-radius: var(--fm-radius-sm) 0 0 var(--fm-radius-sm); }
+.fm-self-seg button:last-child { border-radius: 0 var(--fm-radius-sm) var(--fm-radius-sm) 0; }
+.fm-self-seg button:hover { background: var(--fm-paper-mute); color: var(--fm-ink); }
+.fm-self-seg button[aria-pressed="true"] { background: var(--fm-accent); border-color: var(--fm-accent); color: var(--fm-paper); font-weight: 600; z-index: 1; }
+.fm-self-seg button[aria-pressed="true"]:hover { background: var(--fm-accent-hover); border-color: var(--fm-accent-hover); }
+.fm-self-seg button:focus-visible { outline: 2px solid var(--fm-accent); outline-offset: 2px; z-index: 2; }
+
+.fm-self-ends { margin-top: 8px; display: flex; justify-content: space-between; font-size: 12px; line-height: 1.6; color: var(--fm-gray-500); }
+.fm-self-val { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--fm-paper-mute); display: flex; justify-content: flex-end; align-items: baseline; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--fm-ink); font-weight: 600; min-height: 20px; }
+.fm-self-val .k { font-weight: 500; color: var(--fm-gray-500); }
+.fm-self-val .fm-num { font-size: 13px; }
+
+/* 자유응답 */
+.fm-self-open { margin-top: 16px; }
+.fm-self-open .fm-field { margin-top: 14px; }
+.fm-self-open .fm-field label { font-size: 16px; margin-bottom: 4px; }
+.fm-self-open .fm-field .help { margin: 0 0 12px; }
+.fm-self-open textarea { min-height: 140px; }
+.fm-self-open .count { margin-top: 8px; text-align: right; }
+
+/* 오류 */
+.fm-self-error { margin-top: 24px; padding: 12px 16px; border: 1px solid var(--fm-danger); border-radius: var(--fm-radius-sm); background: var(--fm-paper); font-size: 14px; line-height: 1.6; color: var(--fm-danger); }
+
+/* 제출 */
+.fm-self-submit { margin-top: 32px; text-align: center; }
+.fm-self-submit .skip { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--fm-paper-mute); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+/* 모바일 */
+@media (max-width: 767px) {
+  .fm-self-page { padding: 32px 0 64px; }
+  .fm-self-page .fm-sec-head h1 { font-size: 24px; }
+  .fm-self-restore { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px; }
+  .fm-self-progress { margin-top: 32px; }
+  .fm-self-qs { margin-top: 20px; gap: 12px; }
+  .fm-self-q .head { grid-template-columns: 30px minmax(0, 1fr); column-gap: 10px; }
+  .fm-self-q .head h2 { font-size: 17px; }
+  .fm-self-seg { margin-top: 18px; }
+  .fm-self-seg button { height: 44px; font-size: 14px; }
+  .fm-self-open { margin-top: 12px; }
+  .fm-self-open .fm-field label { font-size: 15px; }
+  .fm-self-submit { margin-top: 24px; }
+}

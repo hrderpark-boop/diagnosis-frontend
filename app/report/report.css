@@ -1,0 +1,122 @@
+/* ============================================================
+   Find Me 라이트 리디자인 · 05 리포트 (샘플 b/report.html)
+   공통 스타일은 app/fm-light.css. 아래는 이 화면 고유 스타일만(fm-report- 접두어).
+   색은 토큰 변수만. 그래프(SVG)는 html2canvas 호환을 위해 page.tsx 에서 토큰과 같은 hex 를 직접 쓴다.
+   ============================================================ */
+.fm-report { background: var(--fm-paper-soft); }
+.fm-report .fm-header .fm-right { gap: 14px; }
+.fm-report .fm-header .fm-right .fm-btn { height: 36px; padding: 0 14px; font-size: 13px; }
+.fm-report .fm-header .fm-right .user { margin-right: -4px; }
+.fm-report-mstep { padding-top: 20px; }
+.fm-report-body { padding-bottom: 8px; }
+
+/* 숫자 공통(Montserrat 600). 색은 맥락 클래스 또는 Tailwind text-* 가 정한다. */
+.fm-report-fig { font-family: var(--fm-font-display); font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+/* ---------- 로딩 · 재시도 ---------- */
+.fm-report-wait { min-height: calc(100dvh - 64px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-top: 40px; padding-bottom: 40px; }
+.fm-report-spinner { width: 44px; height: 44px; margin-bottom: 24px; border: 2px solid var(--fm-paper-mute); border-top-color: var(--fm-accent); border-radius: 50%; animation: fmReportSpin .9s linear infinite; }
+@keyframes fmReportSpin { to { transform: rotate(360deg); } }
+
+/* ---------- 타이틀 블록 ---------- */
+.fm-report-title { padding: 48px 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 40px; align-items: end; }
+.fm-report-title h1 { margin: 14px 0 0; font-size: 32px; line-height: 1.3; font-weight: 700; letter-spacing: -.02em; color: var(--fm-ink); }
+.fm-report-title .meta { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px 0; }
+.fm-report-title .meta span + span::before { content: "·"; margin: 0 8px; color: var(--fm-gray-300); }
+.fm-report-title > :only-child { grid-column: 1 / -1; }
+.fm-report-arch { padding: 24px 28px; }
+.fm-report-arch h2 { margin: 10px 0 0; font-size: 20px; line-height: 1.3; font-weight: 700; color: var(--fm-ink); letter-spacing: -.01em; }
+.fm-report-arch p { margin: 8px 0 0; font-size: 14px; line-height: 1.7; color: var(--fm-ink-body); }
+
+/* ---------- KPI ---------- */
+.fm-report-kpis { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 16px; }
+.fm-report-kpi { padding: 22px 24px 20px; }
+.fm-report-kpi .v { font-size: 32px; line-height: 1; color: var(--fm-ink); }
+.fm-report-kpi .v.ref { color: var(--fm-gray-500); }
+.fm-report-kpi .v small { font: 600 13px/1 var(--fm-font-sans); letter-spacing: 0; margin-left: 4px; color: var(--fm-gray-500); }
+.fm-report-kpi .k { margin-top: 10px; }
+
+/* ---------- 섹션 머리 ---------- */
+.fm-report-sec { margin-top: 56px; }
+.fm-report-shead { display: flex; align-items: baseline; gap: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--fm-gray-100); margin-bottom: 24px; }
+.fm-report-shead .fm-num { font-size: 28px; line-height: 1; letter-spacing: -.02em; }
+.fm-report-shead h2 { margin: 6px 0 0; font-size: 22px; line-height: 1.3; font-weight: 700; letter-spacing: -.015em; color: var(--fm-ink); }
+/* 03 섹션: 머리 + 전체 펼치기 버튼 한 줄(괘선은 줄 전체에) */
+.fm-report-sec-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--fm-gray-100); margin-bottom: 24px; }
+.fm-report-sec-row .fm-report-shead { margin: 0; padding: 0; border: 0; }
+
+/* ---------- 카드 공통 ---------- */
+.fm-report-flush { padding: 0; }
+.fm-report-inner { padding: 24px; }
+.fm-report .fm-card .cap-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fm-report .fm-card .cap-head h3 { margin: 6px 0 0; font-size: 16px; line-height: 1.3; font-weight: 700; color: var(--fm-ink); }
+
+/* ---------- 01 Overview ---------- */
+.fm-report-ov { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
+.fm-report-ov > .fm-card { display: flex; flex-direction: column; }
+.fm-report-legend { display: flex; gap: 8px 20px; justify-content: center; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--fm-paper-mute); font-size: 12px; color: var(--fm-gray-500); }
+.fm-report-legend span { display: inline-flex; align-items: center; gap: 8px; }
+.fm-report-scores .srow { padding: 16px 0 14px; border-bottom: 1px solid var(--fm-paper-mute); }
+.fm-report-scores .srow:last-child { border-bottom: 0; padding-bottom: 0; }
+.fm-report-scores .srow .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fm-report-scores .srow .nm { font-size: 15px; font-weight: 600; color: var(--fm-ink); }
+.fm-report-scores .srow .fm-report-fig { font-size: 16px; color: var(--fm-ink); white-space: nowrap; }
+.fm-report-scores .srow .fm-report-fig small { font: 500 11px/1 var(--fm-font-display); letter-spacing: 0; color: var(--fm-gray-300); margin-left: 2px; }
+.fm-report-scores .srow .off { color: var(--fm-gray-300); }
+.fm-report-scores .srow .d { margin-top: 2px; }
+.fm-report-scores .srow .fm-bar { margin-top: 10px; }
+/* 미측정: 채움 없이 점선 트랙으로 빈칸을 드러낸다 */
+.fm-report-bar-off { background: transparent; border: 1px dashed var(--fm-gray-300); }
+
+/* ---------- 03 역량별 상세 헤더 ---------- */
+.fm-report-dhead { width: 100%; display: flex; align-items: center; gap: 18px; padding: 22px 28px; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.fm-report-dhead:focus-visible { outline: 2px solid var(--fm-accent); outline-offset: -2px; }
+.fm-report-dhead .fm-num { font-size: 20px; line-height: 1; width: 34px; flex: 0 0 auto; }
+.fm-report-dhead .ttl { flex: 1; min-width: 0; display: block; }
+.fm-report-dhead .h { display: block; font-size: 20px; line-height: 1.3; font-weight: 700; color: var(--fm-ink); letter-spacing: -.01em; }
+.fm-report-dhead .sum { display: block; margin-top: 4px; font-size: 14px; line-height: 1.6; color: var(--fm-ink-body); }
+.fm-report-dhead .sum.off { color: var(--fm-gray-300); }
+.fm-report-dhead .score { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; flex: 0 0 auto; }
+.fm-report-dhead .score .fm-report-fig { font-size: 32px; line-height: 1; color: var(--fm-ink); }
+.fm-report-dhead .chev { width: 20px; height: 20px; color: var(--fm-gray-300); flex: 0 0 auto; }
+
+/* ---------- 유동 ---------- */
+@media (max-width: 1200px) {
+  .fm-report .fm-header .fm-right .user, .fm-report .fm-header .fm-right .sep { display: none; }
+  .fm-report-title { grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; }
+}
+@media (max-width: 1024px) {
+  .fm-report-title { grid-template-columns: 1fr; align-items: start; }
+  .fm-report-arch { max-width: 480px; }
+}
+
+/* ---------- 모바일 ---------- */
+@media (max-width: 767px) {
+  .fm-report .fm-header .fm-right .fm-btn.secondary { display: none; }
+  .fm-report .fm-header .fm-right .fm-btn { height: 34px; padding: 0 12px; }
+  .fm-report-title { padding: 24px 0 32px; gap: 24px; }
+  .fm-report-title h1 { font-size: 24px; }
+  .fm-report-arch { max-width: none; padding: 20px; }
+  .fm-report-kpis { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .fm-report-kpi { padding: 18px 18px 16px; }
+  .fm-report-kpi .v { font-size: 28px; }
+  .fm-report-sec { margin-top: 44px; }
+  .fm-report-shead { gap: 14px; padding-bottom: 14px; margin-bottom: 18px; }
+  .fm-report-shead .fm-num { font-size: 24px; }
+  .fm-report-shead h2 { font-size: 20px; }
+  .fm-report-sec-row { flex-direction: column; align-items: flex-start; padding-bottom: 14px; margin-bottom: 18px; }
+  .fm-report-ov { grid-template-columns: 1fr; gap: 12px; }
+  .fm-report-scores .srow { padding: 14px 0 12px; }
+  .fm-report-inner { padding: 20px; }
+  .fm-report-dhead { gap: 12px; padding: 18px 20px; flex-wrap: wrap; }
+  .fm-report-dhead .fm-num { width: auto; font-size: 16px; }
+  .fm-report-dhead .h { font-size: 18px; }
+  .fm-report-dhead .score .fm-report-fig { font-size: 26px; }
+}
+
+/* ---------- 인쇄 ---------- */
+@media print {
+  .fm-report { background: var(--fm-paper); min-height: 0; }
+  .fm-report-mstep { display: none; }
+  .fm-report-title { padding-top: 8px; }
+}

@@ -2,9 +2,13 @@
 
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import axios from 'axios';
 import { COMPETENCY_ORDER, toKoreanCompetency } from '@/lib/competencyLabels';
 import { clearRestoreCandidate, readRestoreCandidate, type RestoreCandidate } from '@/lib/restoreCandidate';
+import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
+import ParticipantFooter from '@/components/participant/ParticipantFooter';
+import './self-eval.css';
 
 /**
  * 자가진단(Self-Assessment) — AI 코칭 대화 시작 직전 단계.
@@ -13,9 +17,8 @@ import { clearRestoreCandidate, readRestoreCandidate, type RestoreCandidate } fr
  * 메타인지(자기 객관화) 격차를 산출한다. 그래서 반드시 대화 '이전'에
  * 받아야 하며, 코칭 대화에 영향을 주지 않도록 결과는 노출하지 않는다.
  *
- * 시각: FindME 리뉴얼 1C / SELF ASSESSMENT (STEP 01 눈썹 · 36px 라이트 2행 제목 ·
- * 역량 행: 번호+이름+설명 / 2px 트랙 슬라이더 / 우측 큰 숫자 · 주관식 · 평균 · 흰 CTA).
- * 유지: step 0.5, 눈금 1~5, 헤드라인 "지금 나는 어느 정도일까요?", 로직 전부.
+ * 시각: 라이트 리디자인 B (design/light-sample/b/self-eval.html). 문항 카드 + 1~5 세그먼트 버튼.
+ * 유지: 초기값 3, 언제든 제출 가능, PATCH 페이로드, 건너뛰기, 되돌리기 배너 로직 전부.
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
@@ -62,6 +65,10 @@ function SelfEvalContent() {
   }, [searchParams]);
   const [scores, setScores] = useState<Record<string, number>>(
     () => Object.fromEntries(COMPETENCIES.map((c) => [c.key, 3]))
+  );
+  // 헤더 표시 전용: 참여 확인 단계에서 저장한 이름을 읽기만 한다.
+  const [participantName] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('participant_name') || '' : ''
   );
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -164,165 +171,151 @@ function SelfEvalContent() {
   const handleSkip = () => router.push(chatUrl);
 
   return (
-    <main className="fm-stage fm-rise min-h-screen text-white">
-      <div className="mx-auto max-w-[1040px] px-6 md:px-12 pt-14 md:pt-[72px] pb-16 md:pb-[88px]">
-        {/* 4(a) 되돌리기 배너 — 새로 시작 직후, 첫 메시지 전까지만 */}
-        {restoreCand && (
-          <div className="mb-10 border-l-2 border-fm-gold bg-fm-panel/80 px-6 py-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-6 break-keep">
-            <p className="flex-1 text-[15px] leading-[1.8] text-[#E8ECF1]">
-              <b className="font-bold text-fm-gold">{restoreCand.coach_name.split('(')[0].trim()}</b> 코치와의 이전 진단을 보관했습니다.
-              실수라면 이전 진단으로 돌아갈 수 있습니다.
-            </p>
-            <button
-              type="button"
-              onClick={handleRestore}
-              disabled={restoring}
-              className="shrink-0 h-10 px-4 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50"
-            >
-              {restoring ? '되돌리는 중…' : '이전 진단으로 돌아가기'}
-            </button>
-          </div>
-        )}
-        {/* 헤더 */}
-        <div className="fm-eyebrow text-xs text-fm-gold">Step 01 · 자가진단</div>
-        <h1 className="mt-6 text-[28px] md:text-4xl font-light leading-[1.35]">
-          <span className="block text-white">대화를 시작하기 전에,</span>
-          <span className="block text-fm-gold">지금 나는 어느 정도일까요?</span>
-        </h1>
-        <p className="mt-5 text-sm font-light leading-[1.8] text-fm-muted">
-          정답은 없습니다. 지금 떠오르는 대로 솔직하게 표시해주세요.<br className="hidden md:block" />
-          이 응답은 진단이 끝난 뒤 <span className="text-fm-text">&lsquo;스스로 보는 나&rsquo;와 &lsquo;대화에 드러난 나&rsquo;</span>를 비교하는 데 쓰입니다.
-        </p>
+    <div className="fm-app">
+      <ParticipantHeader
+        step={3}
+        right={
+          <>
+            {participantName && <span className="user">{participantName} 님</span>}
+            {participantName && <span className="sep" />}
+            <Link href="/">나가기</Link>
+          </>
+        }
+      />
+      <main className="fm-self-page fm-enter">
+        <div className="fm-wrap">
+          <ParticipantMobileStep step={3} />
 
-        <form onSubmit={handleSubmit}>
-          {/* 역량별 슬라이더 — 행 단위(구분선) */}
-          <div className="mt-14 border-t border-fm-line">
-            {COMPETENCIES.map((c, idx) => {
-              const v = scores[c.key];
-              const pct = ((v - 1) / 4) * 100;
-              return (
-                <div
-                  key={c.key}
-                  className="py-8 md:py-9 border-b border-fm-line flex flex-col md:flex-row gap-6 md:gap-12 md:items-start"
-                >
-                  <div className="md:w-[300px] shrink-0">
-                    <div className="flex items-baseline gap-3">
-                      <span className="fm-eyebrow text-xs text-fm-gold">{String(idx + 1).padStart(2, '0')}</span>
-                      <h3 className="text-lg font-bold text-white">{c.name}</h3>
-                    </div>
-                    <p className="mt-2.5 text-[13px] font-light leading-[1.7] text-fm-muted">{c.desc}</p>
-                  </div>
-
-                  <div className="flex-1 md:pt-1.5 flex gap-6 items-start">
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="range"
-                        min={1}
-                        max={5}
-                        step={0.5}
-                        value={v}
-                        onChange={(e) => setScore(c.key, Number(e.target.value))}
-                        aria-label={`${c.name} 자가 평가 점수`}
-                        className="fm-range"
-                        style={{
-                          // 값까지 골드, 나머지 라인 색 — 트랙 배경으로 주입
-                          ['--fm-range-bg' as string]: `linear-gradient(to right, #B08D5C 0%, #B08D5C ${pct}%, #2C3037 ${pct}%, #2C3037 100%)`,
-                        }}
-                      />
-                      {/* 눈금 1~5: 썸 반폭(6px)만큼 안쪽에서 (v-1)/4 위치에 중심 정렬 */}
-                      <div className="relative mx-1.5 mt-3 h-4 text-[11px] text-fm-muted">
-                        {[1, 2, 3, 4, 5].map((t) => (
-                          <span
-                            key={t}
-                            className={`absolute -translate-x-1/2 ${t <= v ? 'text-fm-text' : ''}`}
-                            style={{ left: `${((t - 1) / 4) * 100}%` }}
-                          >
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="mt-2 flex justify-between text-[11px] text-fm-muted">
-                        <span>많이 부족</span><span>매우 자신 있음</span>
-                      </div>
-                    </div>
-
-                    <div className="w-[72px] md:w-24 shrink-0 text-right">
-                      <div className="text-[28px] md:text-[32px] font-light leading-none tabular-nums text-white">
-                        {Number(v).toFixed(1)}
-                      </div>
-                      <div className="mt-2 text-[11px] text-fm-muted">{scoreLabel(v)}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 주관식 */}
-          <div className="mt-14">
-            <div className="fm-eyebrow text-[11px] text-fm-muted">Open response</div>
-            <label htmlFor="sw-text" className="mt-3 block text-base font-bold text-white">
-              본인이 생각하는 리더로서의 가장 큰 강점과 약점을 짧게 적어주세요
-            </label>
-            <p className="mt-2 text-[13px] font-light leading-[1.7] text-fm-muted">
-              길게 쓰지 않아도 괜찮습니다. 떠오르는 그대로 두세 문장이면 충분합니다.
-            </p>
-            <div className="mt-5 border-t border-b border-fm-line py-6">
-              <textarea
-                id="sw-text"
-                rows={4}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                maxLength={2000}
-                placeholder="예) 팀원들의 이야기를 끝까지 듣는 편이라 신뢰는 두터운 것 같습니다. 다만 결정을 미루다 타이밍을 놓칠 때가 있습니다."
-                className="w-full resize-none bg-transparent text-[15px] font-light leading-[1.9] text-fm-text placeholder:text-fm-dim outline-none"
-              />
-              <div className="mt-4 text-right text-[11px] text-fm-muted tabular-nums">{text.length} / 2000</div>
-            </div>
-          </div>
-
-          {/* 평균 */}
-          <div className="mt-12 pt-8 border-t border-fm-line flex items-end justify-between">
-            <span className="text-[13px] text-fm-text">나의 자가 평가 평균</span>
-            <span className="flex items-baseline gap-2">
-              <span className="text-[32px] font-light leading-none tabular-nums text-white">{average}</span>
-              <span className="text-[13px] text-fm-muted">/ 5.0</span>
-            </span>
-          </div>
-
-          {error && (
-            <div className="mt-6 border-l-2 border-rose-400 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-              {error}
+          {/* 4(a) 되돌리기 배너: 새로 시작 직후, 첫 메시지 전까지만 */}
+          {restoreCand && (
+            <div className="fm-card fm-self-restore">
+              <p>
+                <b>{restoreCand.coach_name.split('(')[0].trim()}</b> 코치와의 이전 진단을 보관했습니다.
+                실수라면 이전 진단으로 돌아갈 수 있습니다.
+              </p>
+              <button
+                type="button"
+                onClick={handleRestore}
+                disabled={restoring}
+                className="fm-btn secondary sm"
+              >
+                {restoring ? '되돌리는 중…' : '이전 진단으로 돌아가기'}
+              </button>
             </div>
           )}
 
-          {/* 제출 / 건너뛰기 */}
-          <div className="mt-10 flex flex-col items-center gap-5">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full h-[52px] rounded bg-white text-black text-[15px] font-bold hover:bg-fm-gold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {submitting ? '저장 중입니다...' : '작성 완료, 코치와 대화 시작하기'}
-            </button>
-            <button
-              type="button"
-              onClick={handleSkip}
-              disabled={submitting}
-              className="text-[13px] text-fm-muted underline underline-offset-4 hover:text-white transition-colors disabled:opacity-50"
-            >
-              건너뛰고 바로 시작하기
-            </button>
+          {/* 섹션 머리 */}
+          <div className="fm-sec-head">
+            <div className="fm-eyebrow">Step 03 · Self assessment</div>
+            <h1>
+              대화를 시작하기 전에,
+              <br />
+              지금 나는 어느 정도일까요?
+            </h1>
+            <p>
+              정답은 없습니다. 지금 떠오르는 대로 솔직하게 표시해 주세요. 이 응답은 진단이 끝난 뒤
+              &lsquo;스스로 보는 나&rsquo;와 &lsquo;대화에 드러난 나&rsquo;를 비교하는 데 쓰입니다.
+            </p>
           </div>
-        </form>
-      </div>
-    </main>
+
+          <form onSubmit={handleSubmit} className="fm-self-col">
+            {/* 진행 행: 응답 추적 로직이 없으므로 문항 수와 평균만 정적으로 보여 준다 */}
+            <div className="fm-self-progress">
+              <div className="row">
+                <div className="left">
+                  역량 <span>5</span>문항
+                </div>
+                <div className="fm-caption">
+                  나의 자가 평가 평균 <b>{average}</b> / 5.0
+                </div>
+              </div>
+            </div>
+
+            {/* 문항 카드: 1~5 세그먼트 버튼 */}
+            <div className="fm-self-qs">
+              {COMPETENCIES.map((c, idx) => {
+                const v = scores[c.key];
+                return (
+                  <article key={c.key} className="fm-card fm-self-q">
+                    <div className="head">
+                      <span className="fm-num">{String(idx + 1).padStart(2, '0')}</span>
+                      <div>
+                        <h2>{c.name}</h2>
+                        <p>{c.desc}</p>
+                      </div>
+                    </div>
+                    <div className="fm-self-seg" role="group" aria-label={`${c.name} 자가 평가 점수`}>
+                      {[1, 2, 3, 4, 5].map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          aria-pressed={v === t}
+                          aria-label={`${t} ${SCORE_LABELS[String(t)]}`}
+                          onClick={() => setScore(c.key, t)}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="fm-self-ends">
+                      <span>많이 부족</span>
+                      <span>매우 자신 있음</span>
+                    </div>
+                    <div className="fm-self-val">
+                      <span className="k">현재 선택</span>
+                      <span className="fm-num">{v}</span>
+                      <span>{scoreLabel(v)}</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {/* 자유응답 */}
+            <section className="fm-card fm-self-open">
+              <div className="fm-eyebrow">Open response</div>
+              <div className="fm-field">
+                <label htmlFor="sw-text">본인이 생각하는 리더로서의 가장 큰 강점과 약점을 짧게 적어주세요</label>
+                <p className="help">길게 쓰지 않아도 괜찮습니다. 떠오르는 그대로 두세 문장이면 충분합니다.</p>
+                <textarea
+                  id="sw-text"
+                  rows={4}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  maxLength={2000}
+                  placeholder="예) 팀원들의 이야기를 끝까지 듣는 편이라 신뢰는 두터운 것 같습니다. 다만 결정을 미루다 타이밍을 놓칠 때가 있습니다."
+                />
+              </div>
+              <div className="fm-caption count">{text.length} / 2000</div>
+            </section>
+
+            {error && <div className="fm-self-error" role="alert">{error}</div>}
+
+            {/* 제출 / 건너뛰기 */}
+            <div className="fm-self-submit">
+              <button type="submit" disabled={submitting} className="fm-btn block">
+                {submitting ? '저장 중입니다...' : '대화 시작하기'}
+              </button>
+              <div className="skip">
+                <button type="button" onClick={handleSkip} disabled={submitting} className="fm-btn ghost sm">
+                  자가진단 건너뛰기
+                </button>
+                <p className="fm-caption" style={{ margin: 0 }}>
+                  건너뛰면 리포트의 자기인식 비교가 제공되지 않습니다
+                </p>
+              </div>
+            </div>
+          </form>
+        </div>
+      </main>
+      <ParticipantFooter />
+    </div>
   );
 }
 
 export default function SelfEvalPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen fm-stage" />}>
+    <Suspense fallback={<div className="fm-app min-h-screen" />}>
       <SelfEvalContent />
     </Suspense>
   );

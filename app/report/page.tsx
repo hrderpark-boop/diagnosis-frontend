@@ -5,9 +5,11 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
 import { AnalysisProgress, fetchAnalysisProgress, isProgressRunning } from '@/lib/analysisProgress';
 import AnalysisChecklist from '@/components/AnalysisChecklist';
+import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
 import { getKeyToNameMap, getSubCompetenciesMap, fetchFramework, FrameworkCompetency } from '@/lib/framework';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import './report.css';
 
 // ----------------------------------------------------------------------
 // [ICONS]
@@ -19,20 +21,20 @@ const ChevronIcon = ({ className }: { className?: string }) => (
 );
 
 // ----------------------------------------------------------------------
-// [SECTION HEAD] — 1E 아트보드의 번호 매긴 섹션 헤더("01 OVERALL SUMMARY / 종합 요약")
-//  순수 표시용(데이터·상태 없음). 번호는 Pretendard 800, 영문은 Montserrat 눈썹.
+// [SECTION HEAD] - 샘플 b/report.html 의 섹션 머리(.fm-num 번호 + 영문 눈썹 + 국문 제목 + 하단 괘선)
+//  순수 표시용(데이터·상태 없음). 스타일은 report.css 의 .fm-report-shead.
 // ----------------------------------------------------------------------
 const SectionHead = ({ no, en, ko, className = '' }: { no: string; en: string; ko: string; className?: string }) => (
-  <div className={`flex items-baseline gap-5 border-t border-[#E3E6EA] pt-6 ${className}`}>
-    <span className="text-4xl md:text-[44px] leading-none font-extrabold tabular-nums text-fm-gold">{no}</span>
+  <div className={`fm-report-shead ${className}`}>
+    <span className="fm-num">{no}</span>
     <div>
-      <div className="fm-eyebrow text-sm md:text-base text-[#1B1F24]">{en}</div>
-      <div className="mt-1.5 text-xs font-light text-[#6B727C]">{ko}</div>
+      <div className="fm-eyebrow">{en}</div>
+      <h2>{ko}</h2>
     </div>
   </div>
 );
 
-// 02 Self View 표의 한 줄 — 백엔드(/reports/{sid} → self_view.rows) 값 그대로 표시한다.
+// 02 Self View 표의 한 줄 - 백엔드(/reports/{sid} → self_view.rows) 값 그대로 표시한다.
 type SelfViewRow = {
   key: string;
   name: string;
@@ -63,7 +65,7 @@ const RadarChart = ({
 }) => {
   const safeData = data || {};
   const safeMax = maxScore || 5;
-  // 겹침 폴리곤용 값 추출 — 백엔드 값 그대로(계산 없음). 숫자가 아니면 null.
+  // 겹침 폴리곤용 값 추출 - 백엔드 값 그대로(계산 없음). 숫자가 아니면 null.
   const overlayValues = (src?: Record<string, number | null> | null): Array<number | null> | null =>
     src ? competencies.map((c) => { const v = src[c.key] ?? src[c.name]; return typeof v === 'number' ? v : null; }) : null;
   const selfVals = overlayValues(selfScores);
@@ -114,45 +116,39 @@ const RadarChart = ({
   return (
     <div className="flex justify-center items-center py-2 w-full h-full">
       <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
-        <defs>
-          <filter id="glow-light">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
         {levels.map((level) => (
-          <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#E3E6EA" strokeWidth="1" />
+          <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#D9D9D9" strokeWidth="1" />
         ))}
         {stats.map((stat, i) => {
           const p = getPoint(safeMax, i);
           return stat.value === null
-            ? <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#9BA2AC" strokeWidth="1.2" strokeDasharray="4 3" />
-            : <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#E3E6EA" strokeWidth="1" />;
+            ? <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#A6A6A6" strokeWidth="1.2" strokeDasharray="4 3" />
+            : <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#D9D9D9" strokeWidth="1" />;
         })}
         {measuredPts.length >= 3 && (
-          <polygon points={points} fill="rgba(176,141,92,0.16)" stroke="#B08D5C" strokeWidth="2" filter="url(#glow-light)" />
+          <polygon points={points} fill="#E9EDF4" fillOpacity="0.75" stroke="#1C2B4A" strokeWidth="2" />
         )}
         {measuredPts.length === 2 && (
-          <polyline points={points} fill="none" stroke="#B08D5C" strokeWidth="2" />
+          <polyline points={points} fill="none" stroke="#1C2B4A" strokeWidth="2" />
         )}
-        {/* 그룹 평균(회색 실선) → 스스로 보는 나(골드 점선) 순으로 측정 폴리곤 위에 겹친다 */}
-        {groupVals && renderOverlay(groupVals, '#9BA2AC', undefined, 'grp')}
-        {selfVals && renderOverlay(selfVals, '#B08D5C', '5 4', 'self')}
+        {/* 그룹 평균(진회색 실선) → 스스로 보는 나(회색 점선) 순으로 측정 폴리곤 위에 겹친다 */}
+        {groupVals && renderOverlay(groupVals, '#7F7F7F', undefined, 'grp')}
+        {selfVals && renderOverlay(selfVals, '#A6A6A6', '5 4', 'self')}
         {stats.map((stat, i) => {
           if (stat.value === null) {
             const p = getPoint(safeMax, i);
-            return <circle key={i} cx={p.x} cy={p.y} r="4.5" fill="white" stroke="#9BA2AC" strokeWidth="1.5" strokeDasharray="2 2" />;
+            return <circle key={i} cx={p.x} cy={p.y} r="4.5" fill="white" stroke="#A6A6A6" strokeWidth="1.5" strokeDasharray="2 2" />;
           }
           const p = getPoint(stat.value, i);
-          return <circle key={i} cx={p.x} cy={p.y} r="4" fill="#B08D5C" stroke="white" strokeWidth="2" />;
+          return <circle key={i} cx={p.x} cy={p.y} r="4" fill="#1C2B4A" stroke="white" strokeWidth="2" />;
         })}
         {stats.map((stat, i) => {
           const pLabel = getPoint(6.8, i);
           const unmeasured = stat.value === null;
           return (
             <g key={i}>
-              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#9BA2AC' : '#1B1F24'} fontSize="12" fontWeight="600">{stat.label}</text>
-              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#9BA2AC' : '#8A6C3F'} fontSize={unmeasured ? '11' : '13'} fontWeight="700">{unmeasured ? '미측정' : Number(stat.value).toFixed(1)}</text>
+              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#000000'} fontSize="12" fontWeight="600">{stat.label}</text>
+              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#1C2B4A'} fontSize={unmeasured ? '11' : '13'} fontWeight="700">{unmeasured ? '미측정' : Number(stat.value).toFixed(1)}</text>
             </g>
           );
         })}
@@ -167,7 +163,7 @@ const RadarChart = ({
 const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any, fallbackScore: number, maxScore: number }) => {
   const safeMax = maxScore || 5;
   // B: 미측정(null) 하위역량도 축으로 남기고 '빈 점 + 회색 점선'으로 그려 빈칸을 드러낸다
-  //   (P0-1: 값은 0 이 아니라 미측정 — 다각형에는 넣지 않는다).
+  //   (P0-1: 값은 0 이 아니라 미측정 - 다각형에는 넣지 않는다).
   const stats = Object.entries(subScores || {})
     .map(([label, score]) => ({ label, value: typeof score === 'number' ? score : null }));
   if (stats.length < 3) return null;  // 축이 3개 미만이면 레이더 생략
@@ -193,27 +189,27 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
     <div className="flex justify-center items-center w-full h-full">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
         {levels.map((level) => (
-          <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#E3E6EA" strokeWidth="1" />
+          <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#D9D9D9" strokeWidth="1" />
         ))}
         {stats.map((stat, i) => {
           const p = getPoint(safeMax, i);
           return stat.value === null
-            ? <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#9BA2AC" strokeWidth="1" strokeDasharray="3 3" />
-            : <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#E3E6EA" strokeWidth="1" />;
+            ? <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#A6A6A6" strokeWidth="1" strokeDasharray="3 3" />
+            : <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#D9D9D9" strokeWidth="1" />;
         })}
         {measuredPts.length >= 3 && (
-          <polygon points={points} fill="rgba(176,141,92,0.16)" stroke="#B08D5C" strokeWidth="2" />
+          <polygon points={points} fill="#E9EDF4" fillOpacity="0.75" stroke="#1C2B4A" strokeWidth="2" />
         )}
         {measuredPts.length === 2 && (
-          <polyline points={points} fill="none" stroke="#B08D5C" strokeWidth="2" />
+          <polyline points={points} fill="none" stroke="#1C2B4A" strokeWidth="2" />
         )}
         {stats.map((stat, i) => {
           if (stat.value === null) {
             const p = getPoint(safeMax, i);
-            return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="white" stroke="#9BA2AC" strokeWidth="1.2" strokeDasharray="2 2" />;
+            return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="white" stroke="#A6A6A6" strokeWidth="1.2" strokeDasharray="2 2" />;
           }
           const p = getPoint(stat.value, i);
-          return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#B08D5C" />;
+          return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#1C2B4A" />;
         })}
         {stats.map((stat, i) => {
           // 라벨 배율 6.8: 다각형 모서리(5.0 지점)와 22px 가량 간격을 두면서도
@@ -222,8 +218,8 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
           const unmeasured = stat.value === null;
           return (
             <g key={i}>
-              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#9BA2AC' : '#1B1F24'} fontSize="13" fontWeight="600">{stat.label}</text>
-              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#9BA2AC' : '#8A6C3F'} fontSize="12" fontWeight="700">{unmeasured ? '–' : Number(stat.value).toFixed(1)}</text>
+              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#000000'} fontSize="13" fontWeight="600">{stat.label}</text>
+              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#1C2B4A'} fontSize="12" fontWeight="700">{unmeasured ? '–' : Number(stat.value).toFixed(1)}</text>
             </g>
           );
         })}
@@ -241,46 +237,46 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
   if (!breakdown || breakdown.final === null || breakdown.final === undefined) return null;
   const safeMax = maxScore || 5;
   // 항목별 스케일 분리: 각 막대는 '해당 항목의 실제 최대치' 기준으로 채워진다.
-  // (예: STAR 깊이 +0.3 은 0.5 만점 기준 60% — 5.0 만점 기준이 아님)
+  // (예: STAR 깊이 +0.3 은 0.5 만점 기준 60% - 5.0 만점 기준이 아님)
   // → 숫자 범위와 시각적 비율의 인지 부조화 해소
   const fillRatio = (value: number, itemMax: number) =>
     Math.min(100, Math.max(0, (Math.abs(value) / itemMax) * 100));
   const items = [
-    { label: "행동 지표 평가", value: breakdown.rubric_base, max: 4.0, color: "bg-[#B08D5C]" },
-    { label: "STAR 깊이",  value: breakdown.star_depth_bonus, max: 0.5, color: "bg-[#8A6C3F]", prefix: "+" },
-    { label: "확신도",     value: breakdown.confidence_adj, max: 0.5, color: breakdown.confidence_adj >= 0 ? "bg-[#C9AE85]" : "bg-[#9BA2AC]", prefix: breakdown.confidence_adj >= 0 ? "+" : "" },
+    { label: "행동 지표 평가", value: breakdown.rubric_base, max: 4.0, color: "bg-fm-accent" },
+    { label: "STAR 깊이",  value: breakdown.star_depth_bonus, max: 0.5, color: "bg-fm-accent", prefix: "+" },
+    { label: "확신도",     value: breakdown.confidence_adj, max: 0.5, color: breakdown.confidence_adj >= 0 ? "bg-fm-blue-mid" : "bg-fm-gray-300", prefix: breakdown.confidence_adj >= 0 ? "+" : "" },
   ];
   return (
-    <div className="print:break-inside-avoid mt-3 p-5 bg-[#F5F6F8] rounded-2xl border border-[#E3E6EA]">
+    <div className="print:break-inside-avoid mt-3 p-5 bg-fm-paper-soft rounded-lg border border-fm-gray-100">
       <div className="space-y-3">
         {items.map((item, i) => (
           <div key={i} className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-[#6B727C] w-20 shrink-0">{item.label}</span>
-            <div className="flex-1 h-1.5 bg-[#E6D7BC] rounded-full overflow-hidden">
+            <span className="text-xs font-semibold text-fm-gray-500 w-20 shrink-0">{item.label}</span>
+            <div className="flex-1 h-1.5 bg-fm-paper-mute rounded-full overflow-hidden">
               <div className={`h-full rounded-full ${item.color}`} style={{ width: `${fillRatio(item.value, item.max)}%` }} />
             </div>
-            <span className="text-xs font-bold tabular-nums text-[#1B1F24] w-10 text-right">
+            <span className="text-xs font-bold tabular-nums text-fm-ink w-10 text-right">
               {item.prefix}{Number(item.value).toFixed(1)}
             </span>
           </div>
         ))}
-        <div className="flex justify-between items-baseline pt-3 border-t border-[#E3E6EA] mt-2">
-          <span className="fm-eyebrow text-[11px] text-[#6B727C]">Final Score</span>
-          <span className="text-xl font-light tabular-nums text-[#8A6C3F]">{Number(breakdown.final).toFixed(1)} <span className="text-xs text-[#6B727C]">/ {safeMax.toFixed(1)}</span></span>
+        <div className="flex justify-between items-baseline pt-3 border-t border-fm-gray-100 mt-2">
+          <span className="fm-eyebrow text-fm-gray-500">Final Score</span>
+          <span className="text-xl fm-report-fig">{Number(breakdown.final).toFixed(1)} <span className="text-xs text-fm-gray-500">/ {safeMax.toFixed(1)}</span></span>
         </div>
       </div>
-      {/* 주석(Footnote): 각 산출 항목의 의미 — 막대는 항목별 최대치 기준 비율 */}
-      <div className="mt-4 pt-3 border-t border-[#E3E6EA] space-y-1.5">
-        <p className="text-[13px] text-[#6B727C] leading-relaxed">
-          <span className="font-semibold text-[#1B1F24]">행동 지표 평가</span> : 진단을 통해 분석한 해당 역량의 발현이 행동으로 증명된 정도를 나타냅니다. (점수 범위 : 1.0~4.0)
+      {/* 주석(Footnote): 각 산출 항목의 의미 - 막대는 항목별 최대치 기준 비율 */}
+      <div className="mt-4 pt-3 border-t border-fm-gray-100 space-y-1.5">
+        <p className="text-[13px] text-fm-gray-500 leading-relaxed">
+          <span className="font-semibold text-fm-ink">행동 지표 평가</span> : 진단을 통해 분석한 해당 역량의 발현이 행동으로 증명된 정도를 나타냅니다. (점수 범위 : 1.0~4.0)
         </p>
-        <p className="text-[13px] text-[#6B727C] leading-relaxed">
-          <span className="font-semibold text-[#1B1F24]">STAR 깊이</span> : 답변의 구조적 완성도에 따라 부여되는 가점을 나타냅니다. (최대 +0.5)
+        <p className="text-[13px] text-fm-gray-500 leading-relaxed">
+          <span className="font-semibold text-fm-ink">STAR 깊이</span> : 답변의 구조적 완성도에 따라 부여되는 가점을 나타냅니다. (최대 +0.5)
         </p>
-        <p className="text-[13px] text-[#6B727C] leading-relaxed">
-          <span className="font-semibold text-[#1B1F24]">확신도</span> : AI의 평가 신뢰도에 따라 부여되는 가점을 나타냅니다. (최대 +0.5)
+        <p className="text-[13px] text-fm-gray-500 leading-relaxed">
+          <span className="font-semibold text-fm-ink">확신도</span> : AI의 평가 신뢰도에 따라 부여되는 가점을 나타냅니다. (최대 +0.5)
         </p>
-        <p className="text-[13px] text-[#9BA2AC] leading-relaxed pt-1">
+        <p className="text-[13px] text-fm-gray-300 leading-relaxed pt-1">
           ※ 각 막대는 5.0 만점이 아닌 해당 항목의 최대치를 기준으로 표시됩니다.
         </p>
       </div>
@@ -289,7 +285,7 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
 };
 
 // ----------------------------------------------------------------------
-// [REASONING PROCESS] — SAR 심층 평가 + 실제 대화 발췌문 + Gap Analysis
+// [REASONING PROCESS] - SAR 심층 평가 + 실제 대화 발췌문 + Gap Analysis
 //  (기준 매핑(Rubric)·어조 분석(Tone)은 고객 혼란 방지를 위해 리포트에서 제거,
 //   대신 SAR 분석 바로 아래에 평가 근거인 실제 대화 발췌문을 통합)
 // ----------------------------------------------------------------------
@@ -336,12 +332,12 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
 
   return (
     <div className="print:break-inside-avoid">
-      <div className="mb-6 pb-4 border-b border-[#E3E6EA]">
-        <div className="fm-eyebrow text-[11px] text-fm-gold">Evidence</div>
-        <h4 className="mt-1.5 text-lg font-bold text-[#1B1F24]">심층 평가 근거</h4>
+      <div className="mb-6 pb-4 border-b border-fm-gray-100">
+        <div className="fm-eyebrow">Evidence</div>
+        <h4 className="mt-1.5 text-lg font-bold text-fm-ink">심층 평가 근거</h4>
       </div>
 
-      {/* SAR 세로 1열 — 각 블록 바로 아래에 매칭 발췌문 즉시 렌더
+      {/* SAR 세로 1열 - 각 블록 바로 아래에 매칭 발췌문 즉시 렌더
           [역량 블록 2 전용 페이지] 텍스트 확대(text-base)·줄간격 확장(leading-loose)으로
           A4 한 페이지를 텍스트만으로 시원하게 채우는 구성 */}
       <div className="space-y-6 mb-6">
@@ -349,19 +345,19 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
           const step = getStep(item.key);
           if (!step || !step.description) return null;
           return (
-            <div key={item.key} className="print:break-inside-avoid p-6 rounded-2xl border border-[#E3E6EA] border-l-2 border-l-fm-gold bg-[#F5F6F8]">
-              <span className="block fm-eyebrow text-[11px] text-fm-gold mb-3">
+            <div key={item.key} className="print:break-inside-avoid p-6 rounded-lg border border-fm-gray-100 bg-fm-paper-soft">
+              <span className="block fm-eyebrow mb-3">
                 {item.label}
               </span>
-              <p className="text-base text-[#1B1F24] font-light leading-[1.9]">{step.description}</p>
+              <p className="text-base text-fm-ink font-light leading-[1.9]">{step.description}</p>
               {step.evidence.length > 0 && (
-                <div className="mt-4 rounded-xl bg-white border border-[#E3E6EA] p-4 space-y-2.5">
-                  <span className="flex items-center gap-1.5 fm-eyebrow text-[10px] text-[#6B727C]">
-                    <span className="inline-block h-3 w-0.5 rounded-sm bg-fm-gold" />
+                <div className="mt-4 rounded-md bg-fm-paper border border-fm-gray-100 p-4 space-y-2.5">
+                  <span className="flex items-center gap-1.5 fm-eyebrow text-fm-gray-500">
+                    <span className="inline-block h-3 w-0.5 rounded-sm bg-fm-accent" />
                     관련 대화 발췌
                   </span>
                   {step.evidence.map((ev: string, i: number) => (
-                    <p key={i} className="text-[#6B727C] text-sm italic leading-relaxed border-l-2 border-[#E6D7BC] pl-3">&ldquo;{ev}&rdquo;</p>
+                    <p key={i} className="text-fm-gray-500 text-sm italic leading-relaxed border-l-2 border-fm-gray-100 pl-3">&ldquo;{ev}&rdquo;</p>
                   ))}
                 </div>
               )}
@@ -370,23 +366,23 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
         })}
       </div>
 
-      {/* (구버전 리포트 전용) 통합 발췌문 — 신규 포맷은 단계별로 렌더되므로 생략 */}
+      {/* (구버전 리포트 전용) 통합 발췌문 - 신규 포맷은 단계별로 렌더되므로 생략 */}
       {isLegacyFormat && evidenceList && evidenceList.length > 0 && (
-        <div className="pt-4 border-t border-[#E3E6EA] mb-4">
-          <h5 className="fm-eyebrow text-[11px] text-[#6B727C] mb-3">실제 대화 발췌문</h5>
+        <div className="pt-4 border-t border-fm-gray-100 mb-4">
+          <h5 className="fm-eyebrow text-fm-gray-500 mb-3">실제 대화 발췌문</h5>
           <div className="space-y-3">
             {evidenceList.map((ev: string, i: number) => (
-              <p key={i} className="text-[#6B727C] text-sm italic border-l-2 border-[#E6D7BC] pl-4 py-1">"{ev}"</p>
+              <p key={i} className="text-fm-gray-500 text-sm italic border-l-2 border-fm-gray-100 pl-4 py-1">"{ev}"</p>
             ))}
           </div>
         </div>
       )}
 
-      {/* Gap Analysis — 구분선 + 제목 + 텍스트 */}
+      {/* Gap Analysis - 구분선 + 제목 + 텍스트 */}
       {gapText && (
-        <div className="pt-5 border-t border-[#E3E6EA]">
-          <h5 className="fm-eyebrow text-[11px] text-fm-gold mb-2">Gap Analysis</h5>
-          <p className="text-base text-[#1B1F24] font-light leading-[1.9]">{gapText}</p>
+        <div className="pt-5 border-t border-fm-gray-100">
+          <h5 className="fm-eyebrow mb-2">Gap Analysis</h5>
+          <p className="text-base text-fm-ink font-light leading-[1.9]">{gapText}</p>
         </div>
       )}
     </div>
@@ -394,7 +390,7 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
 };
 
 // ----------------------------------------------------------------------
-// [SUB SCORES TABLE] — 하위 지표 점수 테이블
+// [SUB SCORES TABLE] - 하위 지표 점수 테이블
 // ----------------------------------------------------------------------
 const SubScoresTable = ({ subScores, subLedger, totalScore, maxScore }: { subScores: any, subLedger?: any, totalScore: number, maxScore: number }) => {
   if (!subScores || Object.keys(subScores).length === 0) return null;
@@ -431,33 +427,33 @@ const SubScoresTable = ({ subScores, subLedger, totalScore, maxScore }: { subSco
         const isLow  = measured && score === min;
         const isEvMissing = ds === 'evidence_missing';
         const isPending   = ds === 'gate_pending';
-        // 검증 미완료(보라): 도구 상태. 근거 미확보(앰버): 대상자 응답 상태.
+        // 검증 미완료(네이비 틴트): 도구 상태. 근거 미확보(회색): 대상자 응답 상태.
         const stLabel = isPending ? '검증 미완료' : isEvMissing ? '근거 미확보' : '미탐색';
         const stTip = isPending
-          ? '역량 판정 검증(레벨 게이트)이 완료되지 않아 점수를 보류했습니다. 대상자 역량과 무관한 도구 상태입니다 — 재생성 시 해소됩니다.'
+          ? '역량 판정 검증(레벨 게이트)이 완료되지 않아 점수를 보류했습니다. 대상자 역량과 무관한 도구 상태입니다 - 재생성 시 해소됩니다.'
           : isEvMissing
           ? '질문은 드렸으나 구체 사례가 확인되지 않아 점수를 산출하지 않았습니다.'
           : ds === 'not_explored'
           ? '이번 진단에서 이 하위역량에 대한 질문이 실제로 전달되지 않아 다루지 못했습니다(미탐색). 근거 미확보와 다릅니다.'
           : '이 하위역량은 이번 진단에서 다루지 않았습니다(미탐색).';
-        // 측정 = ink, 검증 미완료(도구 상태) = 보라 유지, 근거 미확보·미탐색 = 보조 회색
-        const labelColor = measured ? 'text-[#1B1F24]' : isPending ? 'text-violet-700' : isEvMissing ? 'text-[#6B727C]' : 'text-[#9BA2AC]';
-        // 상태 배지: 검증 미완료만 보라, 나머지는 채팅 라이트 테마의 연한 골드 틴트 배지
-        const valColor = isPending ? 'border-violet-200 bg-violet-50 text-violet-700' : isEvMissing ? 'border-[#E6D7BC] bg-[#F3EBDD] text-[#8A6C3F]' : 'border-[#E6D7BC] bg-[#F3EBDD] text-[#8A6C3F]';
+        // 측정 = ink, 검증 미완료(도구 상태) = 네이비, 근거 미확보·미탐색 = 보조 회색
+        const labelColor = measured ? 'text-fm-ink' : isPending ? 'text-fm-accent' : isEvMissing ? 'text-fm-gray-500' : 'text-fm-gray-300';
+        // 상태 배지: 검증 미완료만 네이비 틴트, 나머지는 회색 칩
+        const valColor = isPending ? 'border-fm-accent-tint bg-fm-accent-tint text-fm-accent' : isEvMissing ? 'border-fm-gray-100 bg-fm-paper-mute text-fm-gray-500' : 'border-fm-gray-100 bg-fm-paper-mute text-fm-gray-500';
         return (
           <div key={label} className="flex items-center gap-4">
             <span className={`text-[15px] font-semibold min-w-[150px] flex-shrink-0 break-keep ${labelColor}`}>{label}</span>
-            <div className={`flex-1 h-2.5 rounded-full overflow-hidden ${measured ? 'bg-[#E6D7BC]' : 'border border-dashed border-[#9BA2AC]'}`}>
+            <div className={`flex-1 h-2.5 rounded-full overflow-hidden ${measured ? 'bg-fm-paper-mute' : 'border border-dashed border-fm-gray-300'}`}>
               {measured && (
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${isHigh ? 'bg-[#8A6C3F]' : isLow ? 'bg-[#C9AE85]' : 'bg-[#B08D5C]'}`}
+                  className={`h-full rounded-full transition-all duration-500 ${isHigh ? 'bg-fm-accent' : isLow ? 'bg-fm-blue-mid' : 'bg-fm-accent'}`}
                   style={{ width: `${((score as number) / safeMax) * 100}%` }}
                 />
               )}
             </div>
             <span
               title={measured ? undefined : stTip}
-              className={`text-right ${measured ? `w-14 text-xl font-light tabular-nums ${isHigh ? 'text-[#8A6C3F]' : isLow ? 'text-[#6B727C]' : 'text-[#1B1F24]'}` : `w-24 inline-flex justify-end`}`}>
+              className={`text-right ${measured ? `w-14 text-lg fm-report-fig ${isHigh ? 'text-fm-accent' : isLow ? 'text-fm-gray-500' : 'text-fm-ink'}` : `w-24 inline-flex justify-end`}`}>
               {measured ? Number(score).toFixed(1) : <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold cursor-help ${valColor}`}>{stLabel}</span>}
             </span>
           </div>
@@ -530,7 +526,7 @@ function ReportContent() {
         setStatusMsg("리포트 생성이 일시적으로 실패했습니다. 다시 시도해 주세요. (대화 내용은 저장되어 있어 이어서 진행할 수 있습니다)");
         setCanRetry(true);
       } else if (st === 404) {
-        // item6: 서버 진행 상태로 분기 — 분석(수 분)이 실제로 돌고 있으면 60초
+        // item6: 서버 진행 상태로 분기 - 분석(수 분)이 실제로 돌고 있으면 60초
         //   상한과 무관하게 계속 기다린다(상한에 걸려 '지연 → 재시도'로 같은
         //   분석을 한 번 더 돌리던 문제). 상태가 없으면(시작 전·서버 재시작)
         //   기존처럼 60초 폴링 후 재시도 유도.
@@ -566,7 +562,7 @@ function ReportContent() {
     setCanRetry(false);
     setStatusMsg("AI가 다시 분석 중입니다...");
     setProgress(null);
-    // item6: 분석 완료(수 분)를 기다리지 않고 바로 폴링 — 폴링이 진행 단계를
+    // item6: 분석 완료(수 분)를 기다리지 않고 바로 폴링 - 폴링이 진행 단계를
     //   보여주고, 끝나면 리포트를 띄운다. 실패는 서버 진행 상태(failed)나
     //   degraded 마커로 폴링이 판정한다. 409(이미 분석 중)도 폴링으로 합류.
     apiClient.post(`/reports/${sessionId}/analyze`)
@@ -638,33 +634,38 @@ function ReportContent() {
 
   if (!report) {
     return (
-      <div className="min-h-screen bg-[#F5F6F8] flex flex-col justify-center items-center px-4 text-center">
-        {!canRetry && !isProgressRunning(progress) && (
-          <div className="w-12 h-12 border-2 border-[#E6D7BC] border-t-fm-gold rounded-full animate-spin mb-6"></div>
-        )}
-        <h2 className={`text-base font-semibold mb-2 break-keep ${canRetry ? 'text-[#1B1F24]' : 'text-[#6B727C]'}`}>{statusMsg}</h2>
-        {/* A-4: 서버가 분석 중이면 챕터별 단계표(✓/분석 중…/대기) + 종합 */}
-        {!canRetry && isProgressRunning(progress) && progress && (
-          <div className="mt-3 flex flex-col items-center gap-2">
-            <AnalysisChecklist progress={progress} estimate={null} />
-            <p className="text-xs text-[#9BA2AC]">이 화면을 닫지 말고 기다려 주세요.</p>
-          </div>
-        )}
-        {canRetry && (
-          <button
-            onClick={handleRetry}
-            disabled={retryCount >= _MAX_RETRY}
-            className={`mt-4 rounded-full px-6 py-2.5 text-sm font-bold text-white transition-colors ${retryCount >= _MAX_RETRY ? 'bg-[#C9CED6] cursor-not-allowed' : 'bg-fm-gold hover:bg-[#8A6C3F]'}`}>
-            {retryCount >= _MAX_RETRY ? '잠시 후 다시 시도' : '다시 시도'}
-          </button>
-        )}
+      <div className="fm-app fm-report">
+        <ParticipantHeader step={5} />
+        <div className="fm-report-wait fm-wrap-narrow">
+          {!canRetry && !isProgressRunning(progress) && (
+            <div className="fm-report-spinner" aria-hidden="true"></div>
+          )}
+          <div className="fm-eyebrow">Leadership Diagnosis Report</div>
+          <h2 className={`mt-3 text-base font-semibold mb-2 break-keep ${canRetry ? 'text-fm-ink' : 'text-fm-ink-body'}`}>{statusMsg}</h2>
+          {/* A-4: 서버가 분석 중이면 챕터별 단계표(✓/분석 중…/대기) + 종합 */}
+          {!canRetry && isProgressRunning(progress) && progress && (
+            <div className="mt-3 flex flex-col items-center gap-2">
+              <AnalysisChecklist progress={progress} estimate={null} />
+              <p className="fm-caption">이 화면을 닫지 말고 기다려 주세요.</p>
+            </div>
+          )}
+          {canRetry && (
+            <button
+              type="button"
+              onClick={handleRetry}
+              disabled={retryCount >= _MAX_RETRY}
+              className="fm-btn sm mt-4">
+              {retryCount >= _MAX_RETRY ? '잠시 후 다시 시도' : '다시 시도'}
+            </button>
+          )}
+        </div>
       </div>
     );
   }
 
   const detailsData = report.details ?? {};
 
-  // H6: 가짜 인적사항 금지 — 이름은 실제 참가자명, 없으면 중립 호칭 '리더'.
+  // H6: 가짜 인적사항 금지 - 이름은 실제 참가자명, 없으면 중립 호칭 '리더'.
   const displayName = !report.user_name || report.user_name === "Leader" || report.user_name === "User"
                       ? "리더"
                       : report.user_name;
@@ -680,66 +681,64 @@ function ReportContent() {
   ].filter((r): r is { label: string; value: string } => r !== null);
 
   return (
-    <main className="min-h-screen bg-[#F5F6F8] print:bg-white text-[#1B1F24] pb-24">
-      {/* 상단 액션 바 — 브라우저 인쇄 시 인쇄물에 나오지 않도록 숨김(print:hidden) */}
-      <div data-html2canvas-ignore="true" className="print:hidden fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#E3E6EA] px-5 md:px-8 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="fm-eyebrow text-[11px] text-fm-gold">Leadership Diagnosis Report</span>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => window.print()} className="bg-white text-[#1B1F24] border border-[#E3E6EA] px-4 py-2 rounded-lg text-sm font-semibold hover:border-fm-gold transition-colors hidden md:block">인쇄</button>
-          <button onClick={handleDownloadPDF} className="bg-fm-gold text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#8A6C3F] transition-colors">PDF 저장</button>
-        </div>
+    <main className="fm-app fm-report">
+      {/* 상단 헤더 - 인쇄물(print:hidden, ParticipantHeader 기본)·PDF 캡처(data-html2canvas-ignore)에서 제외 */}
+      <div data-html2canvas-ignore="true">
+        <ParticipantHeader
+          step={5}
+          right={
+            <>
+              <span className="user">{displayName} 님</span>
+              <span className="sep" />
+              <button type="button" onClick={() => window.print()} className="fm-btn sm secondary">인쇄</button>
+              <button type="button" onClick={handleDownloadPDF} className="fm-btn sm">
+                PDF 저장
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.5v8M4.5 7l3.5 3.5L11.5 7M3 13.5h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            </>
+          }
+        />
+      </div>
+      <div data-html2canvas-ignore="true" className="fm-wrap-narrow print:hidden">
+        <ParticipantMobileStep step={5} className="fm-report-mstep" />
       </div>
 
-      <div ref={reportRef} className="max-w-6xl mx-auto px-4 md:px-8 pt-28 pb-8 bg-[#F5F6F8] print:bg-white">
+      <div ref={reportRef} className="fm-wrap-narrow fm-report-body">
 
         {/* ══ [PDF 페이지 1] 타이틀 & 응답자 정보 & 3단 대시보드 ══ */}
         <div className="pdf-page-block print:break-after-page">
 
-        {/* ── [섹션 1] 타이틀 & 아키타입 & 응답자 정보 — 1E 헤더(눈썹 + 큰 이름 + 하단 구분선) ── */}
-        <div className="print-section mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-8 border-b border-[#E3E6EA]">
-            <div className="min-w-0">
-              <div className="fm-eyebrow text-xs text-fm-gold mb-4">
-                Leadership Diagnosis Report
-              </div>
-              <h1 className="text-3xl md:text-[40px] font-light text-[#1B1F24] leading-tight break-keep">
-                <span className="font-medium">{displayName} 님</span>의 리더십 역량 심층 분석 리포트
-              </h1>
-            </div>
-
-            {report.archetype && (
-              <div className="bg-white p-6 rounded-2xl border border-[#E3E6EA] md:w-[400px] shrink-0 w-full">
-                <p className="fm-eyebrow text-[11px] text-fm-gold mb-2">Leadership Archetype</p>
-                <h2 className="text-xl font-bold text-[#1B1F24] mb-2 break-keep">{report.archetype.name}</h2>
-                <p className="text-[#6B727C] text-sm leading-relaxed font-light break-keep">{report.archetype.description}</p>
-              </div>
-            )}
-          </div>
-
-          {/* 응답자 정보 — 구분선 아래 4열 메타 */}
-          <div className="print:break-inside-avoid pt-5">
-            <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-4">
+        {/* ── [섹션 1] 타이틀 & 아키타입 & 응답자 정보 - 샘플 타이틀 블록(눈썹 + 제목 + 메타 / 아키타입 카드) ── */}
+        <section className="print-section fm-report-title">
+          <div className="min-w-0">
+            <div className="fm-eyebrow">Leadership Diagnosis Report</div>
+            <h1 className="break-keep">{displayName} 님의 리더십 역량 심층 분석 리포트</h1>
+            {/* 응답자 정보 - 제목 아래 한 줄 메타 */}
+            <div className="meta fm-caption">
               {respondentRows.map((row) => (
-                <div key={row.label}>
-                  <div className="text-[11px] text-[#9BA2AC] mb-1">{row.label}</div>
-                  <div className="text-sm text-[#1B1F24] font-semibold break-all">{row.value}</div>
-                </div>
+                <span key={row.label} className="break-all">{row.label} {row.value}</span>
               ))}
             </div>
           </div>
-        </div>
+
+          {report.archetype && (
+            <aside className="fm-card fm-report-arch">
+              <div className="fm-eyebrow">Leadership Archetype</div>
+              <h2 className="break-keep">{report.archetype.name}</h2>
+              <p className="break-keep">{report.archetype.description}</p>
+            </aside>
+          )}
+        </section>
 
         {/* 🚧 T-A fail-closed: 레벨 게이트 검증 미완료 경고 (상단). 도구 상태이며
-            대상자 역량과 무관 — 재생성 시 해소. 조용한 fail-open 을 막는 신호. */}
+            대상자 역량과 무관 - 재생성 시 해소. 조용한 fail-open 을 막는 신호. */}
         {report.coverage?.gate_incomplete && (
-          <div className="print:break-inside-avoid mb-8 rounded-2xl border border-violet-200 bg-violet-50 p-5">
+          <div className="print:break-inside-avoid mb-6 rounded-lg border border-fm-gray-100 bg-fm-accent-tint p-5">
             <div className="flex items-start gap-3">
-              <span className="text-violet-600 text-lg font-bold">⚠</span>
+              <span className="text-fm-accent text-lg font-bold">⚠</span>
               <div>
-                <p className="text-sm font-bold text-violet-800">역량 판정 검증 미완료 {report.coverage.gate_pending}건</p>
-                <p className="mt-1 text-xs text-violet-700 leading-relaxed">
+                <p className="text-sm font-bold text-fm-accent">역량 판정 검증 미완료 {report.coverage.gate_pending}건</p>
+                <p className="mt-1 text-xs text-fm-ink-body leading-relaxed">
                   일부 하위역량의 레벨 판정 검증(레벨 게이트)이 완료되지 않아 해당 항목의 점수를 보류했습니다.
                   이는 <b>도구 처리 상태</b>이며 대상자의 역량 수준과 무관합니다. 잠시 후 리포트를 재생성하면 해소됩니다.
                 </p>
@@ -748,171 +747,175 @@ function ReportContent() {
           </div>
         )}
 
-        {/* 01 OVERALL SUMMARY — 종합 점수 · 역량 밸런스 · 종합 피드백 · 키워드 */}
-        <SectionHead no="01" en="Overall Summary" ko="종합 요약 · 종합 점수와 대역량 5개 밸런스" className="mb-8" />
-
-        {/* ── [섹션 2] 3단 대시보드 ── */}
-        {/* (2026-10-13) 카드 높이는 내용 높이로 — 레이더 높이에 맞춰 늘리지 않는다(items-start). 상단만 정렬 */}
-        <div className="print-section grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-6 mb-6 items-start">
-          <div className="print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] p-7 flex flex-col justify-start">
-            <div className="flex flex-wrap items-start justify-between gap-2 mb-5">
-              <div>
-                <p className="fm-eyebrow text-[11px] text-[#6B727C]">Overall Level</p>
-                <h3 className="mt-1 text-lg font-bold text-[#1B1F24]">종합 리더십 점수</h3>
-              </div>
-              {report.coverage && (
-                /* 🧭 T3 2단 지표: 탐색률(질문한 하위역량) + 측정률(근거 확보).
-                   '얼마나 물었는가'와 '그중 몇 개에 근거가 있었는가'를 분리 노출. */
-                <div className="flex items-center gap-1.5">
-                  {typeof report.coverage.asked === 'number' && (
-                    <span
-                      title="탐색률 — 이번 진단에서 질문한 하위역량 수(26개 중). 측정률과 달리 근거 확보 여부와 무관합니다."
-                      className="rounded-md border border-[#E3E6EA] bg-[#F5F6F8] px-2 py-0.5 text-[11px] font-semibold text-[#6B727C] cursor-help whitespace-nowrap">
-                      탐색 {report.coverage.asked}/{report.coverage.total}
-                    </span>
-                  )}
-                  <span
-                    title="측정률 — 질문한 것 중 구체 행동 근거가 확인되어 점수를 산출한 하위역량 수."
-                    className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold cursor-help whitespace-nowrap ${report.coverage.is_low_confidence ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-[#E6D7BC] bg-[#F3EBDD] text-[#8A6C3F]'}`}>
-                    측정 {report.coverage.measured}/{report.coverage.total}
-                  </span>
-                </div>
-              )}
-            </div>
-            {(() => {
-              /* B(2026-09-29): 종합 점수는 항상 보인다. composite_mode(과거 리포트는
-                 composite_shown)로 '정식/참고치'만 구분 — 숨기지 않는다. */
-              const cov = report.coverage;
-              const official = cov ? (cov.composite_mode ? cov.composite_mode === 'official' : !!cov.composite_shown) : true;
-              const measuredCnt = cov?.measured_total ?? cov?.measured ?? 0;
-              const hasScore = typeof report.total_score === 'number' && (!cov || measuredCnt > 0);
-              const note = cov?.composite_note
-                || `${cov?.total ?? 26}개 지표 중 ${measuredCnt}개 확인`;
-              return (
-                <>
-                  {/* 큰 점수 — 눈썹·칩 바로 아래(위에서부터 채운다) */}
-                  <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-                    <div className="flex items-baseline gap-2">
-                      <span className={`text-[64px] leading-none font-light tabular-nums ${official ? 'text-[#1B1F24]' : 'text-[#6B727C]'}`}>{hasScore ? Number(report.total_score).toFixed(1) : '—'}</span>
-                      <span className="text-[#9BA2AC] text-sm">/ {maxScore.toFixed(1)}</span>
-                    </div>
+        {(() => {
+          /* B(2026-09-29): 종합 점수는 항상 보인다. composite_mode(과거 리포트는
+             composite_shown)로 '정식/참고치'만 구분 - 숨기지 않는다. */
+          const cov = report.coverage;
+          const official = cov ? (cov.composite_mode ? cov.composite_mode === 'official' : !!cov.composite_shown) : true;
+          const measuredCnt = cov?.measured_total ?? cov?.measured ?? 0;
+          const hasScore = typeof report.total_score === 'number' && (!cov || measuredCnt > 0);
+          const note = cov?.composite_note
+            || `${cov?.total ?? 26}개 지표 중 ${measuredCnt}개 확인`;
+          return (
+            <>
+              {/* ── KPI 카드 - 종합 점수 · (있으면) 탐색률 · 측정률. 값은 백엔드 그대로 ── */}
+              <section className="print-section fm-report-kpis" aria-label="핵심 지표">
+                <div className="fm-card fm-report-kpi print:break-inside-avoid">
+                  <div className={`v fm-report-fig ${official ? '' : 'ref'}`}>
+                    {hasScore ? Number(report.total_score).toFixed(1) : '—'}<small>/ {maxScore.toFixed(1)}</small>
+                  </div>
+                  <div className="k fm-caption">
+                    종합 점수 · 측정된 역량의 심층 평가 평균치
                     {!official && (
-                      <span className="mb-1.5 inline-block rounded-md border border-[#E6D7BC] bg-[#F3EBDD] px-2 py-0.5 text-[11px] font-semibold text-[#8A6C3F]">{cov?.composite_badge || '참고치'}</span>
+                      <span className="fm-chip tint ml-2 align-middle">{cov?.composite_badge || '참고치'}</span>
                     )}
                   </div>
-                  <p className="mt-3 text-[13px] text-[#6B727C] break-keep">측정된 역량의 심층 평가 평균치</p>
+                </div>
+                {cov && typeof cov.asked === 'number' && (
+                  /* 🧭 T3 2단 지표: 탐색률(질문한 하위역량) + 측정률(근거 확보).
+                     '얼마나 물었는가'와 '그중 몇 개에 근거가 있었는가'를 분리 노출. */
+                  <div className="fm-card fm-report-kpi print:break-inside-avoid"
+                    title="탐색률 - 이번 진단에서 질문한 하위역량 수(26개 중). 측정률과 달리 근거 확보 여부와 무관합니다.">
+                    <div className="v fm-report-fig">{cov.asked}<small>/ {cov.total}</small></div>
+                    <div className="k fm-caption">탐색 하위역량</div>
+                  </div>
+                )}
+                {cov && (
+                  <div className="fm-card fm-report-kpi print:break-inside-avoid"
+                    title="측정률 - 질문한 것 중 구체 행동 근거가 확인되어 점수를 산출한 하위역량 수.">
+                    <div className={`v fm-report-fig ${cov.is_low_confidence ? 'ref' : ''}`}>{cov.measured}<small>/ {cov.total}</small></div>
+                    <div className="k fm-caption">측정 하위역량</div>
+                  </div>
+                )}
+              </section>
 
-                  {/* 대역량 5개 미니 막대 — 레이더와 같은 값(report.radar_chart). 계산 없음. */}
+              {/* 01 OVERALL SUMMARY - 역량 밸런스 · 대역량별 점수 · 종합 피드백 · 키워드 */}
+              <SectionHead no="01" en="Overview" ko="종합 요약" className="fm-report-sec" />
+
+              {/* ── [섹션 2] 대시보드 - 좌: 역량 밸런스 레이더 / 우: 대역량별 점수 ── */}
+              <div className="print-section fm-report-ov mb-6">
+                {/* B: 레이더도 항상 표시 - 미측정 역량은 빈 점·회색 점선으로 빈칸을 드러낸다. */}
+                <div className="fm-card print:break-inside-avoid">
+                  <div className="cap-head">
+                    <div>
+                      <div className="fm-eyebrow">Competency balance</div>
+                      <h3>역량 밸런스</h3>
+                    </div>
+                    <span className="fm-caption">{maxScore.toFixed(1)} 만점</span>
+                  </div>
+                  <div className="w-full flex-1 min-h-[220px]">
+                    <RadarChart
+                      data={report.radar_chart}
+                      competencies={frameworkCompetencies}
+                      maxScore={maxScore}
+                      selfScores={report.self_assessment?.scores ?? null}
+                      groupAverages={report.group_comparison?.available ? (report.group_comparison.averages ?? null) : null}
+                    />
+                  </div>
+                  {/* 범례 - 실선: 대화에 드러난 나 / 점선: 스스로 보는 나 / (조건부) 진회색 실선: 그룹 평균 */}
+                  <div className="fm-report-legend">
+                    <span>
+                      <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#1C2B4A" strokeWidth="2" /></svg>
+                      대화에 드러난 나
+                    </span>
+                    {report.self_assessment?.scores && (
+                      <span>
+                        <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#A6A6A6" strokeWidth="1.6" strokeDasharray="5 4" /></svg>
+                        스스로 보는 나
+                      </span>
+                    )}
+                    {report.group_comparison?.available && report.group_comparison.averages && (
+                      <span>
+                        <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#7F7F7F" strokeWidth="1.6" /></svg>
+                        {report.group_comparison.label || '그룹 평균'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 대역량 5개 점수 막대 - 레이더와 같은 값(report.radar_chart). 계산 없음. */}
+                <div className="fm-card fm-report-scores print:break-inside-avoid">
+                  <div className="cap-head">
+                    <div>
+                      <div className="fm-eyebrow">Scores</div>
+                      <h3>대역량별 점수</h3>
+                    </div>
+                    {hasScore && <span className="fm-caption">종합 {Number(report.total_score).toFixed(1)}</span>}
+                  </div>
                   {frameworkCompetencies.length > 0 && (
-                    <div className="mt-6 pt-5 border-t border-[#E3E6EA] space-y-3.5">
+                    <div>
                       {frameworkCompetencies.map((c) => {
                         const raw = report.radar_chart?.[c.name] ?? report.radar_chart?.[c.key];
                         const v = typeof raw === 'number' ? raw : null;
                         return (
-                          <div key={c.key} className="flex items-center gap-3">
-                            <span className={`w-[60px] shrink-0 text-[13px] font-semibold break-keep ${v === null ? 'text-[#9BA2AC]' : 'text-[#1B1F24]'}`}>{c.name}</span>
-                            <div className={`flex-1 h-2 rounded-full overflow-hidden ${v === null ? 'border border-dashed border-[#9BA2AC]' : 'bg-[#E6D7BC]'}`}>
+                          <div key={c.key} className="srow">
+                            <div className="top">
+                              <span className={`nm break-keep ${v === null ? 'off' : ''}`}>{c.name}</span>
+                              <span
+                                title={v === null ? '이번 세션에서 확인되지 않은 영역입니다(미측정).' : undefined}
+                                className={`fm-report-fig ${v === null ? 'off' : ''}`}>
+                                {v === null ? '—' : v.toFixed(1)}<small>/{(maxScore || 5).toFixed(1)}</small>
+                              </span>
+                            </div>
+                            {c.description && <div className="d fm-caption break-keep">{c.description}</div>}
+                            <div className={`fm-bar ${v === null ? 'fm-report-bar-off' : ''}`}>
                               {v !== null && (
-                                <div className="h-full rounded-full bg-[#B08D5C]" style={{ width: `${Math.min(100, Math.max(0, (v / (maxScore || 5)) * 100))}%` }} />
+                                <i style={{ width: `${Math.min(100, Math.max(0, (v / (maxScore || 5)) * 100))}%` }} />
                               )}
                             </div>
-                            <span
-                              title={v === null ? '이번 세션에서 확인되지 않은 영역입니다(미측정).' : undefined}
-                              className={`w-8 shrink-0 text-right text-sm tabular-nums ${v === null ? 'text-[#9BA2AC]' : 'font-semibold text-[#8A6C3F]'}`}>
-                              {v === null ? '—' : v.toFixed(1)}
-                            </span>
                           </div>
                         );
                       })}
                     </div>
                   )}
 
-                  {/* 맨 아래 한 줄 — 확인된 지표 수(백엔드 composite_note 우선). 카드가 늘어나면 바닥에 붙는다. */}
+                  {/* 맨 아래 한 줄 - 확인된 지표 수(백엔드 composite_note 우선). */}
                   {cov && (
-                    <p className="mt-auto pt-6 text-xs font-light leading-relaxed text-[#6B727C] break-keep">{note}</p>
+                    <p className="fm-caption mt-5 break-keep">{note}</p>
                   )}
-                </>
-              );
-            })()}
-          </div>
+                </div>
+              </div>
+            </>
+          );
+        })()}
 
-          {/* H6: '상대적 비교 분석'(팀/부문/전사 평균)은 실데이터 소스가 없어
-              하드코딩 수치(3.8/3.6/3.5)를 보여주고 있었다 → 제거. 비교 집계 API 가
-              생기면 그때 다시 추가한다. 레이더가 남은 2칸을 차지한다. */}
-          {/* B: 레이더도 항상 표시 — 미측정 역량은 빈 점·회색 점선으로 빈칸을 드러낸다. */}
-          <div className="print:break-inside-avoid lg:col-span-2 print:col-span-2 bg-white rounded-2xl border border-[#E3E6EA] p-7 flex flex-col items-center">
-            <div className="w-full mb-2">
-              <p className="fm-eyebrow text-[11px] text-[#6B727C]">Core Competencies</p>
-              <h3 className="mt-1 text-lg font-bold text-[#1B1F24]">역량 밸런스</h3>
-            </div>
-            <div className="w-full h-full flex-1 min-h-[220px]">
-              <RadarChart
-                data={report.radar_chart}
-                competencies={frameworkCompetencies}
-                maxScore={maxScore}
-                selfScores={report.self_assessment?.scores ?? null}
-                groupAverages={report.group_comparison?.available ? (report.group_comparison.averages ?? null) : null}
-              />
-            </div>
-            {/* 범례 — 실선: 대화에 드러난 나 / 점선: 스스로 보는 나 / (조건부) 회색 실선: 그룹 평균 */}
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[#6B727C]">
-              <span className="inline-flex items-center gap-2">
-                <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#B08D5C" strokeWidth="2" /></svg>
-                대화에 드러난 나
-              </span>
-              {report.self_assessment?.scores && (
-                <span className="inline-flex items-center gap-2">
-                  <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#B08D5C" strokeWidth="1.6" strokeDasharray="5 4" /></svg>
-                  스스로 보는 나
-                </span>
-              )}
-              {report.group_comparison?.available && report.group_comparison.averages && (
-                <span className="inline-flex items-center gap-2">
-                  <svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#9BA2AC" strokeWidth="1.6" /></svg>
-                  {report.group_comparison.label || '그룹 평균'}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 조직 내 위치 — 비교 대상이 모이기 전에는 백엔드 안내 문구만(가짜 숫자 금지) */}
+        {/* 조직 내 위치 - 비교 대상이 모이기 전에는 백엔드 안내 문구만(가짜 숫자 금지) */}
         {report.group_comparison && !report.group_comparison.available && report.group_comparison.label && (
           <div className="print:break-inside-avoid -mt-2 mb-6 flex flex-col lg:flex-row lg:items-baseline gap-1 lg:gap-4 px-1">
-            <span className="fm-eyebrow text-[11px] text-[#6B727C] shrink-0">조직 내 위치</span>
-            <span className="text-[13px] font-light text-[#6B727C] break-keep">{report.group_comparison.label}</span>
+            <span className="fm-eyebrow text-fm-gray-500 shrink-0">조직 내 위치</span>
+            <span className="text-[13px] font-light text-fm-gray-500 break-keep">{report.group_comparison.label}</span>
           </div>
         )}
 
-        {/* ── [섹션 3] 종합 피드백 & 키워드 — 요구사항: 점수/차트/피드백/
+        {/* ── [섹션 3] 종합 피드백 & 키워드 - 요구사항: 점수/차트/피드백/
               키워드를 여백 없이 '단일 1페이지'에 모두 압축. 별도 페이지 블록을
               해제하고 상단 대시보드와 같은 pdf-page-block 안에 병합한다. ── */}
         <div className="print-section mb-4">
-          {/* 종합 피드백 — 전체 너비 */}
-          <div className="bg-white rounded-2xl border border-[#E3E6EA] border-l-2 border-l-fm-gold p-7 md:p-8 mb-4">
-            <p className="fm-eyebrow text-[11px] text-fm-gold">Summary</p>
-            <h3 className="mt-1 text-lg font-bold text-[#1B1F24] mb-4">종합 피드백</h3>
-            <p className="text-[#1B1F24] text-base font-light leading-[1.9] break-keep">
+          {/* 종합 피드백 - 전체 너비 */}
+          <div className="fm-card mb-4">
+            <p className="fm-eyebrow">Summary</p>
+            <h3 className="mt-1 text-lg font-bold text-fm-ink mb-4">종합 피드백</h3>
+            <p className="text-fm-ink text-base font-light leading-[1.9] break-keep">
               {report.summary || report.feedback_summary || "종합 피드백이 없습니다."}
             </p>
           </div>
-          {/* 핵심 키워드 — {keyword, meaning} 구조 (구버전 문자열 배열도 호환) */}
-          <div className="print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] p-7 md:p-8">
-            <p className="fm-eyebrow text-[11px] text-fm-gold">Keywords</p>
-            <h3 className="mt-1 text-lg font-bold text-[#1B1F24] mb-5">핵심 키워드</h3>
-            {/* 2단 격자 카드 — 상단 배지(키워드) + 하단 설명 */}
+          {/* 핵심 키워드 - {keyword, meaning} 구조 (구버전 문자열 배열도 호환) */}
+          <div className="print:break-inside-avoid fm-card">
+            <p className="fm-eyebrow">Keywords</p>
+            <h3 className="mt-1 text-lg font-bold text-fm-ink mb-5">핵심 키워드</h3>
+            {/* 2단 격자 카드 - 상단 배지(키워드) + 하단 설명 */}
             <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4">
               {(report.top_keywords || []).map((kw: any, i: number) => {
                 const keyword = typeof kw === 'string' ? kw : kw?.keyword;
                 const meaning = typeof kw === 'object' ? kw?.meaning : null;
                 if (!keyword) return null;
                 return (
-                  <div key={i} className="print:break-inside-avoid p-5 bg-[#F5F6F8] rounded-2xl border border-[#E3E6EA]">
-                    <span className="inline-block px-3 py-1 rounded-md bg-[#1B1F24] text-white text-[13px] font-semibold tracking-wide mb-3">
+                  <div key={i} className="print:break-inside-avoid p-5 bg-fm-paper-soft rounded-lg border border-fm-gray-100">
+                    <span className="inline-block px-3 py-1 rounded-md bg-fm-accent text-white text-[13px] font-semibold tracking-wide mb-3">
                       {keyword}
                     </span>
                     {meaning && (
-                      <p className="text-sm text-[#6B727C] leading-relaxed break-keep">{meaning}</p>
+                      <p className="text-sm text-fm-gray-500 leading-relaxed break-keep">{meaning}</p>
                     )}
                   </div>
                 );
@@ -922,19 +925,19 @@ function ReportContent() {
         </div>
 
         </div>
-        {/* ══ [PDF 페이지 1] 끝 — 점수·차트·피드백·키워드 1페이지 압축 ══ */}
+        {/* ══ [PDF 페이지 1] 끝 - 점수·차트·피드백·키워드 1페이지 압축 ══ */}
 
         {/* ══ [PDF 페이지 2] 스스로 보는 나 · 대화에 드러난 나 & IDP ══ */}
-        {/* ── [섹션 4] 자가진단 비교(Self View) & IDP — 문구·차이·해석은 전부 백엔드 값 그대로 ── */}
+        {/* ── [섹션 4] 자가진단 비교(Self View) & IDP - 문구·차이·해석은 전부 백엔드 값 그대로 ── */}
         <div className="pdf-page-block print:break-after-page print-section mb-16">
-          <SectionHead no="02" en="Self View & Discovery" ko="스스로 보는 나와 대화에 드러난 나" className="mb-8" />
+          <SectionHead no="02" en="Self View & Discovery" ko="스스로 보는 나와 대화에 드러난 나" className="fm-report-sec" />
           {(() => {
             const sv = report.self_view;
             // 자가진단 미제출: 섹션 전체를 안내 한 줄 카드로.
             if (sv && sv.submitted === false) {
               return (
-                <div className="bg-white rounded-2xl border border-[#E3E6EA] p-7 md:p-8">
-                  <p className="text-[15px] font-light leading-[1.8] text-[#6B727C] break-keep">{sv.message}</p>
+                <div className="fm-card">
+                  <p className="text-[15px] font-light leading-[1.8] text-fm-gray-500 break-keep">{sv.message}</p>
                 </div>
               );
             }
@@ -944,23 +947,23 @@ function ReportContent() {
             const diffText = (d: unknown) => (typeof d === 'number' ? `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d).toFixed(1)}` : '—');
             const badgeCls = (kind: string) =>
               kind === 'self_higher' || kind === 'self_lower'
-                ? 'border-[#E6D7BC] bg-[#F3EBDD] text-[#8A6C3F]'
-                : kind === 'reference'   // 참고치 챕터: 수치는 보이되 단정하지 않음 — 골드 점선
-                ? 'border-dashed border-[#E6D7BC] bg-[#FBF7F0] text-[#8A6C3F]'
+                ? 'border-fm-gray-100 bg-fm-accent-tint text-fm-accent'
+                : kind === 'reference'   // 참고치 챕터: 수치는 보이되 단정하지 않음 - 네이비 점선
+                ? 'border-dashed border-fm-gray-100 bg-fm-paper text-fm-accent'
                 : kind === 'unmeasured'
-                ? 'border-dashed border-[#9BA2AC] bg-white text-[#9BA2AC]'
-                : 'border-[#E3E6EA] bg-[#F5F6F8] text-[#6B727C]';
+                ? 'border-dashed border-fm-gray-300 bg-fm-paper text-fm-gray-300'
+                : 'border-fm-gray-100 bg-fm-paper-soft text-fm-gray-500';
             const diffBadge = (row: SelfViewRow) => (
               <span className={`inline-block min-w-[52px] rounded-md border px-2 py-0.5 text-center text-xs font-semibold tabular-nums ${badgeCls(row.kind)}`}>{diffText(row.diff)}</span>
             );
             return (
               <>
                 {rows.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-[#E3E6EA] overflow-hidden">
+                  <div className="fm-card fm-report-flush">
                     {/* 표(768px 초과·인쇄) */}
                     <table className="hidden lg:table print:table w-full text-left">
                       <thead>
-                        <tr className="border-b border-[#E3E6EA] bg-[#F5F6F8] text-xs font-semibold text-[#6B727C]">
+                        <tr className="border-b border-fm-gray-100 bg-fm-paper-soft text-xs font-semibold text-fm-gray-500">
                           <th className="px-7 py-3.5 font-semibold w-[13%]">영역</th>
                           <th className="px-3 py-3.5 font-semibold text-right w-[14%] whitespace-nowrap">스스로 보는 나</th>
                           <th className="px-3 py-3.5 font-semibold text-right w-[15%] whitespace-nowrap">대화에 드러난 나</th>
@@ -968,67 +971,67 @@ function ReportContent() {
                           <th className="px-7 py-3.5 font-semibold">해석</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E3E6EA]">
+                      <tbody className="divide-y divide-fm-gray-100">
                         {rows.map((row) => (
                           <tr key={row.key}>
-                            <td className="px-7 py-4 text-[15px] font-semibold text-[#1B1F24] whitespace-nowrap">{row.name}</td>
-                            <td className="px-3 py-4 text-right text-lg font-light tabular-nums text-[#6B727C]">{num(row.self)}</td>
-                            <td className={`px-3 py-4 text-right text-lg tabular-nums ${typeof row.measured === 'number' ? 'font-medium text-[#8A6C3F]' : 'font-light text-[#9BA2AC]'}`}>{num(row.measured)}</td>
+                            <td className="px-7 py-4 text-[15px] font-semibold text-fm-ink whitespace-nowrap">{row.name}</td>
+                            <td className="px-3 py-4 text-right text-lg fm-report-fig text-fm-gray-500">{num(row.self)}</td>
+                            <td className={`px-3 py-4 text-right text-lg tabular-nums ${typeof row.measured === 'number' ? 'fm-report-fig text-fm-ink' : 'font-light text-fm-gray-300'}`}>{num(row.measured)}</td>
                             <td className="px-3 py-4 text-center">{diffBadge(row)}</td>
-                            <td className={`px-7 py-4 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-[#9BA2AC]' : row.kind === 'reference' ? 'text-[#8A6C3F]' : 'text-[#1B1F24]'}`}>{row.interpretation}</td>
+                            <td className={`px-7 py-4 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-fm-gray-300' : row.kind === 'reference' ? 'text-fm-accent' : 'text-fm-ink'}`}>{row.interpretation}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    {/* 카드 목록(1024px 미만) — 좁은 화면에서 표가 깨지지 않게 접는다 */}
-                    <div className="lg:hidden print:hidden divide-y divide-[#E3E6EA]">
+                    {/* 카드 목록(1024px 미만) - 좁은 화면에서 표가 깨지지 않게 접는다 */}
+                    <div className="lg:hidden print:hidden divide-y divide-fm-gray-100">
                       {rows.map((row) => (
                         <div key={row.key} className="p-5">
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-[15px] font-semibold text-[#1B1F24]">{row.name}</span>
-                            <span className="inline-flex items-center gap-2 text-[11px] text-[#6B727C]">차이 {diffBadge(row)}</span>
+                            <span className="text-[15px] font-semibold text-fm-ink">{row.name}</span>
+                            <span className="inline-flex items-center gap-2 text-[11px] text-fm-gray-500">차이 {diffBadge(row)}</span>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-3">
-                            <div className="rounded-xl bg-[#F5F6F8] px-4 py-3">
-                              <div className="text-[11px] text-[#6B727C]">스스로 보는 나</div>
-                              <div className="mt-0.5 text-xl font-light tabular-nums text-[#6B727C]">{num(row.self)}</div>
+                            <div className="rounded-md bg-fm-paper-soft px-4 py-3">
+                              <div className="text-[11px] text-fm-gray-500">스스로 보는 나</div>
+                              <div className="mt-0.5 text-xl fm-report-fig text-fm-gray-500">{num(row.self)}</div>
                             </div>
-                            <div className="rounded-xl bg-[#F5F6F8] px-4 py-3">
-                              <div className="text-[11px] text-[#6B727C]">대화에 드러난 나</div>
-                              <div className={`mt-0.5 text-xl tabular-nums ${typeof row.measured === 'number' ? 'font-medium text-[#8A6C3F]' : 'font-light text-[#9BA2AC]'}`}>{num(row.measured)}</div>
+                            <div className="rounded-md bg-fm-paper-soft px-4 py-3">
+                              <div className="text-[11px] text-fm-gray-500">대화에 드러난 나</div>
+                              <div className={`mt-0.5 text-xl tabular-nums ${typeof row.measured === 'number' ? 'fm-report-fig text-fm-ink' : 'font-light text-fm-gray-300'}`}>{num(row.measured)}</div>
                             </div>
                           </div>
-                          <p className={`mt-3 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-[#9BA2AC]' : row.kind === 'reference' ? 'text-[#8A6C3F]' : 'text-[#1B1F24]'}`}>{row.interpretation}</p>
+                          <p className={`mt-3 text-sm font-light leading-relaxed break-keep ${row.kind === 'unmeasured' ? 'text-fm-gray-300' : row.kind === 'reference' ? 'text-fm-accent' : 'text-fm-ink'}`}>{row.interpretation}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* 요약 한 단락 — 백엔드 self_view.summary */}
+                {/* 요약 한 단락 - 백엔드 self_view.summary */}
                 {sv?.summary && (
-                  <div className="mt-4 bg-white rounded-2xl border border-[#E3E6EA] border-l-2 border-l-fm-gold p-7 md:p-8">
-                    <p className="fm-eyebrow text-[11px] text-fm-gold mb-3">Discovery</p>
-                    <p className="text-[#1B1F24] text-base font-light leading-[1.9] break-keep">{sv.summary}</p>
+                  <div className="mt-4 fm-card">
+                    <p className="fm-eyebrow mb-3">Discovery</p>
+                    <p className="text-fm-ink text-base font-light leading-[1.9] break-keep">{sv.summary}</p>
                   </div>
                 )}
 
-                {/* IDP — 있으면 번호 01/02/03, 없으면 04 추천 교육으로 잇는 한 줄 */}
+                {/* IDP - 있으면 번호 01/02/03, 없으면 04 추천 교육으로 잇는 한 줄 */}
                 {Array.isArray(report.idp) && report.idp.length > 0 ? (
-                  <div className="print:break-inside-avoid mt-4 bg-white rounded-2xl border border-[#E3E6EA] p-7 md:p-8">
-                    <p className="fm-eyebrow text-[11px] text-fm-gold">Individual Development Plan</p>
-                    <h3 className="mt-1 text-lg font-bold text-[#1B1F24] mb-5">개인 발전 계획 (IDP)</h3>
-                    <div className="divide-y divide-[#E3E6EA]">
+                  <div className="print:break-inside-avoid mt-4 fm-card">
+                    <p className="fm-eyebrow">Individual Development Plan</p>
+                    <h3 className="mt-1 text-lg font-bold text-fm-ink mb-5">개인 발전 계획 (IDP)</h3>
+                    <div className="divide-y divide-fm-gray-100">
                       {report.idp.map((item: string, idx: number) => (
                         <div key={idx} className="flex gap-4 py-4 first:pt-0 last:pb-0">
-                          <span className="fm-eyebrow text-[11px] text-fm-gold shrink-0 pt-1 tabular-nums">{String(idx + 1).padStart(2, '0')}</span>
-                          <p className="text-[#1B1F24] text-[15px] font-light leading-[1.8] break-keep">{item}</p>
+                          <span className="fm-eyebrow shrink-0 pt-1 tabular-nums">{String(idx + 1).padStart(2, '0')}</span>
+                          <p className="text-fm-ink text-[15px] font-light leading-[1.8] break-keep">{item}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-5 px-1 text-sm font-light text-[#6B727C] break-keep">구체적인 다음 걸음은 04 추천 교육에서 이어집니다.</p>
+                  <p className="mt-5 px-1 text-sm font-light text-fm-gray-500 break-keep">구체적인 다음 걸음은 04 추천 교육에서 이어집니다.</p>
                 )}
               </>
             );
@@ -1038,11 +1041,11 @@ function ReportContent() {
         {/* ── [섹션 5] 역량별 심층 진단 ── */}
         <div className="space-y-4">
           {/* 03 COMPETENCY DEEP DIVE */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-            <SectionHead no="03" en="Competency Deep Dive" ko="역량별 심층 진단서 · 대역량별 하위역량 점수와 평가 근거" className="flex-1" />
-            <button onClick={() => setOpenDetail(openDetail === "ALL" ? null : "ALL")}
+          <div className="fm-report-sec fm-report-sec-row">
+            <SectionHead no="03" en="Competency Deep Dive" ko="역량별 상세" className="flex-1" />
+            <button type="button" onClick={() => setOpenDetail(openDetail === "ALL" ? null : "ALL")}
               data-html2canvas-ignore="true"
-              className="print:hidden self-start md:self-auto text-sm text-[#1B1F24] font-semibold border border-[#E3E6EA] bg-white px-4 py-2 rounded-full hover:border-fm-gold transition-colors">
+              className="print:hidden fm-btn sm secondary">
               {openDetail === "ALL" ? "전체 닫기" : "전체 펼치기"}
             </button>
           </div>
@@ -1074,43 +1077,38 @@ function ReportContent() {
               <React.Fragment key={idx}>
 
                 {/* ① [역량 블록 1: 요약 및 차트] 헤더 + 코치 피드백 + 세부 역량 + 산출 근거 */}
-                <div className={`pdf-page-block print:break-after-page print-section print:break-inside-avoid bg-white rounded-2xl border transition-colors duration-300 overflow-hidden ${isOpen ? 'border-[#E6D7BC]' : 'border-[#E3E6EA] hover:border-[#E6D7BC]'}`}>
+                <div className={`pdf-page-block print:break-after-page print-section print:break-inside-avoid fm-card fm-report-flush transition-colors duration-300 overflow-hidden ${isOpen ? '' : 'hover:border-fm-gray-300'}`}>
 
-                  {/* 헤더 */}
-                  <button onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
-                    className="w-full flex items-center justify-between gap-4 px-6 md:px-8 py-6 text-left focus:outline-none">
-                    <div className="flex items-center gap-5 md:gap-6 min-w-0">
-                      {/* 점수 도형: grid place-items-center 중앙 정렬 +
-                          Mac(Safari/Webkit) 폰트 베이스라인 시각 오차를
-                          mt-[-2px] 음수 마진으로 픽셀 단위 보정 */}
-                      <div className={`grid place-items-center w-16 h-16 rounded-2xl border shrink-0 ${measured ? 'bg-[#F5F6F8] border-[#E3E6EA]' : 'bg-white border-dashed border-[#9BA2AC]'}`}>
-                        <span className={`leading-none mt-[-2px] p-0 tabular-nums whitespace-nowrap ${measured ? 'text-[26px] font-light text-[#1B1F24]' : 'text-[11px] font-semibold text-[#9BA2AC]'}`}>
-                          {measured ? Number(score).toFixed(1) : '미측정'}
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <span className="block text-lg font-bold text-[#1B1F24] mb-1">
-                          <span className="fm-eyebrow text-[11px] text-fm-gold mr-2 align-middle">{String(idx + 1).padStart(2, '0')}</span>
-                          {label}
-                          {measured && isReference && (
-                            <span className="ml-2 align-middle rounded-md border border-[#E6D7BC] bg-[#F3EBDD] px-2 py-0.5 text-[11px] font-semibold text-[#8A6C3F]">참고치</span>
-                          )}
-                        </span>
-                        {/* 역량 요약 설명 — 시인성 극대화 (text-sm → text-lg, 톤 업) */}
-                        <span className={`block text-[15px] md:text-base font-light leading-relaxed break-keep ${measured ? 'text-[#1B1F24]' : 'text-[#9BA2AC]'}`}>
-                          {/* F: 측정 0 역량엔 평가 문장을 쓰지 않는다(과거 리포트 포함). */}
-                          {measured ? (strengthPoint || "역량 상세 분석 클릭") : "이번 세션에서 확인되지 않았습니다."}
-                        </span>
-                      </div>
-                    </div>
-                    <ChevronIcon className={`w-5 h-5 shrink-0 text-[#9BA2AC] transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                  {/* 헤더 - 샘플 .dhead(번호 + 제목·요약 + 점수 + 펼침 화살표) */}
+                  <button type="button" onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
+                    className="fm-report-dhead">
+                    <span className="fm-num">{String(idx + 1).padStart(2, '0')}</span>
+                    <span className="ttl">
+                      <span className="h">
+                        {label}
+                        {measured && isReference && (
+                          <span className="fm-chip tint ml-2 align-middle">참고치</span>
+                        )}
+                      </span>
+                      {/* 역량 요약 설명 */}
+                      <span className={`sum break-keep ${measured ? '' : 'off'}`}>
+                        {/* F: 측정 0 역량엔 평가 문장을 쓰지 않는다(과거 리포트 포함). */}
+                        {measured ? (strengthPoint || "역량 상세 분석 클릭") : "이번 세션에서 확인되지 않았습니다."}
+                      </span>
+                    </span>
+                    <span className="score">
+                      {measured
+                        ? <><span className="fm-report-fig">{Number(score).toFixed(1)}</span><span className="fm-caption">/{maxScore.toFixed(1)}</span></>
+                        : <span className="fm-chip mute">미측정</span>}
+                    </span>
+                    <ChevronIcon className={`chev transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {/* C-2: measured 0 대역량은 상세 분석을 렌더링하지 않고
                       '이번 세션 미확인'으로만 표기 (근거 없는 분석 오해 방지). */}
                   {isOpen && !measured && (
-                    <div className="px-6 md:px-8 pb-8 border-t border-[#E3E6EA] pt-6">
-                      <p className="text-sm text-[#6B727C]">
+                    <div className="px-6 md:px-8 pb-8 border-t border-fm-gray-100 pt-6">
+                      <p className="text-sm text-fm-gray-500">
                         이 역량은 이번 세션에서 확인되지 않았습니다. 다음 세션에서 이어서 살펴봅니다.
                       </p>
                     </div>
@@ -1118,44 +1116,44 @@ function ReportContent() {
 
                   {/* 펼침 Part 1: 2x2 그리드 (measured 대역량만) */}
                   {isOpen && measured && (
-                    <div className="px-6 md:px-8 pb-8 border-t border-[#E3E6EA] pt-6 bg-[#F5F6F8]/60">
+                    <div className="px-6 md:px-8 pb-8 border-t border-fm-gray-100 pt-6 bg-fm-paper-soft">
                       <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4">
 
                         {/* 좌상: 코치 피드백 */}
-                        <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-[#E3E6EA]">
-                          <p className="fm-eyebrow text-[11px] text-fm-gold">Coach Feedback</p>
-                          <h4 className="mt-1 text-base font-bold text-[#1B1F24] mb-3 pb-3 border-b border-[#E3E6EA]">코치 피드백</h4>
-                          <p className="text-[#1B1F24] text-[15px] font-light leading-[1.8] break-keep">{comment}</p>
+                        <div className="print:break-inside-avoid fm-card fm-report-inner">
+                          <p className="fm-eyebrow">Coach Feedback</p>
+                          <h4 className="mt-1 text-base font-bold text-fm-ink mb-3 pb-3 border-b border-fm-gray-100">코치 피드백</h4>
+                          <p className="text-fm-ink text-[15px] font-light leading-[1.8] break-keep">{comment}</p>
                         </div>
 
-                        {/* 우상: 강점 & 개선 필요점 — 좌측 '코치 피드백'과 시각적 무게감 균형 */}
-                        <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-[#E3E6EA]">
-                          <p className="fm-eyebrow text-[11px] text-fm-gold">Strength &amp; Growth</p>
-                          <h4 className="mt-1 text-base font-bold text-[#1B1F24] mb-3 pb-3 border-b border-[#E3E6EA]">강점 &amp; 개선 필요점</h4>
+                        {/* 우상: 강점 & 개선 필요점 - 좌측 '코치 피드백'과 시각적 무게감 균형 */}
+                        <div className="print:break-inside-avoid fm-card fm-report-inner">
+                          <p className="fm-eyebrow">Strength &amp; Growth</p>
+                          <h4 className="mt-1 text-base font-bold text-fm-ink mb-3 pb-3 border-b border-fm-gray-100">강점 &amp; 개선 필요점</h4>
                           <div className="space-y-3">
                             {strengthPoint && (
-                              <div className="flex gap-3 items-start p-4 bg-[#F5F6F8] rounded-xl border border-[#E3E6EA] border-l-2 border-l-fm-gold">
-                                <span className="text-[#8A6C3F] text-sm font-bold shrink-0 mt-0.5 w-8">강점</span>
-                                <p className="text-[15px] text-[#1B1F24] font-light leading-[1.8] break-keep">{strengthPoint}</p>
+                              <div className="flex gap-3 items-start p-4 bg-fm-paper-soft rounded-md border border-fm-gray-100 border-l-2 border-l-fm-accent">
+                                <span className="text-fm-accent text-sm font-bold shrink-0 mt-0.5 w-8">강점</span>
+                                <p className="text-[15px] text-fm-ink font-light leading-[1.8] break-keep">{strengthPoint}</p>
                               </div>
                             )}
                             {growthPoint && (
-                              <div className="flex gap-3 items-start p-4 bg-[#F5F6F8] rounded-xl border border-[#E3E6EA] border-l-2 border-l-[#1B1F24]">
-                                <span className="text-[#1B1F24] text-sm font-bold shrink-0 mt-0.5 w-8">개선</span>
-                                <p className="text-[15px] text-[#1B1F24] font-light leading-[1.8] break-keep">{growthPoint}</p>
+                              <div className="flex gap-3 items-start p-4 bg-fm-paper-soft rounded-md border border-fm-gray-100 border-l-2 border-l-fm-ink">
+                                <span className="text-fm-ink text-sm font-bold shrink-0 mt-0.5 w-8">개선</span>
+                                <p className="text-[15px] text-fm-ink font-light leading-[1.8] break-keep">{growthPoint}</p>
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {/* 하단(전폭): 세부 역량 분석 — 좌: 방사형 차트 / 우: 가로 막대
+                        {/* 하단(전폭): 세부 역량 분석 - 좌: 방사형 차트 / 우: 가로 막대
                             2단 그리드로 시각적 균형, 그 아래 '점수 산출 근거' 통합 */}
-                        <div className="print:break-inside-avoid p-6 bg-white rounded-2xl border border-[#E3E6EA] md:col-span-2 print:col-span-full print:w-full">
-                          <div className="mb-3 pb-3 border-b border-[#E3E6EA]">
-                            <p className="fm-eyebrow text-[11px] text-fm-gold">Sub-competencies</p>
-                            <h4 className="mt-1 text-base font-bold text-[#1B1F24]">세부 역량 분석</h4>
+                        <div className="print:break-inside-avoid fm-card fm-report-inner md:col-span-2 print:col-span-full print:w-full">
+                          <div className="mb-3 pb-3 border-b border-fm-gray-100">
+                            <p className="fm-eyebrow">Sub-competencies</p>
+                            <h4 className="mt-1 text-base font-bold text-fm-ink">세부 역량 분석</h4>
                           </div>
-                          {/* 좌: 방사형(Radar) / 우: 가로 막대 — order 로 배치 확정 */}
+                          {/* 좌: 방사형(Radar) / 우: 가로 막대 - order 로 배치 확정 */}
                           <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-2 gap-6 items-center">
                             <div className="w-full flex justify-center lg:order-1">
                               <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
@@ -1165,10 +1163,10 @@ function ReportContent() {
                             </div>
                           </div>
 
-                          {/* 점수 산출 근거 — 세부 역량 분석 영역 바로 아래 */}
-                          <div className="mt-6 pt-5 border-t border-[#E3E6EA]">
-                            <p className="fm-eyebrow text-[11px] text-fm-gold">Score Breakdown</p>
-                            <h4 className="mt-1 text-base font-bold text-[#1B1F24]">점수 산출 근거</h4>
+                          {/* 점수 산출 근거 - 세부 역량 분석 영역 바로 아래 */}
+                          <div className="mt-6 pt-5 border-t border-fm-gray-100">
+                            <p className="fm-eyebrow">Score Breakdown</p>
+                            <h4 className="mt-1 text-base font-bold text-fm-ink">점수 산출 근거</h4>
                             <ScoreBreakdown breakdown={scoreBreakdown} maxScore={maxScore} />
                           </div>
                         </div>
@@ -1178,9 +1176,9 @@ function ReportContent() {
                   )}
                 </div>
 
-                {/* ② [역량 블록 2: 심층 평가 근거] — measured 대역량만(C-2) */}
+                {/* ② [역량 블록 2: 심층 평가 근거] - measured 대역량만(C-2) */}
                 {isOpen && measured && (
-                  <div className="pdf-page-block print:break-after-page print-section print:break-inside-avoid bg-white rounded-2xl border border-[#E3E6EA] overflow-hidden mt-3">
+                  <div className="pdf-page-block print:break-after-page print-section print:break-inside-avoid fm-card fm-report-flush overflow-hidden mt-3">
                     <div className="px-6 md:px-8 py-7">
                       <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} evidenceList={evidenceList} />
                     </div>
@@ -1192,16 +1190,16 @@ function ReportContent() {
           })}
         </div>
 
-        {/* ── [섹션 6] 리더십 향상을 위한 추천 교육 — 리포트 최하단 ── */}
+        {/* ── [섹션 6] 리더십 향상을 위한 추천 교육 - 리포트 최하단 ── */}
         {report.course_recommendation && (
-          <div className="pdf-page-block print:break-after-page print-section mt-14">
+          <div className="pdf-page-block print:break-after-page print-section mt-14 fm-report-courses">
             {/* 04 RECOMMENDED COURSES */}
-            <SectionHead no="04" en="Recommended Courses" ko="리더십 향상을 위한 추천 교육" className="mb-8" />
-            <div className="rounded-2xl border border-[#E3E6EA] bg-white p-7 md:p-8 print:break-inside-avoid">
-              <h2 className="text-xl font-bold text-[#1B1F24]">
+            <SectionHead no="04" en="Recommended Courses" ko="추천 교육" className="fm-report-sec" />
+            <div className="fm-card print:break-inside-avoid">
+              <h2 className="text-xl font-bold text-fm-ink">
                 리더십 향상을 위한 추천 교육
               </h2>
-              <p className="mt-3 mb-8 text-[15px] font-light leading-[1.8] text-[#6B727C] max-w-3xl break-keep">
+              <p className="mt-3 mb-8 text-[15px] font-light leading-[1.8] text-fm-gray-500 max-w-3xl break-keep">
                 {report.course_recommendation.intro}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
@@ -1215,60 +1213,60 @@ function ReportContent() {
                     return (
                       <div
                         key={i}
-                        className={`print:break-inside-avoid rounded-2xl border p-6 md:p-7 ${
+                        className={`print:break-inside-avoid rounded-lg border p-6 md:p-7 ${
                           strength
-                            ? "border-[#E6D7BC] bg-[#F3EBDD]/50"
-                            : "border-[#E3E6EA] bg-[#F5F6F8]"
+                            ? "border-fm-gray-100 bg-fm-accent-tint/50"
+                            : "border-fm-gray-100 bg-fm-paper-soft"
                         }`}
                       >
-                        {/* [구분] + [트랙/학습형식] — 배지 아닌 소제목 라벨 */}
+                        {/* [구분] + [트랙/학습형식] - 배지 아닌 소제목 라벨 */}
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span
                             className={`fm-eyebrow text-[11px] ${
-                              strength ? "text-[#8A6C3F]" : "text-fm-gold"
+                              strength ? "text-fm-blue-mid" : "text-fm-accent"
                             }`}
                           >
                             {c.type}
                           </span>
-                          <span className="text-[11px] text-[#9BA2AC]">
+                          <span className="text-[11px] text-fm-gray-300">
                             {c.track}트랙 · {c.track_format}
                           </span>
                         </div>
 
-                        {/* [과정명] [대역량명] 과정명 — 클릭 시 VOD 이동 */}
+                        {/* [과정명] [대역량명] 과정명 - 클릭 시 VOD 이동 */}
                         <a
                           href={c.vod_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-2 block text-lg font-bold leading-snug text-[#1B1F24] underline-offset-4 hover:text-[#8A6C3F] hover:underline transition-colors break-keep"
+                          className="mt-2 block text-lg font-bold leading-snug text-fm-ink underline-offset-4 hover:text-fm-accent hover:underline transition-colors break-keep"
                         >
-                          <span className="text-[#6B727C] font-semibold">[{c.category}]</span>{" "}
+                          <span className="text-fm-gray-500 font-semibold">[{c.category}]</span>{" "}
                           {c.course}
                         </a>
                         {/* 수료 시 도달 행동 (Next Level Behavior) */}
                         {c.subtitle && (
-                          <div className="mt-1 text-sm font-light text-[#6B727C] break-keep">
+                          <div className="mt-1 text-sm font-light text-fm-gray-500 break-keep">
                             → {c.subtitle}
                           </div>
                         )}
 
-                        {/* [하위역량] — 진단 레벨 표기 */}
-                        <div className="mt-2 text-xs text-[#6B727C] tabular-nums">
+                        {/* [하위역량] - 진단 레벨 표기 */}
+                        <div className="mt-2 text-xs text-fm-gray-500 tabular-nums">
                           진단 결과: {c.sub_competency} · Lv.{c.level} ({Number(c.score).toFixed(1)}점)
                         </div>
 
-                        {/* [추천 이유] — 도약 총평 + 개조식 */}
-                        <div className="mt-5 border-t border-[#E3E6EA] pt-4">
-                          <div className="fm-eyebrow text-[10px] text-[#6B727C] mb-2">
+                        {/* [추천 이유] - 도약 총평 + 개조식 */}
+                        <div className="mt-5 border-t border-fm-gray-100 pt-4">
+                          <div className="fm-eyebrow text-fm-gray-500 mb-2">
                             {strength ? "제안 이유" : "추천 이유"}
                           </div>
                           {c.reason_overview && (
-                            <p className="text-sm font-semibold leading-relaxed text-[#1B1F24] break-keep">
+                            <p className="text-sm font-semibold leading-relaxed text-fm-ink break-keep">
                               {c.reason_overview}
                             </p>
                           )}
                           {Array.isArray(c.reason_bullets) && c.reason_bullets.length > 0 && (
-                            <ul className="mt-2.5 list-disc pl-5 space-y-1.5 text-sm font-light leading-relaxed text-[#6B727C] marker:text-[#B08D5C] break-keep">
+                            <ul className="mt-2.5 list-disc pl-5 space-y-1.5 text-sm font-light leading-relaxed text-fm-gray-500 marker:text-fm-accent break-keep">
                               {c.reason_bullets.map((b: string, j: number) => (
                                 <li key={j}>{b}</li>
                               ))}
@@ -1276,13 +1274,13 @@ function ReportContent() {
                           )}
                         </div>
 
-                        {/* BEI 분석 인용 — 리더의 딜레마/발화 한 줄 */}
+                        {/* BEI 분석 인용 - 리더의 딜레마/발화 한 줄 */}
                         {c.bei_citation && (
-                          <div className="mt-4 rounded-xl bg-white border border-[#E3E6EA] px-3.5 py-2.5">
-                            <div className="fm-eyebrow text-[10px] text-[#6B727C] mb-1">
+                          <div className="mt-4 rounded-md bg-fm-paper border border-fm-gray-100 px-3.5 py-2.5">
+                            <div className="fm-eyebrow text-fm-gray-500 mb-1">
                               진단 대화 근거
                             </div>
-                            <p className="text-xs italic leading-relaxed text-[#6B727C] border-l-2 border-[#E6D7BC] pl-2.5 break-keep">
+                            <p className="text-xs italic leading-relaxed text-fm-gray-500 border-l-2 border-fm-gray-100 pl-2.5 break-keep">
                               &ldquo;{c.bei_citation}&rdquo;
                             </p>
                           </div>
@@ -1296,10 +1294,10 @@ function ReportContent() {
         )}
       </div>
 
-      {/* 홈으로 돌아가기 버튼 — 인쇄물·PDF 캡처에서 완전 제외 */}
+      {/* 홈으로 돌아가기 버튼 - 인쇄물·PDF 캡처에서 완전 제외 */}
       <div data-html2canvas-ignore="true" className="print:hidden flex justify-center mt-16 relative z-20 pb-16">
-        <button onClick={() => router.push('/')}
-          className="px-8 py-4 bg-[#1B1F24] text-white font-semibold rounded-full hover:bg-[#2C3037] transition-colors text-sm flex items-center gap-2">
+        <button type="button" onClick={() => router.push('/')}
+          className="fm-btn">
           홈으로 돌아가기
         </button>
       </div>
@@ -1308,5 +1306,5 @@ function ReportContent() {
 }
 
 export default function ReportPage() {
-  return <Suspense fallback={<div className="min-h-screen bg-[#F5F6F8]" />}><ReportContent /></Suspense>;
+  return <Suspense fallback={<div className="fm-app fm-report" />}><ReportContent /></Suspense>;
 }

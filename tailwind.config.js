@@ -12,18 +12,35 @@ module.exports = {
     extend: {
       // FindME 리뉴얼 팔레트·서체 (globals.css 의 CSS 변수와 동일 값)
       colors: {
+        // (2026-10 라이트 리디자인) 참가자 화면 팔레트. 값은 app/fm-light.css 의 --fm-* 토큰과 동일.
+        // 구 키(gold·line·muted·text·dim·panel·ink)는 남은 사용처가 깨지지 않도록 라이트 값으로 매핑해 둔다.
         fm: {
-          ink: '#0B0D10',
-          panel: '#1C1F24',
-          line: '#2C3037',
-          gold: '#B08D5C',
-          text: '#D5D9DF',
-          muted: '#9BA2AC',
-          dim: '#6B727C',
+          paper: '#FFFFFF',
+          'paper-soft': '#FBFBFB',
+          'paper-mute': '#F2F2F2',
+          ink: '#000000',
+          'ink-body': '#404040',
+          'gray-500': '#7F7F7F',
+          'gray-300': '#A6A6A6',
+          'gray-100': '#D9D9D9',
+          accent: '#1C2B4A',
+          'accent-hover': '#13203A',
+          'accent-tint': '#E9EDF4',
+          'blue-mid': '#2E4A85',
+          'blue-bright': '#4F86F7',
+          'blue-light': '#8FB2FB',
+          danger: '#B4232C',
+          gold: '#1C2B4A',
+          line: '#D9D9D9',
+          text: '#404040',
+          muted: '#7F7F7F',
+          dim: '#A6A6A6',
+          panel: '#FFFFFF',
         },
       },
       fontFamily: {
         sans: ['"Pretendard Variable"', 'Pretendard', '"Noto Sans KR"', 'system-ui', 'sans-serif'],
+        wordmark: ['var(--font-outfit)', 'Outfit', 'sans-serif'],
         display: ['var(--font-montserrat)', 'Montserrat', 'sans-serif'],
         serif: ['var(--font-instrument)', '"Instrument Serif"', 'Georgia', 'serif'],
       },
