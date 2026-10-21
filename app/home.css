@@ -79,6 +79,14 @@
 .fm-home-copy .meta span { display: inline-flex; align-items: center; }
 .fm-home-copy .meta span + span::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--fm-gray-300); margin: 0 14px; }
 .fm-home-copy .meta b { font-family: var(--fm-font-display); font-weight: 600; color: var(--fm-ink); margin-right: 5px; letter-spacing: .02em; }
+/* 숫자 요약(크게): 숫자 위, 라벨 아래, 세로 괘선 구분. 숫자 폭을 고정해 카운트 중 흔들리지 않게 */
+.fm-home-stats { margin: 34px 0 0; display: flex; align-items: stretch; }
+.fm-home-stats > div { display: flex; flex-direction: column-reverse; padding: 0 32px; border-left: 1px solid var(--fm-gray-100); }
+.fm-home-stats > div:first-child { padding-left: 0; border-left: 0; }
+.fm-home-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; }
+.fm-home-stats dd b { font: 600 48px/1 var(--fm-font-display); letter-spacing: -.03em; color: var(--fm-accent); font-variant-numeric: tabular-nums; }
+.fm-home-stats dd small { font-size: 16px; font-weight: 700; color: var(--fm-accent); }
+.fm-home-stats dt { margin-top: 10px; font-size: 13px; font-weight: 500; color: var(--fm-gray-500); }
 @media (max-width: 767px) {
   .fm-home-br-d { display: none; }
 }
@@ -142,6 +150,10 @@
   .fm-home-copy h1 { margin-top: 16px; font-size: 26px; line-height: 1.25; }
   .fm-home-copy .lead { margin-top: 16px; font-size: 15px; }
   .fm-home-copy .meta { margin-top: 20px; font-size: 13px; }
+  .fm-home-stats { margin-top: 24px; }
+  .fm-home-stats > div { padding: 0 20px; }
+  .fm-home-stats dd b { font-size: 34px; }
+  .fm-home-stats dt { margin-top: 6px; font-size: 12px; }
   .fm-card.fm-home-login { max-width: none; margin-right: 0; margin-top: 32px; padding: 26px 20px 22px; }
   .fm-card.elev.fm-home-login { box-shadow: var(--fm-shadow); }
   .fm-card.fm-home-login h2 { font-size: 22px; }

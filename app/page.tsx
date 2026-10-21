@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
@@ -14,6 +14,32 @@ const STEPS = [
   { no: '04', title: '코치 대화', desc: '실제 행동 사례를 바탕으로 역량을 진단합니다.', timeLabel: '역량당 30분', time: '총 150분' },
   { no: '05', title: '리포트', desc: '하위역량 26개 분석과 추천 과정을 받습니다.', timeLabel: '발급', time: '즉시' },
 ];
+
+/**
+ * 숫자가 0에서 빠르게 올라가다 천천히 멈추는 카운터(슬롯처럼 처음엔 빠르게, 끝에서 감속).
+ * - 서버 렌더와 스크립트가 없을 때는 최종 숫자를 그대로 보여 준다.
+ * - 움직임 줄이기 설정이면 애니메이션 없이 최종 숫자.
+ */
+function CountUp({ to, delay = 0, duration = 1600 }: { to: number; delay?: number; duration?: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    let start = 0;
+    const ease = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t)); // easeOutExpo
+    const tick = (now: number) => {
+      if (!start) start = now;
+      const t = Math.min(1, (now - start) / duration);
+      el.textContent = String(Math.round(to * ease(t)));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    el.textContent = '0';
+    const timer = window.setTimeout(() => { raf = requestAnimationFrame(tick); }, delay);
+    return () => { window.clearTimeout(timer); cancelAnimationFrame(raf); el.textContent = String(to); };
+  }, [to, delay, duration]);
+  return <span ref={ref}>{to}</span>;
+}
 
 const COACHES = [
   { img: '/images/female1.png', ko: '엘라', en: 'Ella' },
@@ -144,11 +170,12 @@ export default function LoginPage() {
               <p className="lead">
                 데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요.<br className="fm-home-br-d" /> 자가진단과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
               </p>
-              <div className="meta">
-                <span><b>5</b>대역량</span>
-                <span><b>26</b>하위역량</span>
-                <span><b>150</b>분 코치 대화</span>
-              </div>
+              {/* 숫자 요약: 워드마크 등장 뒤 0에서 올라가 멈춤 */}
+              <dl className="fm-home-stats">
+                <div><dt>대역량</dt><dd><b><CountUp to={5} delay={1700} duration={1100} /></b></dd></div>
+                <div><dt>하위역량</dt><dd><b><CountUp to={26} delay={1800} duration={1500} /></b></dd></div>
+                <div><dt>코치 대화</dt><dd><b><CountUp to={150} delay={1900} duration={1900} /></b><small>분</small></dd></div>
+              </dl>
             </div>
 
             {/* 로그인 카드: 흰 면과 네이비 면 경계에 걸침. 폼 로직·name 속성은 기존 그대로 */}
