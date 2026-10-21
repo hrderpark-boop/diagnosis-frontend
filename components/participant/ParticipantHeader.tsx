@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react';
 import Wordmark from './Wordmark';
 
-/** 참가자 진단 5단계. 헤더 스테퍼와 모바일 단계 pill 이 같은 목록을 쓴다. */
-export const PARTICIPANT_STEPS = ['참여 확인', '코치 선택', '자가진단', '코치 대화', '리포트'] as const;
-export type ParticipantStep = 1 | 2 | 3 | 4 | 5;
+/** 참가자 진단 6단계. 헤더 스테퍼와 모바일 단계 pill 이 같은 목록을 쓴다. */
+export const PARTICIPANT_STEPS = ['참여 확인', '진단 소개', '코치 선택', '자가진단', '코치 대화', '리포트'] as const;
+export type ParticipantStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
- * 참가자 화면 공통 헤더: 워드마크 + 5단계 스테퍼 + 오른쪽 영역.
- * - step: 현재 단계(1~5). 앞 단계는 done, 현재는 네이비 pill.
+ * 참가자 화면 공통 헤더: 워드마크 + 6단계 스테퍼 + 오른쪽 영역.
+ * - step: 현재 단계(1~6). 앞 단계는 done, 현재는 네이비 pill.
  * - right: 오른쪽 영역(이름·나가기 등). 없으면 "도입 문의" 링크.
  * - 767px 이하에서는 스테퍼가 숨겨지므로 본문 상단에 <ParticipantMobileStep /> 을 둔다.
  */
@@ -60,7 +60,7 @@ export function ParticipantMobileStep({ step, className = '' }: { step: Particip
         <b>
           {pad(step)} {PARTICIPANT_STEPS[step - 1]}
         </b>
-        5단계 중 {step}번째
+        {PARTICIPANT_STEPS.length}단계 중 {step}번째
       </span>
     </div>
   );

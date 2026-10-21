@@ -173,7 +173,7 @@ function SelfEvalContent() {
   return (
     <div className="fm-app">
       <ParticipantHeader
-        step={3}
+        step={4}
         right={
           <>
             {participantName && <span className="user">{participantName} 님</span>}
@@ -184,7 +184,7 @@ function SelfEvalContent() {
       />
       <main className="fm-self-page fm-enter">
         <div className="fm-wrap">
-          <ParticipantMobileStep step={3} />
+          <ParticipantMobileStep step={4} />
 
           {/* 4(a) 되돌리기 배너: 새로 시작 직후, 첫 메시지 전까지만 */}
           {restoreCand && (

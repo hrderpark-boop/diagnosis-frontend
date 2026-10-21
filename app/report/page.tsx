@@ -635,7 +635,7 @@ function ReportContent() {
   if (!report) {
     return (
       <div className="fm-app fm-report">
-        <ParticipantHeader step={5} />
+        <ParticipantHeader step={6} />
         <div className="fm-report-wait fm-wrap-narrow">
           {!canRetry && !isProgressRunning(progress) && (
             <div className="fm-report-spinner" aria-hidden="true"></div>
@@ -685,7 +685,7 @@ function ReportContent() {
       {/* 상단 헤더 - 인쇄물(print:hidden, ParticipantHeader 기본)·PDF 캡처(data-html2canvas-ignore)에서 제외 */}
       <div data-html2canvas-ignore="true">
         <ParticipantHeader
-          step={5}
+          step={6}
           right={
             <>
               <span className="user">{displayName} 님</span>
@@ -700,7 +700,7 @@ function ReportContent() {
         />
       </div>
       <div data-html2canvas-ignore="true" className="fm-wrap-narrow print:hidden">
-        <ParticipantMobileStep step={5} className="fm-report-mstep" />
+        <ParticipantMobileStep step={6} className="fm-report-mstep" />
       </div>
 
       <div ref={reportRef} className="fm-wrap-narrow fm-report-body">

@@ -106,26 +106,7 @@
 .fm-card.fm-home-login .fm-btn { margin-top: 28px; height: 58px; font-size: 16px; }
 .fm-card.fm-home-login .note { margin: 18px 0 0; text-align: center; }
 
-/* ---------- 여정 섹션 ---------- */
-.fm-home-journey { padding: 96px 0; background: var(--fm-paper-soft); }
-.fm-home-steps { margin-top: 48px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
-.fm-card.fm-home-stepcard { display: flex; flex-direction: column; min-height: 236px; padding: 32px 32px 28px; }
-.fm-card.fm-home-stepcard .fm-num { font-size: 32px; line-height: 1; letter-spacing: -.02em; }
-.fm-card.fm-home-stepcard h3 { margin: 22px 0 0; font-size: 18px; line-height: 1.35; font-weight: 700; color: var(--fm-ink); letter-spacing: -.01em; }
-.fm-card.fm-home-stepcard p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.7; color: var(--fm-ink-body); }
-.fm-card.fm-home-stepcard .time { margin-top: auto; padding-top: 20px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fm-gray-500); }
-.fm-card.fm-home-stepcard .time::before { content: ""; width: 12px; height: 1px; background: var(--fm-accent); }
-.fm-card.fm-home-stepcard .time strong { font-weight: 600; color: var(--fm-ink); }
 
-/* ---------- 신뢰 띠(코치) ---------- */
-.fm-home-coaches { padding: 88px 0; text-align: center; }
-.fm-home-coaches h2 { margin: 0; font-size: 24px; line-height: 1.35; font-weight: 700; letter-spacing: -.015em; color: var(--fm-ink); }
-.fm-home-coaches p { margin: 10px auto 0; max-width: 520px; font-size: 14.5px; color: var(--fm-ink-body); }
-.fm-home-coach-row { margin-top: 36px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
-.fm-home-coach { width: 96px; }
-.fm-home-coach .fm-ph { width: 56px; height: 56px; margin: 0 auto; }
-.fm-home-coach .nm { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--fm-ink); }
-.fm-home-coach .en { font: 600 10px/1.2 var(--fm-font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--fm-gray-300); margin-top: 3px; }
 
 /* ---------- 유동 ---------- */
 @media (max-width: 1200px) {
@@ -160,14 +141,4 @@
   .fm-card.fm-home-login .fm-field input { height: 50px; }
   .fm-card.fm-home-login .fm-btn { height: 54px; }
   .fm-card.fm-home-login .fields { margin-top: 22px; gap: 14px; }
-  .fm-home-journey { padding: 56px 0; }
-  .fm-home-steps { margin-top: 32px; grid-template-columns: 1fr; gap: 12px; }
-  .fm-card.fm-home-stepcard { min-height: 0; padding: 22px 20px 20px; }
-  .fm-card.fm-home-stepcard .fm-num { font-size: 26px; }
-  .fm-card.fm-home-stepcard h3 { margin-top: 14px; }
-  .fm-card.fm-home-stepcard .time { padding-top: 14px; }
-  .fm-home-coaches { padding: 56px 0; }
-  .fm-home-coaches h2 { font-size: 20px; }
-  .fm-home-coach-row { gap: 12px 8px; }
-  .fm-home-coach { width: 92px; }
 }

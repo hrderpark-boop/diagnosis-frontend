@@ -432,7 +432,7 @@ function ChatContent() {
   return (
     <main className="fm-app fm-chat-root">
       <ParticipantHeader
-        step={4}
+        step={5}
         right={
           <>
             {progressCaption && (

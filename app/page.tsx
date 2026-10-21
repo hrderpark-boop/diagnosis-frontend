@@ -8,13 +8,7 @@ import ParticipantFooter from '@/components/participant/ParticipantFooter';
 import './home.css';
 
 // Find Me 라이트 리디자인 · 01 참여 확인(홈). 샘플: design/light-sample/b/home.html
-// 로직(그룹코드/이름/이메일 → /participants/token → /start)은 기존 그대로, 표현만 교체.
-const STEPS = [
-  { no: '03', title: '자가진단', desc: '5개 대역량에 대한 현재 인식을 기록합니다.', timeLabel: '소요 시간', time: '약 5분' },
-  { no: '04', title: '코치 대화', desc: '실제 행동 사례를 바탕으로 역량을 진단합니다.', timeLabel: '역량당 30분', time: '총 150분' },
-  { no: '05', title: '리포트', desc: '하위역량 26개 분석과 추천 과정을 받습니다.', timeLabel: '발급', time: '즉시' },
-];
-
+// 로직(그룹코드/이름/이메일 → /participants/token)은 기존 그대로. 로그인 뒤 이동만 /intro(진단 소개)로 바뀜.
 /**
  * 숫자가 0에서 빠르게 올라가다 천천히 멈추는 카운터(슬롯처럼 처음엔 빠르게, 끝에서 감속).
  * - 서버 렌더와 스크립트가 없을 때는 최종 숫자를 그대로 보여 준다.
@@ -40,15 +34,6 @@ function CountUp({ to, delay = 0, duration = 1600 }: { to: number; delay?: numbe
   }, [to, delay, duration]);
   return <span ref={ref}>{to}</span>;
 }
-
-const COACHES = [
-  { img: '/images/female1.png', ko: '엘라', en: 'Ella' },
-  { img: '/images/female2.png', ko: '제시카', en: 'Jessica' },
-  { img: '/images/female3.png', ko: '올리비아', en: 'Olivia' },
-  { img: '/images/male1.png', ko: '다니엘', en: 'Daniel' },
-  { img: '/images/male2.png', ko: '마이클', en: 'Michael' },
-  { img: '/images/male3.png', ko: '루카스', en: 'Lucas' },
-];
 
 // 네이비 면의 실선 리본: 두 3차 베지어 곡선 A, B 사이를 보간한 가는 선 81개(샘플 스크립트와 같은 계산)
 const STRAND_A = [[60, -40], [180, 260], [520, 60], [640, 420]];
@@ -103,7 +88,7 @@ export default function LoginPage() {
       localStorage.setItem('participant_id', participant_id);
       localStorage.setItem('participant_name', name ?? formData.name);
 
-      router.push('/start');
+      router.push('/intro'); // (2026-10 리디자인) 로그인 뒤 진단 소개(02)를 거쳐 코치 선택으로
     } catch (error) {
       alert("접속에 실패했습니다. 입력 정보를 확인해주세요.");
       console.error(error);
@@ -239,46 +224,6 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* 여정 3단계 */}
-        <section className="fm-home-journey">
-          <div className="fm-wrap">
-            <div className="fm-sec-head">
-              <div className="fm-eyebrow">How it works</div>
-              <h2>세 단계, 한 흐름</h2>
-              <p>자가진단으로 시작해 AI 코치와의 대화를 거쳐, 26개 하위역량 리포트로 마무리됩니다.</p>
-            </div>
-            <div className="fm-home-steps">
-              {STEPS.map((s) => (
-                <article key={s.no} className="fm-card fm-home-stepcard">
-                  <div className="fm-num">{s.no}</div>
-                  <h3>{s.title}</h3>
-                  <p>{s.desc}</p>
-                  <div className="time">{s.timeLabel} <strong>{s.time}</strong></div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* 신뢰 띠: 6명의 AI 코치 */}
-        <section className="fm-home-coaches">
-          <div className="fm-wrap">
-            <h2>6명의 AI 코치가 같은 기준으로 진단합니다</h2>
-            <p>코치는 대화 스타일만 다를 뿐, 5개 대역량과 26개 하위역량이라는 동일한 기준으로 역량을 평가합니다.</p>
-            <div className="fm-home-coach-row">
-              {COACHES.map((c) => (
-                <div key={c.en} className="fm-home-coach">
-                  <div className="fm-ph">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={c.img} alt={`AI 코치 ${c.ko}`} />
-                  </div>
-                  <div className="nm">{c.ko}</div>
-                  <div className="en">{c.en}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
       </main>
 
       <ParticipantFooter />

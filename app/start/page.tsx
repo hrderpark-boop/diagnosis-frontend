@@ -240,7 +240,7 @@ export default function StartPage() {
   return (
     <div className="fm-app">
       <ParticipantHeader
-        step={2}
+        step={3}
         right={
           <>
             {participantName && <span className="user">{participantName} 님</span>}
@@ -252,7 +252,7 @@ export default function StartPage() {
 
       <main className="fm-start-main fm-enter">
         <div className="fm-wrap">
-          <ParticipantMobileStep step={2} />
+          <ParticipantMobileStep step={3} />
 
           {/* 섹션 머리 */}
           <div className="fm-sec-head">

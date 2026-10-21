@@ -104,6 +104,10 @@
 /* ---------- 버튼 ---------- */
 .fm-btn { height: 52px; padding: 0 24px; border: 0; border-radius: var(--fm-radius-sm); cursor: pointer; background: var(--fm-accent); color: var(--fm-paper); font-size: 15px; font-weight: 700; letter-spacing: -.005em; display: inline-flex; align-items: center; justify-content: center; gap: 10px; transition: background .15s, border-color .15s, color .15s; white-space: nowrap; }
 .fm-btn:hover { background: var(--fm-accent-hover); }
+/* 링크(<a>)로 쓴 버튼: .fm-app a 의 color: inherit 보다 우선 */
+.fm-app a.fm-btn { color: var(--fm-paper); }
+.fm-app a.fm-btn.secondary, .fm-app a.fm-btn.ghost { color: var(--fm-ink); }
+.fm-app a.fm-btn.danger { color: var(--fm-danger); }
 .fm-btn svg { width: 16px; height: 16px; }
 .fm-btn.block { width: 100%; }
 .fm-btn.sm { height: 40px; padding: 0 16px; font-size: 13.5px; }
