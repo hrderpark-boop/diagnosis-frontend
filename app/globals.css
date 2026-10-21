@@ -7,102 +7,33 @@
 */
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 0, 0, 0;
-  --background-end-rgb: 0, 0, 0;
-  /* FindME 리뉴얼 팔레트 (디자인 캔버스 "FindME 리뉴얼" 기준) */
-  --fm-ink: #0B0D10;
-  --fm-panel: #1C1F24;
-  --fm-line: #2C3037;
-  --fm-gold: #B08D5C;
-  --fm-text: #D5D9DF;
-  --fm-muted: #9BA2AC;
-  --fm-dim: #6B727C;
+  --foreground-rgb: 64, 64, 64;
+  /* (2026-10 라이트 리디자인) 참가자 화면 토큰은 app/fm-light.css 로 이동.
+     아래는 아직 남은 구 클래스(fm-rise·custom-scrollbar 등)가 참조하는 값으로, 라이트 톤 값으로 바꿔 둔다. */
+  --fm-line: #D9D9D9;
+  --fm-gold: #1C2B4A;
+  --fm-text: #404040;
+  --fm-muted: #7F7F7F;
+  --fm-dim: #A6A6A6;
+  --fm-panel: #FFFFFF;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: var(--fm-ink);
-  background-image: radial-gradient(900px 500px at 0% 0%, #1A1D22 0%, rgba(11, 13, 16, 0) 70%);
-  background-attachment: fixed;
+  background: #FFFFFF;
   font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── FindME 리뉴얼 공통 유틸 ─────────────────────────────────── */
-@keyframes fmRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes fmWave { from { background-position: 0 0; } to { background-position: 200% 0; } }
-/* 화면 진입 애니메이션 */
-.fm-rise { animation: fmRise .32s ease-out both; }
-/* "Me" 워드마크의 금빛 흐름 */
-.fm-wave {
-  background-image: linear-gradient(100deg, #8A6C3F 0%, #B08D5C 22%, #F0DCB8 42%, #B08D5C 62%, #8A6C3F 82%, #B08D5C 100%);
-  background-size: 200% 100%;
-  background-repeat: repeat-x;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  animation: fmWave 4.5s linear infinite;
-}
-/* 화면 배경(카드 밖) — 좌상단이 밝은 방사형 */
-.fm-stage {
-  background: radial-gradient(1300px 780px at 8% -12%, #343941 0%, #262B32 30%, #1B1F24 62%, #13161A 100%);
-}
-/* 눈썹 라벨: Montserrat 600 · 자간 .12em */
-.fm-eyebrow {
-  font-family: var(--font-montserrat), Montserrat, sans-serif;
-  font-weight: 600;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-/* 밑줄형 입력 필드 */
-.fm-field {
-  width: 100%;
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--fm-line);
-  padding: 0 0 12px;
-  font-size: 15px;
-  color: #fff;
-  outline: none;
-  border-radius: 0;
-  transition: border-color .2s;
-}
-.fm-field::placeholder { color: var(--fm-dim); }
-.fm-field:focus { border-bottom-color: var(--fm-gold); }
-/* 1C 슬라이더: 2px 트랙(#2C3037) + 값까지 골드 채움(배경 그라디언트는 JSX 에서 주입),
-   12px 흰 썸 + 골드 테두리. 썸 반폭 6px 만큼 눈금 행을 안쪽으로 맞춘다. */
-.fm-range {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 12px;
-  background: transparent;
-  cursor: pointer;
-  outline: none;
-}
-.fm-range::-webkit-slider-runnable-track { height: 2px; border-radius: 1px; background: var(--fm-range-bg, var(--fm-line)); }
-.fm-range::-moz-range-track { height: 2px; border-radius: 1px; background: var(--fm-range-bg, var(--fm-line)); }
-.fm-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px; height: 12px; margin-top: -5px;
-  border-radius: 50%; background: #fff; border: 1px solid var(--fm-gold);
-  box-shadow: 0 0 0 4px rgba(176, 141, 92, 0);
-  transition: box-shadow .15s;
-}
-.fm-range::-moz-range-thumb {
-  width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 1px solid var(--fm-gold);
-}
-.fm-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(176, 141, 92, .35); }
+/* (2026-10 라이트 리디자인) 구 다크 테마 유틸(fm-rise·fm-wave·fm-stage·fm-eyebrow·밑줄형 fm-field·fm-range)은
+   제거했다. 참가자 화면 공통 스타일은 app/fm-light.css(fm- 접두어)에 있다. */
 
 /* ✅ 커스텀 스크롤바 설정 (여기에 추가) */
 @layer utilities {
   /* Firefox용 설정 */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(176, 141, 92, 0.45) transparent;
+    scrollbar-color: rgba(28, 43, 74, 0.25) transparent;
   }
 
   /* Chrome, Edge, Safari용 상세 설정 */
@@ -116,12 +47,12 @@ body {
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(176, 141, 92, 0.45); /* 골드(1A~1D 토큰) */
+    background: rgba(28, 43, 74, 0.25); /* 네이비 */
     border-radius: 10px; /* 둥근 모서리 */
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(176, 141, 92, 0.7); /* 호버 시 골드 진하게 */
+    background: rgba(28, 43, 74, 0.45); /* 호버 시 진하게 */
   }
 }
 
@@ -149,9 +80,6 @@ body {
     zoom: 0.8; /* 브라우저별 스케일 보정 */
     background: #fff !important;
   }
-
-  /* 고정 헤더(print:hidden)가 사라진 만큼 상단 보정 여백 축소 */
-  .pt-28 { padding-top: 0.5rem !important; }
 
   /* 📉 인쇄/PDF 경량화: 렌더 비용이 큰 그림자·애니메이션 제거.
      그라데이션은 배경/도형 정체성이라 유지하되, 무거운 blur/shadow만 제거. */

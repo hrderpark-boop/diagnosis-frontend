@@ -1,17 +1,41 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import HeroVideo from '@/components/HeroVideo';
+import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
+import ParticipantFooter from '@/components/participant/ParticipantFooter';
+import './home.css';
 
-// FindME 리뉴얼 1A / SIGN IN — 좌: 브랜드·여정 3단계, 우: 참여자 확인 패널.
-// 로직(그룹코드/이름/이메일 → /participants/token → /start)은 기존 그대로.
+// Find Me 라이트 리디자인 · 01 참여 확인(홈). 샘플: design/light-sample/b/home.html
+// 로직(그룹코드/이름/이메일 → /participants/token → /start)은 기존 그대로, 표현만 교체.
 const STEPS = [
-  { no: '01', title: '자가진단', desc: '5개 대역량에 대한 현재 인식을 기록합니다', time: '약 5분' },
-  { no: '02', title: 'AI 코치와 대화를 통한 진단', desc: '실제 행동 사례를 바탕으로 역량을 진단합니다', time: '역량 별 30분 내외 / 총 약 150분' },
-  { no: '03', title: '진단 리포트', desc: '하위역량 26개 분석과 추천 과정을 받습니다', time: '즉시 발급' },
+  { no: '03', title: '자가진단', desc: '5개 대역량에 대한 현재 인식을 기록합니다.', timeLabel: '소요 시간', time: '약 5분' },
+  { no: '04', title: '코치 대화', desc: '실제 행동 사례를 바탕으로 역량을 진단합니다.', timeLabel: '역량당 30분', time: '총 150분' },
+  { no: '05', title: '리포트', desc: '하위역량 26개 분석과 추천 과정을 받습니다.', timeLabel: '발급', time: '즉시' },
 ];
+
+const COACHES = [
+  { img: '/images/female1.png', ko: '엘라', en: 'Ella' },
+  { img: '/images/female2.png', ko: '제시카', en: 'Jessica' },
+  { img: '/images/female3.png', ko: '올리비아', en: 'Olivia' },
+  { img: '/images/male1.png', ko: '다니엘', en: 'Daniel' },
+  { img: '/images/male2.png', ko: '마이클', en: 'Michael' },
+  { img: '/images/male3.png', ko: '루카스', en: 'Lucas' },
+];
+
+// 네이비 면의 실선 리본: 두 3차 베지어 곡선 A, B 사이를 보간한 가는 선 81개(샘플 스크립트와 같은 계산)
+const STRAND_A = [[60, -40], [180, 260], [520, 60], [640, 420]];
+const STRAND_B = [[300, -40], [80, 120], [640, 380], [560, 980]];
+function buildStrands() {
+  const out: { d: string; opacity: string }[] = [];
+  for (let i = 0; i <= 80; i++) {
+    const t = i / 80;
+    const p = STRAND_A.map((a, q) => [a[0] + (STRAND_B[q][0] - a[0]) * t, a[1] + (STRAND_B[q][1] - a[1]) * t].join(','));
+    out.push({ d: `M ${p[0]} C ${p[1]} ${p[2]} ${p[3]}`, opacity: (0.18 + 0.5 * Math.sin(Math.PI * t)).toFixed(2) });
+  }
+  return out;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -62,151 +86,175 @@ export default function LoginPage() {
     }
   };
 
+  // 네이비 면 리본 경로(한 번만 계산)
+  const strands = useMemo(buildStrands, []);
+
+  // 워드마크 애니메이션은 폰트가 준비된 뒤 한 번에 시작(.go)
+  const [wmGo, setWmGo] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const ready = typeof document !== 'undefined' && document.fonts?.ready ? document.fonts.ready : Promise.resolve();
+    ready.then(() => { if (alive) setWmGo(true); });
+    return () => { alive = false; };
+  }, []);
+
   return (
-    <main className="fm-stage fm-rise min-h-screen flex flex-col text-white">
-      {/* 상단 바 */}
-      <header className="h-16 shrink-0 px-6 md:px-12 border-b border-fm-line flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <span className="fm-eyebrow text-[11px] text-white">Connect &amp; Company</span>
-          <span className="hidden sm:block w-px h-5 bg-fm-line" />
-          <span className="hidden sm:block text-xs text-fm-muted">리더십 역량 진단</span>
-        </div>
-        <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer" className="text-[13px] text-white hover:text-fm-gold transition-colors">
-          도입 문의
-        </a>
-      </header>
+    <div className="fm-app">
+      <ParticipantHeader step={1} />
 
-      {/* 본문: 좌 브랜드 / 우 로그인 패널 */}
-      {/* 2열 기준점 md(768): 맥 디스플레이 배율 탓에 1440 모니터도 CSS 폭이 1024 아래로 자주 떨어짐 */}
-      {/* 본문 (왼쪽부터): [텍스트 — 남는 폭 전부] [로그인 패널 520] [영상 — 뷰포트 27%, 320~520px, 세로 full]
-          · 좌 그룹(section) = 상단 [텍스트][패널] + 하단 여정 3단계(두 폭의 합산, 같은 왼쪽 패딩)
-          · 영상 열 = clamp(320px, 27vw, 520px): 1880 ≈ 508, 1440 ≈ 389, 1416 ≈ 382. 헤더 아래 ~ 푸터 위, 오른쪽·상하 뷰포트 끝까지
-          · 텍스트 열은 flex-1 로 남는 폭을 가져가고(설명문 max-w 600), 패널과 사이 여백 48
-          · 1280 미만: [텍스트][패널] 2열(영상 없음) / 768 미만: 세로 스택(텍스트 → 패널 → 3단계) */}
-      <div className="flex-1 flex flex-col md:flex-row min-h-0">
-        <section className="flex-1 min-w-0 flex flex-col">
-          <div className="flex flex-col md:flex-row">
-          <div className="flex-1 min-w-0 px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-16 xl:pr-12 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col break-keep">
-          <div className="fm-eyebrow text-xs text-fm-gold">AI Leadership Coaching</div>
-
-          <div className="mt-7 w-max flex flex-col">
-            {/* 워드마크: Find 200→300, Me 는 Instrument Serif 가 400 단일 굵기라
-                0.6px 골드 스트로크로 한 단계 두껍게(금빛 흐름 유지) */}
-            <div className="flex items-baseline gap-[.16em] text-[64px] md:text-[92px] leading-[.96] text-white">
-              <span className="font-light tracking-[-.02em]">Find</span>
-              <span className="fm-wave font-serif italic tracking-[-.01em] px-[.06em] [-webkit-text-stroke:0.6px_#B08D5C]">Me</span>
-            </div>
-            <div className="mt-[18px] flex items-center gap-2.5">
-              <div className="flex-1 h-px bg-fm-line" />
-              <div className="fm-eyebrow text-[10px] tracking-[.28em] text-fm-dim">Connect &amp; Company</div>
-            </div>
+      <main>
+        <section className="fm-home-hero">
+          {/* 오른쪽 40% 딥 네이비 면 + 흰 실선 리본 */}
+          <div className="fm-home-glow" aria-hidden="true">
+            <svg viewBox="0 0 600 900" preserveAspectRatio="xMidYMid slice" focusable="false">
+              <defs>
+                <radialGradient id="fm-home-top-light" gradientUnits="userSpaceOnUse" cx="560" cy="-40" r="520">
+                  <stop offset="0" style={{ stopColor: 'var(--fm-blue-bright)' }} stopOpacity=".55" />
+                  <stop offset=".5" style={{ stopColor: 'var(--fm-blue-mid)' }} stopOpacity=".15" />
+                  <stop offset="1" style={{ stopColor: 'var(--fm-blue-mid)' }} stopOpacity="0" />
+                </radialGradient>
+                <linearGradient id="fm-home-strand" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" style={{ stopColor: 'var(--fm-paper)' }} stopOpacity=".9" />
+                  <stop offset="1" style={{ stopColor: 'var(--fm-blue-bright)' }} />
+                </linearGradient>
+              </defs>
+              <rect width="600" height="900" fill="url(#fm-home-top-light)" />
+              <g className="v-lines" fill="none" stroke="url(#fm-home-strand)" strokeWidth=".8">
+                {strands.map((s, i) => (
+                  <path key={i} d={s.d} opacity={s.opacity} />
+                ))}
+              </g>
+            </svg>
           </div>
 
-          <h1 className="mt-8 text-2xl md:text-[28px] font-bold leading-[1.45] text-white">내 안의 진짜 리더를 찾는 여정</h1>
-          <p className="mt-[18px] max-w-[600px] text-[15px] md:text-base font-light leading-[1.85] text-fm-text [text-wrap:pretty]">
-            데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요.
-            <br />
-            <span className="whitespace-nowrap">자가진단</span>과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
-          </p>
-
-          </div>
-
-          {/* 로그인 패널: 텍스트 블록 바로 옆(가운데). 내부 폼·로직·스타일 무변경, xl 폭 480 → 520. 왼쪽 구분선 + 텍스트 열 pr 48 */}
-        <aside className="w-full md:w-[340px] lg:w-[420px] xl:w-[520px] shrink-0 border-t md:border-t-0 md:border-l border-fm-line bg-fm-panel px-6 md:px-8 lg:px-12 xl:px-14 pt-12 md:pt-[72px] pb-10 md:pb-12 flex flex-col">
-          <div className="fm-eyebrow text-[11px] text-fm-muted">Sign in</div>
-          <div className="mt-3 text-xl font-bold text-white">진단 참여자 확인</div>
-
-          <form onSubmit={handleLogin} className="mt-10 md:mt-12 flex flex-col">
-            <div className="flex flex-col gap-9">
-              <label className="flex flex-col gap-3">
-                <span className={`fm-eyebrow text-[11px] ${formData.groupCode ? 'text-fm-gold' : 'text-fm-muted'}`}>Group Code</span>
-                <input
-                  type="text"
-                  name="groupCode"
-                  value={formData.groupCode}
-                  onChange={handleChange}
-                  className="fm-field"
-                  placeholder="전달받은 그룹 코드"
-                  autoComplete="off"
-                />
-              </label>
-              <label className="flex flex-col gap-3">
-                <span className={`fm-eyebrow text-[11px] ${formData.name ? 'text-fm-gold' : 'text-fm-muted'}`}>Name</span>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="fm-field"
-                  placeholder="성함"
-                  autoComplete="name"
-                />
-              </label>
-              <label className="flex flex-col gap-3">
-                <span className={`fm-eyebrow text-[11px] ${formData.email ? 'text-fm-gold' : 'text-fm-muted'}`}>Work Email</span>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="fm-field"
-                  placeholder="name@company.com"
-                  autoComplete="email"
-                />
-              </label>
-            </div>
-
-            <div className="mt-12 flex flex-col gap-4">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="h-[52px] rounded bg-white text-black text-[15px] font-bold hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? "접속 중..." : "진단 시작하기"}
-              </button>
-              <p className="text-xs leading-[1.7] text-fm-muted">소속 조직에서 받은 그룹 코드가 필요합니다</p>
-            </div>
-          </form>
-
-          <div className="mt-10 md:mt-auto pt-8 border-t border-fm-line flex items-baseline justify-between gap-4">
-            <span className="text-xs text-fm-muted">응답은 조직에 개별 공개되지 않습니다</span>
-            <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer" className="text-xs text-white underline underline-offset-4 hover:text-fm-gold">문의</a>
-          </div>
-        </aside>
-          </div>
-
-          {/* 여정 3단계: 텍스트 + 패널 아래, 두 폭의 합산으로 한 줄 3열. 정렬선은 텍스트 블록과 같은 왼쪽 패딩 */}
-          <div className="px-6 md:pl-10 md:pr-8 lg:pl-20 xl:pl-16 pb-10 md:pb-12 break-keep">
-          <div className="border-t border-fm-line grid grid-cols-1 sm:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <div
-                key={s.no}
-                className={[
-                  'pt-7 pb-6 sm:pb-0',
-                  i === 0 ? 'sm:pr-6' : i === 1 ? 'sm:px-6' : 'sm:pl-6',
-                  'border-fm-line',
-                  i < 2 ? 'border-b sm:border-b-0 sm:border-r' : '',
-                ].join(' ')}
-              >
-                <div className="fm-eyebrow text-[11px] text-fm-gold">{s.no}</div>
-                <div className="mt-3 text-[15px] font-bold text-white">{s.title}</div>
-                <div className="mt-2 text-xs font-light leading-[1.7] text-fm-muted">{s.desc}</div>
-                <div className="mt-3 text-[11px] text-fm-muted">{s.time}</div>
+          <div className="fm-wrap fm-home-grid">
+            <div className="fm-home-copy">
+              <ParticipantMobileStep step={1} />
+              <div className={`fm-home-wm${wmGo ? ' go' : ''}`} aria-label="Find Me">
+                <span className="find" aria-hidden="true">
+                  {['F', 'i', 'n', 'd'].map((ch, i) => (
+                    <i key={i} style={{ '--i': i } as React.CSSProperties}>{ch}</i>
+                  ))}
+                </span>
+                <span className="me" aria-hidden="true">
+                  <span className="me-in"><b className="fm-me-wave">Me</b></span>
+                </span>
               </div>
-            ))}
+              <h1>내 안의 진짜 리더를 찾는 여정</h1>
+              <p className="lead">
+                데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요.<br className="fm-home-br-d" /> 자가진단과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
+              </p>
+              <div className="meta">
+                <span><b>5</b>대역량</span>
+                <span><b>26</b>하위역량</span>
+                <span><b>150</b>분 코치 대화</span>
+              </div>
+            </div>
+
+            {/* 로그인 카드: 흰 면과 네이비 면 경계에 걸침. 폼 로직·name 속성은 기존 그대로 */}
+            <form onSubmit={handleLogin} className="fm-card elev fm-home-login">
+              <h2>진단 참여자 확인</h2>
+              <p className="sub">소속 조직에서 받은 그룹 코드가 필요합니다</p>
+              <div className="fields">
+                <div className="fm-field">
+                  <label htmlFor="fm-home-code">그룹 코드<span className="en">Group Code</span></label>
+                  <input
+                    id="fm-home-code"
+                    type="text"
+                    name="groupCode"
+                    value={formData.groupCode}
+                    onChange={handleChange}
+                    placeholder="전달받은 그룹 코드"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="fm-field">
+                  <label htmlFor="fm-home-name">성함<span className="en">Name</span></label>
+                  <input
+                    id="fm-home-name"
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="성함"
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="fm-field">
+                  <label htmlFor="fm-home-email">업무 이메일<span className="en">Work Email</span></label>
+                  <input
+                    id="fm-home-email"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="name@company.com"
+                    autoComplete="email"
+                  />
+                </div>
+              </div>
+              <button type="submit" disabled={isLoading} className="fm-btn block">
+                {isLoading ? "접속 중..." : "참여 확인하고 시작하기"}
+                {!isLoading && (
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+              <p className="fm-caption note">대화 원문은 공개되지 않으며, 결과 리포트는 본인과 소속 HR 담당자가 열람합니다</p>
+            </form>
           </div>
+
+          {/* 표지 하단: 좌 카피라이트 / 우 URL */}
+          <div className="fm-home-foot">
+            <span>ⓒ CONNECT &amp; COMPANY Co., Ltd.</span>
+            <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer">www.connectn.co.kr</a>
           </div>
         </section>
 
-        {/* 영상 열: clamp(320px, 27vw, 520px) 고정 비율, 헤더 아래 ~ 푸터 위 세로 full. xl 미만 숨김·미로드 */}
-        <HeroVideo className="hidden xl:block shrink-0 xl:w-[clamp(320px,27vw,520px)]" />
-      </div>
+        {/* 여정 3단계 */}
+        <section className="fm-home-journey">
+          <div className="fm-wrap">
+            <div className="fm-sec-head">
+              <div className="fm-eyebrow">How it works</div>
+              <h2>세 단계, 한 흐름</h2>
+              <p>자가진단으로 시작해 AI 코치와의 대화를 거쳐, 26개 하위역량 리포트로 마무리됩니다.</p>
+            </div>
+            <div className="fm-home-steps">
+              {STEPS.map((s) => (
+                <article key={s.no} className="fm-card fm-home-stepcard">
+                  <div className="fm-num">{s.no}</div>
+                  <h3>{s.title}</h3>
+                  <p>{s.desc}</p>
+                  <div className="time">{s.timeLabel} <strong>{s.time}</strong></div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      {/* 하단 바 */}
-      <footer className="shrink-0 px-6 md:px-12 py-6 border-t border-fm-line flex items-center justify-between text-[11px] text-fm-muted">
-        <span>ⓒ CONNECT &amp; COMPANY Co., Ltd.</span>
-        <a href="https://www.connectn.co.kr" target="_blank" rel="noreferrer" className="font-display tracking-[.06em] hover:text-white">www.connectn.co.kr</a>
-      </footer>
-    </main>
+        {/* 신뢰 띠: 6명의 AI 코치 */}
+        <section className="fm-home-coaches">
+          <div className="fm-wrap">
+            <h2>6명의 AI 코치가 같은 기준으로 진단합니다</h2>
+            <p>코치는 대화 스타일만 다를 뿐, 5개 대역량과 26개 하위역량이라는 동일한 기준으로 역량을 평가합니다.</p>
+            <div className="fm-home-coach-row">
+              {COACHES.map((c) => (
+                <div key={c.en} className="fm-home-coach">
+                  <div className="fm-ph">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={c.img} alt={`AI 코치 ${c.ko}`} />
+                  </div>
+                  <div className="nm">{c.ko}</div>
+                  <div className="en">{c.en}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <ParticipantFooter />
+    </div>
   );
 }

@@ -1,8 +1,9 @@
 // app/layout.tsx
 
 import type { Metadata } from "next";
-import { Montserrat, Instrument_Serif } from "next/font/google";
+import { Montserrat, Instrument_Serif, Outfit } from "next/font/google";
 import "./globals.css"; // 👈 [핵심] 이 줄이 반드시 있어야 디자인이 적용됩니다!
+import "./fm-light.css"; // 참가자 화면 라이트 리디자인 공통 토큰·컴포넌트(fm- 접두어)
 
 // FindME 리뉴얼 타이포그래피(디자인 캔버스 기준)
 //   본문: Pretendard Variable (jsDelivr 동적 서브셋, globals.css 의 font-family 기본값)
@@ -12,6 +13,13 @@ const montserrat = Montserrat({
   subsets: ["latin"],
   weight: ["500", "600"],
   variable: "--font-montserrat",
+  display: "swap",
+});
+// 워드마크 "Find Me": Find 300 / Me 600
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["300", "600"],
+  variable: "--font-outfit",
   display: "swap",
 });
 const instrumentSerif = Instrument_Serif({
@@ -33,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className={`${montserrat.variable} ${instrumentSerif.variable}`}>
+    <html lang="ko" className={`${montserrat.variable} ${instrumentSerif.variable} ${outfit.variable}`}>
       <head>
         <link
           rel="stylesheet"

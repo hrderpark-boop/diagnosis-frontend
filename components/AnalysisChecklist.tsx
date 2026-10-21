@@ -14,19 +14,19 @@ const STEP_TEXT: Record<StepStatus, string> = {
 
 function Mark({ status }: { status: StepStatus }) {
   if (status === 'done') {
-    return <span className="w-4 text-center text-fm-gold font-bold" aria-hidden="true">✓</span>;
+    return <span className="w-4 text-center text-fm-accent font-bold" aria-hidden="true">✓</span>;
   }
   if (status === 'running') {
     return (
       <span className="w-4 flex justify-center" aria-hidden="true">
-        <span className="w-2 h-2 rounded-full bg-fm-gold" style={{ animation: 'wave 1.4s ease-in-out infinite' }} />
+        <span className="w-2 h-2 rounded-full bg-fm-accent" style={{ animation: 'wave 1.4s ease-in-out infinite' }} />
       </span>
     );
   }
   if (status === 'failed') {
-    return <span className="w-4 text-center text-red-500" aria-hidden="true">!</span>;
+    return <span className="w-4 text-center text-fm-danger" aria-hidden="true">!</span>;
   }
-  return <span className="w-4 flex justify-center" aria-hidden="true"><span className="w-2 h-2 rounded-full border border-[#C9CED6]" /></span>;
+  return <span className="w-4 flex justify-center" aria-hidden="true"><span className="w-2 h-2 rounded-full border border-fm-gray-300" /></span>;
 }
 
 export default function AnalysisChecklist({
@@ -48,27 +48,27 @@ export default function AnalysisChecklist({
   const percent = Math.max(0, Math.min(100, progress?.percent ?? 0));
 
   return (
-    <div className="w-full max-w-[360px] rounded-2xl border border-[#E3E6EA] bg-white px-5 py-4 text-left" aria-live="polite">
+    <div className="w-full max-w-[360px] rounded-lg border border-fm-gray-100 bg-fm-paper shadow-[var(--fm-shadow-sm)] px-5 py-4 text-left" aria-live="polite">
       <ol className="flex flex-col gap-2">
         {rows.map((r) => (
           <li key={r.key} className="flex items-center gap-2.5 text-[13px]">
             <Mark status={r.status} />
-            <span className={r.status === 'pending' ? 'text-[#9BA2AC]' : 'text-[#1B1F24]'}>
+            <span className={r.status === 'pending' ? 'text-fm-gray-300' : 'text-fm-ink'}>
               {r.name} {STEP_TEXT[r.status]}
             </span>
           </li>
         ))}
-        <li className="flex items-center gap-2.5 text-[13px] pt-1 mt-1 border-t border-[#EEF0F3]">
+        <li className="flex items-center gap-2.5 text-[13px] pt-1 mt-1 border-t border-fm-gray-100">
           <Mark status={summaryStatus} />
-          <span className={summaryStatus === 'pending' ? 'text-[#9BA2AC]' : 'text-[#1B1F24]'}>
+          <span className={summaryStatus === 'pending' ? 'text-fm-gray-300' : 'text-fm-ink'}>
             종합 리포트 {summaryStatus === 'done' ? '작성 완료' : summaryStatus === 'running' ? '작성 중…' : summaryStatus === 'failed' ? '실패' : '대기'}
           </span>
         </li>
       </ol>
-      <div className="mt-3 h-1 w-full rounded-full bg-[#EEF0F3] overflow-hidden" aria-hidden="true">
-        <div className="h-full bg-fm-gold transition-all duration-700" style={{ width: `${percent}%` }} />
+      <div className="mt-3 h-1 w-full rounded-full bg-fm-paper-mute overflow-hidden" aria-hidden="true">
+        <div className="h-full bg-fm-accent transition-all duration-700" style={{ width: `${percent}%` }} />
       </div>
-      <p className="mt-2 text-[11px] text-[#9BA2AC]">
+      <p className="mt-2 text-[11px] text-fm-gray-500">
         {progress ? `${percent}% · ${formatElapsed(progress.elapsed_s)} 경과` : '분석을 시작하고 있어요'}
         {estimate ? ` · 예상 ${estimate.eta_label}` : ''}
       </p>

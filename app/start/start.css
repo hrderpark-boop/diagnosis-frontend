@@ -1,0 +1,81 @@
+/* ============================================================
+   Find Me 라이트 리디자인 · 02 코치 선택 (샘플 b/coach.html)
+   공통 스타일은 app/fm-light.css. 아래는 이 화면 고유 스타일만.
+   ============================================================ */
+.fm-start-main { padding: 64px 0 0; }
+.fm-start-main .fm-sec-head { margin-bottom: 40px; }
+.fm-start-main .fm-mstep { justify-content: center; margin-bottom: 22px; }
+
+/* ---------- 재개 배너 ---------- */
+.fm-start-resume {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 20px;
+  background: var(--fm-paper-soft);
+}
+.fm-start-resume .fm-ph { width: 40px; height: 40px; }
+.fm-start-resume .txt { flex: 1; min-width: 0; margin: 0; font-size: 14px; line-height: 1.6; color: var(--fm-ink-body); }
+.fm-start-resume .txt strong { font-weight: 700; color: var(--fm-ink); }
+.fm-start-resume .acts { display: inline-flex; gap: 8px; flex: 0 0 auto; }
+
+/* ---------- 불러오는 중 ---------- */
+.fm-start-loading { padding: 96px 0; display: flex; flex-direction: column; align-items: center; gap: 16px; font-size: 14px; color: var(--fm-gray-500); }
+.fm-start-spin { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--fm-gray-100); border-top-color: var(--fm-accent); animation: fmStartSpin 1s linear infinite; }
+@keyframes fmStartSpin { to { transform: rotate(360deg); } }
+
+/* ---------- 코치 카드 그리드 ---------- */
+.fm-start-grid {
+  margin-top: 24px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;
+}
+.fm-coach-card {
+  position: relative;
+  display: flex; flex-direction: column;
+  transition: box-shadow .15s, border-color .15s;
+}
+.fm-coach-card:hover { box-shadow: var(--fm-shadow-sm); border-color: var(--fm-gray-300); }
+.fm-coach-card.selected { border-color: var(--fm-accent); box-shadow: inset 0 0 0 1px var(--fm-accent); }
+.fm-coach-card.selected:hover { border-color: var(--fm-accent); box-shadow: inset 0 0 0 1px var(--fm-accent), var(--fm-shadow-sm); }
+.fm-coach-card .picked { position: absolute; top: 20px; right: 20px; }
+.fm-coach-card .top { display: flex; align-items: center; gap: 16px; }
+.fm-coach-card .top .fm-ph { width: 72px; height: 72px; }
+.fm-coach-card .who { min-width: 0; }
+.fm-coach-card .who .en { font: 600 10px/1.2 var(--fm-font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--fm-gray-300); }
+.fm-coach-card .who .nm { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fm-coach-card .who .nm b { font-size: 20px; line-height: 1.2; font-weight: 700; color: var(--fm-ink); letter-spacing: -.01em; }
+.fm-coach-card .fit { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--fm-paper-mute); }
+.fm-coach-card .fit .k { font-size: 11px; font-weight: 600; color: var(--fm-gray-500); letter-spacing: .02em; }
+.fm-coach-card .fit .v { margin-top: 3px; font-size: 14px; line-height: 1.6; font-weight: 600; color: var(--fm-ink); }
+.fm-coach-card .quote { margin: 12px 0 0; font-size: 14.5px; line-height: 1.7; color: var(--fm-gray-500); }
+.fm-coach-card .quote::before { content: "\201C"; }
+.fm-coach-card .quote::after { content: "\201D"; }
+.fm-coach-card .traits { margin-top: auto; padding-top: 20px; display: flex; flex-wrap: wrap; gap: 6px; }
+/* 기존 흐름 유지: 카드 버튼으로 바로 시작 */
+.fm-coach-card .go { margin-top: 20px; }
+
+.fm-start-bottom { height: 64px; }
+
+/* ---------- 유동 ---------- */
+@media (max-width: 1200px) {
+  .fm-start-grid { gap: 20px; }
+}
+@media (max-width: 1024px) {
+  .fm-start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------- 모바일 ---------- */
+@media (max-width: 767px) {
+  .fm-start-main { padding-top: 40px; }
+  .fm-start-main .fm-sec-head { margin-bottom: 28px; }
+  .fm-start-resume { flex-wrap: wrap; padding: 16px; gap: 12px 14px; }
+  .fm-start-resume .txt { flex: 1 1 200px; }
+  .fm-start-resume .acts { width: 100%; }
+  .fm-start-resume .acts .fm-btn { flex: 1; }
+  .fm-start-grid { margin-top: 20px; grid-template-columns: 1fr; gap: 12px; }
+  .fm-coach-card .picked { top: 16px; right: 16px; }
+  .fm-coach-card .top .fm-ph { width: 56px; height: 56px; }
+  .fm-coach-card .who .nm b { font-size: 18px; }
+  .fm-coach-card .fit { margin-top: 16px; padding-top: 14px; }
+  .fm-coach-card .traits { padding-top: 16px; }
+  .fm-coach-card .go { margin-top: 16px; }
+  .fm-start-bottom { height: 40px; }
+}

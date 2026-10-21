@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import axios from 'axios';
 import { RESTORE_KEY, type RestoreCandidate } from '@/lib/restoreCandidate';
+import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
+import ParticipantFooter from '@/components/participant/ParticipantFooter';
+import './start.css';
 
 interface Coach {
   id: string;
@@ -14,6 +18,17 @@ interface Coach {
 }
 
 interface ActiveSession { session_id: string; coach_id: string; coach_name: string }
+
+// 코치 유형 한 단어·"이런 분께" 문구(API 에 없음). 키는 코치 영문 이름 대문자.
+// 매핑이 없는 코치는 해당 줄을 숨긴다. 문구는 샘플 design/light-sample/b/coach.html 기준.
+const COACH_PROFILE: Record<string, { type: string; fit: string }> = {
+  ELLA: { type: '경청형', fit: '말로 풀어내며 생각을 정리하는 편인 분' },
+  JESSICA: { type: '분석형', fit: '근거와 숫자로 짚어 주길 원하는 분' },
+  OLIVIA: { type: '탐색형', fit: '익숙한 방식 바깥의 관점이 필요한 분' },
+  DANIEL: { type: '멘토형', fit: '경험 많은 선배의 조언을 원하는 분' },
+  MICHAEL: { type: '추진형', fit: '밀어붙이는 에너지가 필요한 분' },
+  LUCAS: { type: '해결형', fit: '빠르게 핵심만 짚고 싶은 분' },
+};
 
 // FindME 리뉴얼 1B / SELECT COACH — 헤더(눈썹·제목·부제) + 3열 카드(번호·사진·
 // 영문/한글 이름·태그·인용 설명·버튼).
@@ -37,6 +52,11 @@ export default function StartPage() {
   const [pendingCoach, setPendingCoach] = useState<Coach | null>(null);
   const [abandoning, setAbandoning] = useState(false);
   const [freshStart, setFreshStart] = useState(false);
+  // 헤더 표시용 참가자 이름(로그인 시 저장된 값을 읽기만 한다)
+  const [participantName, setParticipantName] = useState('');
+  useEffect(() => {
+    setParticipantName(localStorage.getItem('participant_name') || '');
+  }, []);
 
   // 백엔드 API 주소 (.env.local 의 NEXT_PUBLIC_API_URL 로 override 가능)
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
@@ -214,129 +234,148 @@ export default function StartPage() {
     return '당신의 리더십 데이터를 분석하여 가장 개인화된 솔루션을 제공합니다.';
   };
 
+  // 코치 사진 경로(기존 규칙 그대로: 파일명만 떼어 /images 아래에서 찾는다)
+  const photoOf = (avatarUrl: string) => (avatarUrl ? `/images/${avatarUrl.split('/').pop()}` : "/images/default.png");
+
   return (
-    <main className="fm-stage fm-rise min-h-screen text-white">
-      <div className="max-w-[1440px] mx-auto px-6 md:px-14 lg:px-[88px] pt-14 md:pt-[72px] pb-16 md:pb-[88px]">
+    <div className="fm-app">
+      <ParticipantHeader
+        step={2}
+        right={
+          <>
+            {participantName && <span className="user">{participantName} 님</span>}
+            {participantName && <span className="sep" />}
+            <Link href="/">나가기</Link>
+          </>
+        }
+      />
 
-        {/* 헤더 */}
-        <div className="flex flex-col gap-5 pb-10 border-b border-fm-line">
-          <div className="fm-eyebrow text-xs text-fm-gold">Choose your coach</div>
-          <h1 className="text-3xl md:text-[40px] font-light leading-[1.25] text-white">당신의 성장을 함께할 파트너를 선택하세요</h1>
-          <p className="text-[15px] font-light leading-[1.8] text-fm-text">6명의 AI 코치가 리더십 데이터를 분석하고 맞춤형 솔루션을 제공합니다</p>
-        </div>
+      <main className="fm-start-main fm-enter">
+        <div className="fm-wrap">
+          <ParticipantMobileStep step={2} />
 
-        {active && (
-          /* 재개 배너: 16px, 본문 밝게(#E8ECF1), 코치명 골드. '새로 시작' 은 ③ 확인 팝업으로 */
-          <div className="mt-8 border-l-2 border-fm-gold bg-fm-panel/80 px-6 py-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
-            <p className="flex-1 text-[16px] leading-[1.8] text-[#E8ECF1]">
-              진행 중인 진단이 있습니다. <b className="font-bold text-fm-gold">{active.coach_name}</b> 코치를 다시 고르시면 바로 이어서 진행됩니다.
-              다른 코치를 고르시면 이어할지 새로 시작할지 여쭙습니다.
-              처음부터 다시 하시려면 <b className="text-white">새로 시작</b>을 눌러 주세요.
-            </p>
-            <button
-              type="button"
-              onClick={() => { setPendingCoach(null); setConfirmNew(true); }}
-              className="shrink-0 h-11 px-5 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors"
-            >
-              새로 시작
-            </button>
+          {/* 섹션 머리 */}
+          <div className="fm-sec-head">
+            <div className="fm-eyebrow">Choose your coach</div>
+            <h1>함께할 코치를 선택하세요</h1>
+            <p>6명 모두 같은 역량을 같은 기준으로 진단합니다. 질문하는 방식만 다릅니다.</p>
           </div>
-        )}
-        {freshStart && !active && (
-          <div className="mt-8 border-l-2 border-fm-line bg-fm-panel/60 px-6 py-4 text-[15px] leading-[1.8] text-fm-text">
-            이전 진단은 보관되었습니다. 이제 함께할 코치를 선택하면 새 진단이 시작됩니다.
-          </div>
-        )}
 
-        {isLoading ? (
-          <div className="py-24 flex flex-col items-center gap-4">
-            <div className="w-8 h-8 border border-fm-line border-t-fm-gold rounded-full animate-spin" />
-            <p className="text-sm text-fm-muted">코치 프로필을 불러오는 중입니다</p>
-          </div>
-        ) : (
-          <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {coaches?.map((coach, idx) => {
-              const { en, ko } = splitName(coach.name);
-              const busy = startingId === coach.id;
-              const isActiveCoach = active?.coach_id === coach.id;
-              return (
-                <div
-                  key={coach.id}
-                  className={`group bg-fm-panel border rounded p-7 flex flex-col gap-5 transition-colors hover:border-fm-gold/60 ${isActiveCoach ? 'border-fm-gold/60' : 'border-fm-line'}`}
+          {active && (
+            /* 재개 배너: '새로 시작' 은 ③ 확인 팝업으로 */
+            <div className="fm-card fm-start-resume" role="status">
+              <div className="fm-ph">
+                <img
+                  src={photoOf(avatarOf(active.coach_id))}
+                  alt={`AI 코치 ${shortName(active.coach_name)}`}
+                  onError={(e) => { e.currentTarget.src = "/images/default.png"; }}
+                />
+              </div>
+              <p className="txt">
+                <strong>{active.coach_name} 코치</strong>와 진행 중인 진단이 있습니다. 같은 코치를 고르면 바로 이어서 진행됩니다.
+                다른 코치를 고르시면 이어할지 새로 시작할지 여쭙습니다.
+              </p>
+              <div className="acts">
+                <button
+                  type="button"
+                  onClick={() => { setPendingCoach(null); setConfirmNew(true); }}
+                  className="fm-btn sm secondary"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="fm-eyebrow text-[11px] text-fm-muted">{String(idx + 1).padStart(2, '0')}</div>
-                    {isActiveCoach && <div className="fm-eyebrow text-[10px] text-fm-gold">진행 중</div>}
-                  </div>
+                  새로 시작
+                </button>
+              </div>
+            </div>
+          )}
+          {freshStart && !active && (
+            <div className="fm-card fm-start-resume" role="status">
+              <p className="txt">이전 진단은 보관되었습니다. 이제 함께할 코치를 선택하면 새 진단이 시작됩니다.</p>
+            </div>
+          )}
 
-                  {/* 사진 96px → 154px(1.6배). hover 시 사진 확대 + 테두리 골드 */}
-                  <div className="flex justify-center">
-                    <div className="w-[154px] h-[154px] rounded-full overflow-hidden border border-fm-line group-hover:border-fm-gold transition-colors bg-[#171717]">
-                      <img
-                        src={coach.avatar_url ? `/images/${coach.avatar_url.split('/').pop()}` : "/images/default.png"}
-                        alt={coach.name}
-                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
-                        onError={(e) => { e.currentTarget.src = "/images/default.png"; }}
-                      />
+          {isLoading ? (
+            <div className="fm-start-loading">
+              <div className="fm-start-spin" />
+              <p>코치 프로필을 불러오는 중입니다</p>
+            </div>
+          ) : (
+            <div className="fm-start-grid">
+              {coaches?.map((coach) => {
+                const { en, ko } = splitName(coach.name);
+                const busy = startingId === coach.id;
+                const isActiveCoach = active?.coach_id === coach.id;
+                const profile = COACH_PROFILE[en];
+                const tags = parseTags(coach.character_tags);
+                // 선택 상태 테두리: 시작 중인 코치, 시작 전이면 진행 중 세션의 코치
+                const selected = busy || (!startingId && isActiveCoach);
+                return (
+                  <article key={coach.id} className={`fm-card fm-coach-card${selected ? ' selected' : ''}`}>
+                    {isActiveCoach && <span className="fm-chip tint picked">진행 중</span>}
+                    <div className="top">
+                      <div className="fm-ph">
+                        <img
+                          src={photoOf(coach.avatar_url)}
+                          alt={coach.name}
+                          onError={(e) => { e.currentTarget.src = "/images/default.png"; }}
+                        />
+                      </div>
+                      <div className="who">
+                        <div className="en">{en}</div>
+                        <div className="nm">
+                          <b>{ko}</b>
+                          {profile && <span className="fm-chip tint">{profile.type}</span>}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                    {profile && (
+                      <div className="fit">
+                        <div className="k">이런 분께</div>
+                        <div className="v">{profile.fit}</div>
+                      </div>
+                    )}
+                    <p className="quote">{getCoachDescription(coach.description)}</p>
+                    {tags.length > 0 && (
+                      <div className="traits">
+                        {tags.map((t) => <span key={t} className="fm-chip">{t}</span>)}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleSelectCoach(coach)}
+                      disabled={!!startingId}
+                      className={`fm-btn block go${isActiveCoach ? '' : ' secondary'}`}
+                    >
+                      {busy ? '시작 준비 중…' : isActiveCoach ? '이어서 진행하기' : '선택 후 시작하기'}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="fm-start-bottom" />
+      </main>
 
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="fm-eyebrow text-xs text-fm-gold">{en}</div>
-                    <div className="text-xl font-bold text-white">{ko}</div>
-                  </div>
-
-                  <div className="text-center text-[13px] text-fm-muted">
-                    {parseTags(coach.character_tags).join(' · ')}
-                  </div>
-
-                  <p className="border-l-2 border-fm-gold pl-3.5 text-sm font-light leading-[1.8] text-fm-text">
-                    {getCoachDescription(coach.description)}
-                  </p>
-
-                  <button
-                    onClick={() => handleSelectCoach(coach)}
-                    disabled={!!startingId}
-                    className="mt-auto h-[46px] rounded border border-fm-line text-white text-sm font-bold transition-colors hover:bg-white hover:text-black hover:border-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {busy ? '시작 준비 중…' : isActiveCoach ? '이어서 진행하기' : '선택 후 시작하기'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <ParticipantFooter />
 
       {/* ② 다른 코치 선택 팝업 */}
       {choiceCoach && active && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" role="dialog" aria-modal="true" aria-labelledby="choice-title">
-          <div className="w-full max-w-[460px] bg-fm-panel border border-fm-line rounded p-8 fm-rise">
-            <div className="fm-eyebrow text-[11px] text-fm-gold">Continue or start over</div>
-            <h2 id="choice-title" className="mt-3 text-xl font-bold text-white break-keep">
-              {shortName(active.coach_name)} 코치와 진행 중인 진단이 있습니다.
-            </h2>
-            <p className="mt-3 text-[15px] leading-[1.8] text-fm-text">어떻게 하시겠어요?</p>
-            <div className="mt-8 flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={continueWithActive}
-                className="h-12 px-5 rounded bg-white text-black text-sm font-bold hover:bg-fm-gold transition-colors"
-              >
+        <div className="fm-overlay" role="dialog" aria-modal="true" aria-labelledby="choice-title">
+          <div className="fm-modal fm-enter">
+            <div className="fm-eyebrow">Continue or start over</div>
+            <h2 id="choice-title">{shortName(active.coach_name)} 코치와 진행 중인 진단이 있습니다.</h2>
+            <p>어떻게 하시겠어요?</p>
+            <div className="actions">
+              <button type="button" onClick={continueWithActive} className="fm-btn block">
                 {shortName(active.coach_name)}와 이어하기
               </button>
               <button
                 type="button"
                 onClick={() => { setPendingCoach(choiceCoach); setChoiceCoach(null); setConfirmNew(true); }}
-                className="h-12 px-5 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors"
+                className="fm-btn block secondary"
               >
                 {shortName(choiceCoach.name)}로 새로 시작
               </button>
-              <button
-                type="button"
-                onClick={() => setChoiceCoach(null)}
-                className="h-10 text-sm text-fm-muted hover:text-white transition-colors"
-              >
+              <button type="button" onClick={() => setChoiceCoach(null)} className="fm-btn block ghost sm">
                 닫기
               </button>
             </div>
@@ -344,38 +383,33 @@ export default function StartPage() {
         </div>
       )}
 
-      {/* ③ '새로 시작' 확인 팝업 — 실수 방지(배너 버튼·②의 새로 시작 모두 여기를 거친다) */}
+      {/* ③ '새로 시작' 확인 팝업 (실수 방지: 배너 버튼·②의 새로 시작 모두 여기를 거친다) */}
       {confirmNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" role="dialog" aria-modal="true" aria-labelledby="fresh-title">
-          <div className="w-full max-w-[460px] bg-fm-panel border border-fm-line rounded p-8 fm-rise">
-            <div className="fm-eyebrow text-[11px] text-fm-gold">Start over</div>
-            <h2 id="fresh-title" className="mt-3 text-xl font-bold text-white">새로 시작하시겠습니까?</h2>
-            <p className="mt-4 text-[15px] leading-[1.8] text-fm-text break-keep">
-              이전에 <b className="text-white">{active ? shortName(active.coach_name) : '이전'}</b> 코치와 진행하던 진단이 있습니다.
+        <div className="fm-overlay" role="dialog" aria-modal="true" aria-labelledby="fresh-title">
+          <div className="fm-modal fm-enter">
+            <div className="fm-eyebrow">Start over</div>
+            <h2 id="fresh-title">새로 시작하시겠습니까?</h2>
+            <p>
+              이전에 <b>{active ? shortName(active.coach_name) : '이전'}</b> 코치와 진행하던 진단이 있습니다.
               지금까지의 대화는 보관되지만, 새로 시작하면 처음부터 다시 진행합니다.
-              {pendingCoach && <> 새 진단은 <b className="text-white">{shortName(pendingCoach.name)}</b> 코치와 시작합니다.</>}
+              {pendingCoach && <> 새 진단은 <b>{shortName(pendingCoach.name)}</b> 코치와 시작합니다.</>}
             </p>
-            <div className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+            <div className="actions">
+              <button type="button" onClick={handleAbandon} disabled={abandoning} className="fm-btn block">
+                {abandoning ? '보관 중…' : '새로 시작'}
+              </button>
               <button
                 type="button"
                 onClick={() => { setConfirmNew(false); setPendingCoach(null); }}
                 disabled={abandoning}
-                className="h-11 px-5 rounded border border-fm-line text-fm-text text-sm font-bold hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
+                className="fm-btn block secondary"
               >
                 취소
-              </button>
-              <button
-                type="button"
-                onClick={handleAbandon}
-                disabled={abandoning}
-                className="h-11 px-5 rounded border border-fm-gold text-fm-gold text-sm font-bold hover:bg-fm-gold hover:text-black transition-colors disabled:opacity-50"
-              >
-                {abandoning ? '보관 중…' : '새로 시작'}
               </button>
             </div>
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
