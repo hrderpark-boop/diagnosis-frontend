@@ -231,7 +231,7 @@ function SelfEvalContent() {
               </div>
             </div>
 
-            {/* 문항 카드: 1~5 세그먼트 버튼 */}
+            {/* 문항 카드: 1~5, 0.5 단위 세그먼트 버튼 */}
             <div className="fm-self-qs">
               {COMPETENCIES.map((c, idx) => {
                 const v = scores[c.key];
@@ -245,17 +245,22 @@ function SelfEvalContent() {
                       </div>
                     </div>
                     <div className="fm-self-seg" role="group" aria-label={`${c.name} 자가 평가 점수`}>
-                      {[1, 2, 3, 4, 5].map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          aria-pressed={v === t}
-                          aria-label={`${t} ${SCORE_LABELS[String(t)]}`}
-                          onClick={() => setScore(c.key, t)}
-                        >
-                          {t}
-                        </button>
-                      ))}
+                      {/* 기존 슬라이더와 같은 0.5 단위: 정수 칸은 넓게, 0.5 칸은 좁게 */}
+                      {[1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((t) => {
+                        const half = t % 1 !== 0;
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            className={half ? 'half' : undefined}
+                            aria-pressed={v === t}
+                            aria-label={`${t} ${scoreLabel(t)}`}
+                            onClick={() => setScore(c.key, t)}
+                          >
+                            {half ? t.toFixed(1) : t}
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="fm-self-ends">
                       <span>많이 부족</span>
@@ -263,7 +268,7 @@ function SelfEvalContent() {
                     </div>
                     <div className="fm-self-val">
                       <span className="k">현재 선택</span>
-                      <span className="fm-num">{v}</span>
+                      <span className="fm-num">{Number(v).toFixed(1)}</span>
                       <span>{scoreLabel(v)}</span>
                     </div>
                   </article>

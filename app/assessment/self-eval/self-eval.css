@@ -41,6 +41,8 @@
 }
 .fm-self-seg button:first-child { margin-left: 0; border-radius: var(--fm-radius-sm) 0 0 var(--fm-radius-sm); }
 .fm-self-seg button:last-child { border-radius: 0 var(--fm-radius-sm) var(--fm-radius-sm) 0; }
+/* 0.5 칸: 좁고 작은 글자, 회색 */
+.fm-self-seg button.half { flex: .62 1 0; font-size: 11.5px; font-weight: 500; color: var(--fm-gray-300); letter-spacing: 0; }
 .fm-self-seg button:hover { background: var(--fm-paper-mute); color: var(--fm-ink); }
 .fm-self-seg button[aria-pressed="true"] { background: var(--fm-accent); border-color: var(--fm-accent); color: var(--fm-paper); font-weight: 600; z-index: 1; }
 .fm-self-seg button[aria-pressed="true"]:hover { background: var(--fm-accent-hover); border-color: var(--fm-accent-hover); }
@@ -77,6 +79,9 @@
   .fm-self-q .head h2 { font-size: 17px; }
   .fm-self-seg { margin-top: 18px; }
   .fm-self-seg button { height: 44px; font-size: 14px; }
+  .fm-self-seg button.half { font-size: 0; }
+  .fm-self-seg button.half::after { content: "·"; font-size: 16px; }
+  .fm-self-seg button.half[aria-pressed="true"]::after { content: ".5"; font-size: 12px; }
   .fm-self-open { margin-top: 12px; }
   .fm-self-open .fm-field label { font-size: 15px; }
   .fm-self-submit { margin-top: 24px; }
