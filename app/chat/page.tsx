@@ -470,7 +470,7 @@ function ChatContent() {
               <span className="title">{currentTopicName || '진단 대화'}</span>
             </div>
             <div className="tb-m">
-              <b>04 코치 대화</b>
+              <b>05 코치 대화</b>
               {currentTopicName ? ` · ${currentTopicName}` : ''}
               {topicTotal > 0 && currentTopicIdx >= 0 ? ` ${currentTopicIdx + 1}/${topicTotal}` : ''}
             </div>
