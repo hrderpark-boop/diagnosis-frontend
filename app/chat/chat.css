@@ -15,11 +15,11 @@
 .fm-chat-menu:hover { border-color: var(--fm-ink); }
 
 /* ---------- 본문 2열 ---------- */
-.fm-chat-app { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); }
+.fm-chat-app { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 340px minmax(0, 1fr); }
 
 /* ---------- 사이드 ---------- */
 .fm-chat-side { background: var(--fm-paper-soft); border-right: 1px solid var(--fm-gray-100); overflow-y: auto; min-height: 0; }
-.fm-chat-side .fm-chat-panel { min-height: 100%; padding: 24px; }
+.fm-chat-side .fm-chat-panel { min-height: 100%; padding: 28px 28px 24px; }
 .fm-chat-panel { display: flex; flex-direction: column; }
 .fm-chat-coach { display: flex; align-items: center; gap: 18px; }
 .fm-chat-coach .fm-ph { width: 112px; height: 112px; position: relative; z-index: 2; border-color: var(--fm-paper); }
@@ -140,7 +140,7 @@
 /* ---------- 유동 ---------- */
 @media (max-width: 1200px) {
   .fm-chat-main { padding: 18px 20px 20px; }
-  .fm-chat-app { grid-template-columns: 272px minmax(0, 1fr); }
+  .fm-chat-app { grid-template-columns: 300px minmax(0, 1fr); }
   .fm-chat-topbar, .fm-chat-msgs, .fm-chat-composer { padding-left: 32px; padding-right: 32px; }
   .fm-chat-status { padding-left: 32px; padding-right: 32px; }
 }
