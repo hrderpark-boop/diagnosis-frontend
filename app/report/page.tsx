@@ -186,15 +186,25 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
     .map(([label, score]) => ({ label, value: typeof score === 'number' ? score : null }));
   if (stats.length < 3) return null;  // 축이 3개 미만이면 레이더 생략
 
-  // 반경 80→62: 라벨이 viewBox 밖으로 벗어나 잘리던 현상 복구.
-  // 확대된 폰트(13px)는 유지하되, 라벨이 온전히 보이도록 내부 여백 확보
-  const size = 220; const center = size / 2; const radius = 62;
+  // 넓은 캔버스(좌우 라벨 공간 확보) + 폭 100% 로 칸을 채우고 가운데 정렬.
+  // 라벨은 위치에 따라 왼쪽·오른쪽·가운데로 정렬해 바깥쪽으로 뻗고, 긴 이름은 두 줄로 나눈다.
+  const W = 480; const H = 420; const cx = W / 2; const cy = H / 2; const radius = 138;
   const angleStep = (Math.PI * 2) / stats.length;
 
   const getPoint = (value: number, index: number) => {
     const angle = index * angleStep - Math.PI / 2;
     const r = (value / safeMax) * radius;
-    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  };
+  // 7자를 넘으면 괄호 앞이나 가운데 가까운 띄어쓰기에서 두 줄로
+  const splitLabel = (t: string): string[] => {
+    if (t.length <= 7) return [t];
+    const paren = t.indexOf('(');
+    if (paren > 0) return [t.slice(0, paren).trim(), t.slice(paren)];
+    const spaces = [...t].map((c, k) => (c === ' ' ? k : -1)).filter((k) => k > 0);
+    if (!spaces.length) return [t];
+    const mid = spaces.reduce((a, b) => (Math.abs(b - t.length / 2) < Math.abs(a - t.length / 2) ? b : a));
+    return [t.slice(0, mid), t.slice(mid + 1)];
   };
 
   const levels = Array.from({ length: safeMax }, (_, i) => i + 1).filter((_, i) => i === 0 || i === 2 || i === safeMax - 1);
@@ -205,15 +215,15 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
 
   return (
     <div className="flex justify-center items-center w-full h-full">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full max-w-[480px] h-auto mx-auto" role="img" aria-label="세부 역량 방사형 그래프">
         {levels.map((level) => (
           <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#D9D9D9" strokeWidth="1" />
         ))}
         {stats.map((stat, i) => {
           const p = getPoint(safeMax, i);
           return stat.value === null
-            ? <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#A6A6A6" strokeWidth="1" strokeDasharray="3 3" />
-            : <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#D9D9D9" strokeWidth="1" />;
+            ? <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#A6A6A6" strokeWidth="1" strokeDasharray="3 3" />
+            : <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#D9D9D9" strokeWidth="1" />;
         })}
         {measuredPts.length >= 3 && (
           <polygon points={points} fill="#E9EDF4" fillOpacity="0.75" stroke="#1C2B4A" strokeWidth="2" />
@@ -224,20 +234,28 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
         {stats.map((stat, i) => {
           if (stat.value === null) {
             const p = getPoint(safeMax, i);
-            return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="white" stroke="#A6A6A6" strokeWidth="1.2" strokeDasharray="2 2" />;
+            return <circle key={i} cx={p.x} cy={p.y} r="4" fill="white" stroke="#A6A6A6" strokeWidth="1.2" strokeDasharray="2 2" />;
           }
           const p = getPoint(stat.value, i);
-          return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#1C2B4A" />;
+          return <circle key={i} cx={p.x} cy={p.y} r="4" fill="#1C2B4A" />;
         })}
         {stats.map((stat, i) => {
-          // 라벨 배율 6.8: 다각형 모서리(5.0 지점)와 22px 가량 간격을 두면서도
-          // viewBox 경계(반폭 110) 안에 라벨·점수가 온전히 들어오는 위치
-          const pLabel = getPoint(6.8, i);
+          const angle = i * angleStep - Math.PI / 2;
+          const cos = Math.cos(angle); const sin = Math.sin(angle);
+          const lx = cx + (radius + 14) * cos;
+          const ly = cy + (radius + 14) * sin;
+          const anchor = cos > 0.25 ? 'start' : cos < -0.25 ? 'end' : 'middle';
+          const lines = splitLabel(stat.label);
+          const lineH = 18; const blockH = (lines.length + 1) * lineH;
+          // 위쪽 축은 블록 아래가, 아래쪽 축은 블록 위가 꼭짓점에 오도록. 옆쪽은 가운데
+          const top = sin < -0.6 ? ly - blockH : sin > 0.6 ? ly : ly - blockH / 2;
           const unmeasured = stat.value === null;
           return (
-            <g key={i}>
-              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#000000'} fontSize="13" fontWeight="600">{stat.label}</text>
-              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#1C2B4A'} fontSize="12" fontWeight="700">{unmeasured ? '–' : Number(stat.value).toFixed(1)}</text>
+            <g key={i} textAnchor={anchor}>
+              {lines.map((ln, k) => (
+                <text key={k} x={lx} y={top + lineH * (k + 0.5)} dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#1C2B4A'} fontSize="14" fontWeight="600">{ln}</text>
+              ))}
+              <text x={lx} y={top + lineH * (lines.length + 0.5)} dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#2E4A85'} fontSize="14" fontWeight="700">{unmeasured ? '–' : Number(stat.value).toFixed(1)}</text>
             </g>
           );
         })}
@@ -1276,7 +1294,7 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
                             <h4 className="mt-1 text-base font-bold text-fm-ink">세부 역량 분석</h4>
                           </div>
                           {/* 좌: 방사형(Radar) / 우: 가로 막대 - order 로 배치 확정 */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-2 gap-6 items-center">
+                          <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] print:grid-cols-[1.15fr_1fr] gap-6 items-center">
                             <div className="w-full flex justify-center lg:order-1">
                               <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
                             </div>
