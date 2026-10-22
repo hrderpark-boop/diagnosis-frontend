@@ -10,6 +10,7 @@ import { getKeyToNameMap, getSubCompetenciesMap, fetchFramework, FrameworkCompet
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import './report.css';
+import { useRollingScores, finishReportMotion, buildCompareLevels, OrgCompare } from './reportMotion';
 
 // ----------------------------------------------------------------------
 // [ICONS]
@@ -54,8 +55,11 @@ const RadarChart = ({
   maxScore,
   selfScores,
   groupAverages,
+  displayData,
 }: {
   data: any;
+  /** 등장 효과 중 표시할 값(굴러가는 점수). 없으면 data 그대로 */
+  displayData?: Record<string, number | null> | null;
   competencies: Array<{ key: string; name: string }>;
   maxScore: number;
   /** 자가진단 대역량 점수(같은 1~5 축). null 이면 자가 폴리곤을 그리지 않는다. */
@@ -73,7 +77,9 @@ const RadarChart = ({
   // B: 미측정(null) 역량은 0점이 아니라 '빈 점 + 회색 점선 축'으로 그려 빈칸이 보이게 한다.
   const stats = competencies.map((c) => {
     const raw = safeData[c.name] ?? safeData[c.key];  // 과거 포맷 호환 유지
-    return { label: c.name, value: typeof raw === 'number' ? raw : null };
+    const shown = displayData ? displayData[c.name] : undefined;
+    const value = typeof raw === 'number' ? (typeof shown === 'number' ? shown : raw) : null;
+    return { label: c.name, value };
   });
 
   const size = 300; const center = size / 2; const radius = 85;
@@ -490,6 +496,20 @@ function ReportContent() {
 
   const reportRef = useRef<HTMLDivElement>(null);
 
+  // 등장 효과: 종합 점수 → 대역량 점수(레이더와 같은 값)가 1~5 를 돌다 멈추고, 멈춘 뒤 막대가 채워진다.
+  const compScoreTargets: Array<number | null> = frameworkCompetencies.map((c) => {
+    const raw = report?.radar_chart?.[c.name] ?? report?.radar_chart?.[c.key];
+    return typeof raw === 'number' ? raw : null;
+  });
+  const totalTarget: Array<number | null> = [typeof report?.total_score === 'number' ? report.total_score : null];
+  const totalRoll = useRollingScores(report ? totalTarget : [], { delay: 150, duration: 1800, loops: 3 });
+  const compRoll = useRollingScores(report ? compScoreTargets : [], { delay: 450, duration: 1700, stagger: 160, loops: 2 });
+  const rolledByName: Record<string, number | null> = Object.fromEntries(
+    frameworkCompetencies.map((c, i) => [c.name, compRoll.values[i] ?? null]),
+  );
+  // 미리보기용 비교 예시 데이터: /report?...&demo=compare
+  const compareDemo = searchParams.get('demo') === 'compare';
+
   useEffect(() => {
     if (!sessionId) return setStatusMsg("세션 정보가 없습니다.");
     loadReport();
@@ -572,6 +592,9 @@ function ReportContent() {
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
+    // 등장 효과가 진행 중이어도 PDF 는 마무리된 상태로: 즉시 최종 값으로 맞추고 두 프레임 기다린다
+    finishReportMotion();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       // 블록 단위 독립 캡처(Block-by-Block Capture):
       // 거대 캔버스를 297mm 씩 기계적으로 자르던 방식은 중간 잘림·억지 여백을
@@ -762,7 +785,7 @@ function ReportContent() {
               <section className="print-section fm-report-kpis" aria-label="핵심 지표">
                 <div className="fm-card fm-report-kpi print:break-inside-avoid">
                   <div className={`v fm-report-fig ${official ? '' : 'ref'}`}>
-                    {hasScore ? Number(report.total_score).toFixed(1) : '—'}<small>/ {maxScore.toFixed(1)}</small>
+                    {hasScore ? Number(totalRoll.values[0] ?? report.total_score).toFixed(1) : '—'}<small>/ {maxScore.toFixed(1)}</small>
                   </div>
                   <div className="k fm-caption">
                     종합 점수 · 측정된 역량의 심층 평가 평균치
@@ -810,6 +833,7 @@ function ReportContent() {
                       maxScore={maxScore}
                       selfScores={report.self_assessment?.scores ?? null}
                       groupAverages={report.group_comparison?.available ? (report.group_comparison.averages ?? null) : null}
+                      displayData={rolledByName}
                     />
                   </div>
                   {/* 범례 - 실선: 대화에 드러난 나 / 점선: 스스로 보는 나 / (조건부) 진회색 실선: 그룹 평균 */}
@@ -844,9 +868,11 @@ function ReportContent() {
                   </div>
                   {frameworkCompetencies.length > 0 && (
                     <div>
-                      {frameworkCompetencies.map((c) => {
+                      {frameworkCompetencies.map((c, ci) => {
                         const raw = report.radar_chart?.[c.name] ?? report.radar_chart?.[c.key];
                         const v = typeof raw === 'number' ? raw : null;
+                        const shownV = compRoll.values[ci] ?? v;   // 굴러가는 표시 값
+                        const settled = compRoll.done[ci] ?? false;  // 숫자가 멈춘 뒤에 막대를 채운다
                         return (
                           <div key={c.key} className="srow">
                             <div className="top">
@@ -854,13 +880,13 @@ function ReportContent() {
                               <span
                                 title={v === null ? '이번 세션에서 확인되지 않은 영역입니다(미측정).' : undefined}
                                 className={`fm-report-fig ${v === null ? 'off' : ''}`}>
-                                {v === null ? '—' : v.toFixed(1)}<small>/{(maxScore || 5).toFixed(1)}</small>
+                                {v === null ? '—' : Number(shownV).toFixed(1)}<small>/{(maxScore || 5).toFixed(1)}</small>
                               </span>
                             </div>
                             {c.description && <div className="d fm-caption break-keep">{c.description}</div>}
                             <div className={`fm-bar ${v === null ? 'fm-report-bar-off' : ''}`}>
                               {v !== null && (
-                                <i style={{ width: `${Math.min(100, Math.max(0, (v / (maxScore || 5)) * 100))}%` }} />
+                                <i className="fm-report-fill" style={{ width: settled ? `${Math.min(100, Math.max(0, (v / (maxScore || 5)) * 100))}%` : '0%' }} />
                               )}
                             </div>
                           </div>
@@ -879,13 +905,21 @@ function ReportContent() {
           );
         })()}
 
-        {/* 조직 내 위치 - 비교 대상이 모이기 전에는 백엔드 안내 문구만(가짜 숫자 금지) */}
-        {report.group_comparison && !report.group_comparison.available && report.group_comparison.label && (
-          <div className="print:break-inside-avoid -mt-2 mb-6 flex flex-col lg:flex-row lg:items-baseline gap-1 lg:gap-4 px-1">
-            <span className="fm-eyebrow text-fm-gray-500 shrink-0">조직 내 위치</span>
-            <span className="text-[13px] font-light text-fm-gray-500 break-keep">{report.group_comparison.label}</span>
-          </div>
-        )}
+        {/* 조직 내 위치 비교 - 전체 · 본부 · 팀. 데이터가 없는 단계는 안내만(가짜 숫자 금지).
+            demo=compare 일 때만 '예시 데이터' 로 채운 미리보기. */}
+        {(() => {
+          const names = frameworkCompetencies.map((c) => c.name);
+          const { levels, demo } = buildCompareLevels(report, names, compareDemo);
+          const mine: Record<string, number | null> = Object.fromEntries(frameworkCompetencies.map((c) => {
+            const raw = report.radar_chart?.[c.name] ?? report.radar_chart?.[c.key];
+            return [c.name, typeof raw === 'number' ? raw : null];
+          }));
+          return (
+            <div className="print-section mb-6">
+              <OrgCompare competencies={frameworkCompetencies} myScores={mine} maxScore={maxScore} levels={levels} demo={demo} />
+            </div>
+          );
+        })()}
 
         {/* ── [섹션 3] 종합 피드백 & 키워드 - 요구사항: 점수/차트/피드백/
               키워드를 여백 없이 '단일 1페이지'에 모두 압축. 별도 페이지 블록을

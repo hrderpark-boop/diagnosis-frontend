@@ -120,3 +120,39 @@
   .fm-report-mstep { display: none; }
   .fm-report-title { padding-top: 8px; }
 }
+
+/* ---------- 등장 효과: 숫자가 멈춘 뒤 막대가 채워짐 ---------- */
+.fm-report-fill { transition: width .9s cubic-bezier(.16, 1, .3, 1); }
+@media print { .fm-report-fill { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .fm-report-fill { transition: none; } }
+
+/* ---------- 조직 내 위치 비교(전체 · 본부 · 팀) ---------- */
+.fm-cmp { padding: 28px 28px 24px; }
+.fm-cmp .cap-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.fm-cmp .cap-head h3 { margin: 6px 0 0; font-size: 18px; font-weight: 700; color: var(--fm-ink); }
+.fm-cmp-legend { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--fm-ink-body); }
+.fm-cmp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fm-cmp-legend span.off { color: var(--fm-gray-300); }
+.fm-cmp-legend i { width: 14px; height: 6px; border-radius: 3px; display: inline-block; }
+.fm-cmp-rows { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 40px; }
+.fm-cmp-row { padding: 16px 0; border-top: 1px solid var(--fm-paper-mute); }
+.fm-cmp-row .nm { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.fm-cmp-row .nm b { font-size: 15px; font-weight: 700; color: var(--fm-ink); }
+.fm-cmp-row .diff { font-size: 12.5px; font-weight: 600; color: var(--fm-gray-500); white-space: nowrap; }
+.fm-cmp-row .diff.up { color: var(--fm-accent); }
+.fm-cmp-row .diff.down { color: var(--fm-danger, #B4232C); }
+.fm-cmp-row .bars { margin-top: 10px; display: grid; gap: 6px; }
+.fm-cmp-row .b { display: grid; grid-template-columns: 30px 1fr 34px; align-items: center; gap: 10px; font-size: 12.5px; color: var(--fm-gray-500); }
+.fm-cmp-row .b.me { color: var(--fm-ink); font-weight: 700; }
+.fm-cmp-row .b.off { color: var(--fm-gray-300); }
+.fm-cmp-row .b .v { text-align: right; font-family: var(--fm-font-display); font-weight: 600; font-variant-numeric: tabular-nums; }
+.fm-cmp-bar { height: 8px; border-radius: 4px; background: var(--fm-paper-mute); overflow: hidden; }
+.fm-cmp-bar i { display: block; height: 100%; border-radius: 4px; transition: width 1s cubic-bezier(.16, 1, .3, 1); }
+.fm-cmp-row .b.me .fm-cmp-bar { height: 10px; }
+.fm-cmp-notes { margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--fm-paper-mute); list-style: none; display: grid; gap: 4px; font-size: 12.5px; color: var(--fm-gray-500); }
+@media print { .fm-cmp-bar i { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .fm-cmp-bar i { transition: none; } }
+@media (max-width: 767px) {
+  .fm-cmp { padding: 20px 18px 18px; }
+  .fm-cmp-rows { grid-template-columns: 1fr; }
+}
