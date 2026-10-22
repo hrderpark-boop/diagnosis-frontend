@@ -12,10 +12,10 @@ import './intro.css';
 // 참여 확인(홈) 뒤, 코치 선택 전에 진단이 어떻게 진행되는지 보여 준다. 표시 전용 화면(API 호출 없음).
 // 진단 순서는 1~4 로 매긴다(헤더 스테퍼의 전체 단계 번호와는 별개). 아이콘은 lucide 선 아이콘.
 const STEPS: { no: string; icon: LucideIcon; title: string; desc: string; timeLabel: string; time: string }[] = [
-  { no: '1', icon: UserRoundSearch, title: '코치 선택', desc: '6명의 AI 코치 중 나와 대화 스타일이 맞는 코치를 고릅니다. 코치마다 질문하는 방식과 분위기가 다르고, 평가 기준은 같습니다.', timeLabel: '소요 시간', time: '약 1분' },
+  { no: '1', icon: UserRoundSearch, title: '코치 선택', desc: '6명의 AI 코치 중 나와 대화 스타일이 맞는 코치를 선택합니다. 코치마다 질문하는 방식과 분위기가 다르고, 평가 기준은 같습니다.', timeLabel: '소요 시간', time: '약 1분' },
   { no: '2', icon: ClipboardCheck, title: '자가진단', desc: '조직·성과·사람·일·자기 관리 5대 역량에 대해 지금 스스로 느끼는 수준을 표시합니다. 이 응답은 리포트에서 대화 결과와 비교됩니다.', timeLabel: '소요 시간', time: '약 5분' },
   { no: '3', icon: MessagesSquare, title: '코치 대화', desc: '역량마다 실제로 겪은 상황과 그때의 행동을 이야기합니다. 코치가 질문으로 구체적인 사례를 끌어내고, 중간에 저장했다가 이어서 할 수 있습니다.', timeLabel: '역량당 30분', time: '총 150분' },
-  { no: '4', icon: FileChartColumn, title: '리포트', desc: '26개 하위역량의 점수와 근거, 스스로 본 나와의 차이, 강점과 보완점, 추천 교육 과정을 담은 리포트가 바로 발급됩니다.', timeLabel: '발급', time: '즉시' },
+  { no: '4', icon: FileChartColumn, title: '리포트', desc: '26개 하위역량의 점수와 근거, 자기\u00A0인식과 차이, 강점과 보완점, 추천 교육 과정을 담은 리포트가 바로 발급됩니다.', timeLabel: '발급', time: '즉시' },
 ];
 
 const COACHES = [
@@ -110,7 +110,7 @@ export default function IntroPage() {
         {/* 6명의 AI 코치 + 다음 단계 */}
         <section className="fm-intro-coaches">
           <div className="fm-wrap">
-            <h2>6명의 AI 코치가 같은 기준으로 진단합니다</h2>
+            <h2>6명의 역량진단 전문가가 동일한 기준으로 심층 진단합니다</h2>
             <p>코치는 대화 스타일만 다를 뿐, 5대 역량(26개 하위역량)에 대해 동일한 기준으로 역량을 평가합니다.</p>
             <div className="fm-intro-coach-row">
               {COACHES.map((c) => (
