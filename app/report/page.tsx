@@ -363,7 +363,7 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
           const step = getStep(item.key);
           if (!step || !step.description) return null;
           return (
-            <div key={item.key} className="print:break-inside-avoid p-6 rounded-lg border border-fm-gray-100 bg-fm-paper-soft">
+            <div key={item.key} data-pdf-break="1" className="print:break-inside-avoid p-6 rounded-lg border border-fm-gray-100 bg-fm-paper-soft">
               <span className="block fm-eyebrow mb-3">
                 {item.label}
               </span>
@@ -636,7 +636,8 @@ function ReportContent() {
 
       // 1) 모든 단위를 먼저 캡처(제목 줄은 다음 단위와 같은 페이지에 붙이기 위해 높이를 미리 안다)
       reportRef.current.classList.add('fm-pdf-capturing');
-      const shots: { img: string; w: number; h: number; keepNext: boolean; group: string }[] = [];
+      // breaks: 이 단위를 나눠도 되는 지점(단위 위쪽에서의 mm). 평가 근거의 상황·행동·결과 사이
+      const shots: { canvas: HTMLCanvasElement; w: number; h: number; keepNext: boolean; group: string; breaks: number[] }[] = [];
       try {
         for (const unit of units) {
           const canvas = await html2canvas(unit, {
@@ -648,49 +649,94 @@ function ReportContent() {
           if (canvas.width === 0 || canvas.height === 0) continue;
           let w = contentWidth;
           let h = (canvas.height * contentWidth) / canvas.width;
-          if (h > maxHeight) { w = contentWidth * (maxHeight / h); h = maxHeight; }
-          shots.push({ img: canvas.toDataURL('image/jpeg', 0.85), w, h, keepNext: unit.dataset.pdfKeepNext === '1', group: unit.dataset.pdfGroup || '' });
+          const box = unit.getBoundingClientRect();
+          const mmPerPx = h / box.height;
+          // 블록 위쪽 12px(블록 사이 여백의 가운데)에서 자른다
+          const breaks = Array.from(unit.querySelectorAll<HTMLElement>('[data-pdf-break]'))
+            .map((el) => (el.getBoundingClientRect().top - box.top - 12) * mmPerPx)
+            .filter((b) => b > 0 && b < h - 20)
+            // 첫 블록 앞에서는 자르지 않는다(제목이 혼자 남지 않게)
+            .slice(1);
+          if (h > maxHeight && breaks.length === 0) { w = contentWidth * (maxHeight / h); h = maxHeight; }
+          shots.push({ canvas, w, h, keepNext: unit.dataset.pdfKeepNext === '1', group: unit.dataset.pdfGroup || '', breaks });
         }
       } finally {
         reportRef.current.classList.remove('fm-pdf-capturing');
       }
 
-      // 2) 같은 그룹(역량 상세 + 평가 근거)은 한 덩어리로 묶는다. 한 장을 넘으면 덩어리 전체를
-      //    같은 비율로 줄여 한 장에 담는다 → 역량 하나 = 한 페이지.
-      const items: { parts: typeof shots; h: number; keepNext: boolean }[] = [];
+      // 2) 같은 그룹(역량 상세 + 평가 근거)은 한 덩어리로 묶는다. 한 장을 넘으면 줄이지 않고
+      //    (폭은 모든 페이지 동일) 단위별로 풀어서 이어 쌓는다.
+      const grouped: { parts: typeof shots; h: number; keepNext: boolean }[] = [];
       for (const sh of shots) {
-        const last = items[items.length - 1];
+        const last = grouped[grouped.length - 1];
         // 같은 그룹이거나, 바로 앞이 '다음과 붙여 둘' 섹션 제목이면 한 덩어리로 합친다
         if (last && ((sh.group && last.parts[last.parts.length - 1].group === sh.group) || last.keepNext)) {
           last.parts.push(sh);
           last.keepNext = sh.keepNext;
         } else {
-          items.push({ parts: [sh], h: 0, keepNext: sh.keepNext });
+          grouped.push({ parts: [sh], h: 0, keepNext: sh.keepNext });
         }
       }
-      for (const it of items) {
-        let total = it.parts.reduce((a, p) => a + p.h, 0) + gap * (it.parts.length - 1);
-        if (total > maxHeight) {
-          const k = maxHeight / total;
-          it.parts = it.parts.map((p) => ({ ...p, w: p.w * k, h: p.h * k }));
-          total = maxHeight;
+      const items: typeof grouped = [];
+      for (const it of grouped) {
+        const total = it.parts.reduce((a, p) => a + p.h, 0) + gap * (it.parts.length - 1);
+        if (total <= maxHeight || it.parts.length === 1) {
+          items.push({ ...it, h: total });
+        } else {
+          // 한 장을 넘는 덩어리: 단위별로 풀어 이어 쌓는다(평가 근거는 남은 공간부터 블록 단위로 채움)
+          it.parts.forEach((p, j) => {
+            const isLast = j === it.parts.length - 1;
+            items.push({ parts: [p], h: p.h, keepNext: isLast ? it.keepNext : false });
+          });
         }
-        it.h = total;
       }
+
+      // 캡처 이미지의 [from, to] mm 구간을 현재 위치에 싣는다
+      const place = (p: (typeof shots)[number], from: number, to: number) => {
+        const k = p.canvas.height / p.h;
+        const sy = Math.round(from * k);
+        const sh = Math.max(1, Math.round(to * k) - sy);
+        let src = p.canvas;
+        if (sy > 0 || sh < p.canvas.height) {
+          src = document.createElement('canvas');
+          src.width = p.canvas.width;
+          src.height = sh;
+          src.getContext('2d')!.drawImage(p.canvas, 0, sy, p.canvas.width, sh, 0, 0, p.canvas.width, sh);
+        }
+        pdf.addImage(src.toDataURL('image/jpeg', 0.85), 'JPEG', margin + (contentWidth - p.w) / 2, y, p.w, to - from);
+        y += to - from + gap;
+      };
+      const newPage = () => { pdf.addPage(); y = margin; pageHasContent = false; };
 
       // 3) 위에서부터 차곡차곡. 남은 공간에 안 들어가면 새 페이지.
       //    keepNext(섹션 제목)는 다음 덩어리 일부까지 함께 들어갈 공간이 없으면 같이 다음 페이지로.
+      //    나눌 지점이 있는 단위(평가 근거)는 남은 공간에 들어가는 블록까지 싣고 나머지는 다음 페이지로.
       items.forEach((it, i) => {
-        const need = it.keepNext && items[i + 1] ? it.h + gap + Math.min(items[i + 1].h, maxHeight / 3) : it.h;
-        if (pageHasContent && y + need > pageHeight - margin) {
-          pdf.addPage();
-          y = margin;
-          pageHasContent = false;
+        const next = items[i + 1];
+        // 다음 덩어리가 나눌 수 있는 단위면 첫 조각만큼만 함께 들어가면 된다
+        const nextHead = next ? (next.parts.length === 1 && next.parts[0].breaks.length ? next.parts[0].breaks[0] : Math.min(next.h, maxHeight / 3)) : 0;
+        const need = it.keepNext && next ? it.h + gap + nextHead : it.h;
+        const only = it.parts.length === 1 ? it.parts[0] : null;
+        if (only && only.breaks.length && y + it.h > pageHeight - margin) {
+          let from = 0;
+          while (from < only.h) {
+            const room = pageHeight - margin - y;
+            if (only.h - from <= room) { place(only, from, only.h); break; }
+            const cut = only.breaks.filter((b) => b > from && b - from <= room).pop();
+            if (cut === undefined) {
+              if (!pageHasContent) { place(only, from, only.h); break; } // 블록 하나가 한 장보다 큰 경우
+              newPage();
+              continue;
+            }
+            place(only, from, cut);
+            from = cut;
+            newPage();
+          }
+          pageHasContent = true;
+          return;
         }
-        for (const p of it.parts) {
-          pdf.addImage(p.img, 'JPEG', margin + (contentWidth - p.w) / 2, y, p.w, p.h);
-          y += p.h + gap;
-        }
+        if (pageHasContent && y + need > pageHeight - margin) newPage();
+        for (const p of it.parts) place(p, 0, p.h);
         pageHasContent = true;
       });
 
