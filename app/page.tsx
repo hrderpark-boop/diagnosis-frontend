@@ -148,7 +148,9 @@ export default function LoginPage() {
                   ))}
                 </span>
                 <span className="me" aria-hidden="true">
-                  <span className="me-in"><b className="fm-me-wave">Me</b></span>
+                  {['M', 'e'].map((ch, i) => (
+                    <i key={ch} style={{ '--i': i } as React.CSSProperties}><b className="fm-me-wave">{ch}</b></i>
+                  ))}
                 </span>
               </div>
               <h1>내 안의 진짜 리더를 찾는 여정</h1>
@@ -159,7 +161,7 @@ export default function LoginPage() {
               <dl className="fm-home-stats">
                 <div><dt>대역량</dt><dd><b><CountUp to={5} delay={1700} duration={1100} /></b></dd></div>
                 <div><dt>하위역량</dt><dd><b><CountUp to={26} delay={1800} duration={1500} /></b></dd></div>
-                <div><dt>코치 대화</dt><dd><b><CountUp to={150} delay={1900} duration={1900} /></b><small>분</small></dd></div>
+                <div><dt>코치와 심층대화</dt><dd><b><CountUp to={150} delay={1900} duration={1900} /></b><small>분</small></dd></div>
               </dl>
             </div>
 

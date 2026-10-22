@@ -30,6 +30,7 @@
   --fm-font-sans: "Pretendard Variable", Pretendard, "Noto Sans KR", -apple-system, system-ui, sans-serif;
   --fm-font-display: var(--font-montserrat), "Montserrat", sans-serif;
   --fm-font-wordmark: var(--font-outfit), "Outfit", var(--fm-font-sans);
+  --fm-font-me: var(--font-quicksand), "Quicksand", var(--fm-font-wordmark);
 
   --fm-gutter: 72px;
 }
@@ -58,22 +59,24 @@
 /* ---------- 워드마크 ---------- */
 .fm-wm { display: inline-flex; align-items: baseline; gap: .22em; font-family: var(--fm-font-wordmark); font-size: 22px; line-height: 1; color: var(--fm-ink); letter-spacing: -.04em; }
 .fm-wm .find { font-weight: 300; }
-.fm-wm .me { font-weight: 600; color: var(--fm-accent); }
-/* Me 흐르는 색: 남색 → 밝은 파랑 · 연한 파랑 → 남색, 8초 왕복.
+.fm-wm .me { font-family: var(--fm-font-me); font-weight: 700; letter-spacing: -.03em; color: var(--fm-accent); }
+/* Me 색: 밝은 파랑(위) → 남색(아래) 그라데이션. 위에 빛 한 줄기 레이어가 화면 밖에서 대기하고,
+   홈 워드마크에서만 등장 마지막에 한 번 지나간다(app/home.css 의 fmHomeShine).
    이 요소에는 transform·filter·opacity 애니메이션을 걸지 않는다(일부 브라우저에서 글자가 사라짐).
-   등장 효과가 필요하면 감싸는 요소에 건다. */
-.fm-me-wave { color: var(--fm-blue-bright); }
+   움직임이 필요하면 감싸는 요소에 건다. */
+.fm-me-wave { color: var(--fm-accent); }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .fm-me-wave {
-    background-image: linear-gradient(115deg, var(--fm-accent) 0%, var(--fm-accent) 12%, var(--fm-blue-mid) 28%, var(--fm-blue-bright) 42%, var(--fm-blue-light) 50%, var(--fm-blue-bright) 58%, var(--fm-blue-mid) 72%, var(--fm-accent) 88%, var(--fm-accent) 100%);
-    background-size: 400% 100%;
-    background-position: 0% 50%;
+    background-image:
+      linear-gradient(110deg, transparent 0%, transparent 38%, rgba(255, 255, 255, .9) 50%, transparent 62%, transparent 100%),
+      linear-gradient(160deg, var(--fm-blue-bright) 0%, var(--fm-blue-mid) 55%, var(--fm-accent) 100%);
+    background-size: 260% 100%, 100% 100%;
+    background-repeat: no-repeat;
+    background-position: 160% 0, 0 0;
     -webkit-background-clip: text; background-clip: text;
     color: transparent; -webkit-text-fill-color: transparent;
-    animation: fmMeFlow 8s ease-in-out infinite alternate;
   }
 }
-@keyframes fmMeFlow { to { background-position: 100% 50%; } }
 
 /* ---------- 헤더 + 스테퍼 ---------- */
 .fm-header { position: sticky; top: 0; z-index: 30; background: var(--fm-paper); border-bottom: 1px solid var(--fm-gray-100); }

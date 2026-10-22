@@ -1,7 +1,7 @@
 // app/layout.tsx
 
 import type { Metadata } from "next";
-import { Montserrat, Instrument_Serif, Outfit } from "next/font/google";
+import { Montserrat, Instrument_Serif, Outfit, Quicksand } from "next/font/google";
 import "./globals.css"; // 👈 [핵심] 이 줄이 반드시 있어야 디자인이 적용됩니다!
 import "./fm-light.css"; // 참가자 화면 라이트 리디자인 공통 토큰·컴포넌트(fm- 접두어)
 
@@ -20,6 +20,13 @@ const outfit = Outfit({
   subsets: ["latin"],
   weight: ["300", "600"],
   variable: "--font-outfit",
+  display: "swap",
+});
+// 워드마크 "Me" 전용 둥근 서체
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["700"],
+  variable: "--font-quicksand",
   display: "swap",
 });
 const instrumentSerif = Instrument_Serif({
@@ -41,7 +48,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className={`${montserrat.variable} ${instrumentSerif.variable} ${outfit.variable}`}>
+    <html lang="ko" className={`${montserrat.variable} ${instrumentSerif.variable} ${outfit.variable} ${quicksand.variable}`}>
       <head>
         <link
           rel="stylesheet"
