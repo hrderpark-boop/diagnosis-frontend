@@ -188,7 +188,7 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
 
   // 넓은 캔버스(좌우 라벨 공간 확보) + 폭 100% 로 칸을 채우고 가운데 정렬.
   // 라벨은 위치에 따라 왼쪽·오른쪽·가운데로 정렬해 바깥쪽으로 뻗고, 긴 이름은 두 줄로 나눈다.
-  const W = 480; const H = 420; const cx = W / 2; const cy = H / 2; const radius = 138;
+  const W = 480; const cx = W / 2; const cy = 0; const radius = 138;
   const angleStep = (Math.PI * 2) / stats.length;
 
   const getPoint = (value: number, index: number) => {
@@ -213,9 +213,28 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
     .filter((p): p is { x: number; y: number } => p !== null);
   const points = measuredPts.map(p => `${p.x},${p.y}`).join(" ");
 
+  const lineH = 18;
+  const labels = stats.map((stat, i) => {
+    const angle = i * angleStep - Math.PI / 2;
+    const cos = Math.cos(angle); const sin = Math.sin(angle);
+    const lx = cx + (radius + 14) * cos;
+    const ly = cy + (radius + 14) * sin;
+    const anchor: 'start' | 'end' | 'middle' = cos > 0.25 ? 'start' : cos < -0.25 ? 'end' : 'middle';
+    const lines = splitLabel(stat.label);
+    const blockH = (lines.length + 1) * lineH;
+    // 위쪽 축은 블록 아래가, 아래쪽 축은 블록 위가 꼭짓점에 오도록. 옆쪽은 가운데
+    const top = sin < -0.6 ? ly - blockH : sin > 0.6 ? ly : ly - blockH / 2;
+    return { lx, top, anchor, lines, blockH };
+  });
+  // 축 수에 따라 아래(또는 위)가 비므로, 실제로 그려지는 세로 범위에 맞춰 잘라 가운데에 오게 한다
+  const outer = stats.map((_, i) => getPoint(safeMax, i).y);
+  const pad = 8;
+  const minY = Math.min(...outer, ...labels.map((l) => l.top)) - pad;
+  const maxY = Math.max(...outer, ...labels.map((l) => l.top + l.blockH)) + pad;
+
   return (
     <div className="flex justify-center items-center w-full h-full">
-      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full max-w-[480px] h-auto mx-auto" role="img" aria-label="세부 역량 방사형 그래프">
+      <svg viewBox={`0 ${minY} ${W} ${maxY - minY}`} className="block w-full max-w-[480px] h-auto mx-auto" role="img" aria-label="세부 역량 방사형 그래프">
         {levels.map((level) => (
           <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#D9D9D9" strokeWidth="1" />
         ))}
@@ -240,15 +259,7 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
           return <circle key={i} cx={p.x} cy={p.y} r="4" fill="#1C2B4A" />;
         })}
         {stats.map((stat, i) => {
-          const angle = i * angleStep - Math.PI / 2;
-          const cos = Math.cos(angle); const sin = Math.sin(angle);
-          const lx = cx + (radius + 14) * cos;
-          const ly = cy + (radius + 14) * sin;
-          const anchor = cos > 0.25 ? 'start' : cos < -0.25 ? 'end' : 'middle';
-          const lines = splitLabel(stat.label);
-          const lineH = 18; const blockH = (lines.length + 1) * lineH;
-          // 위쪽 축은 블록 아래가, 아래쪽 축은 블록 위가 꼭짓점에 오도록. 옆쪽은 가운데
-          const top = sin < -0.6 ? ly - blockH : sin > 0.6 ? ly : ly - blockH / 2;
+          const { lx, top, anchor, lines } = labels[i];
           const unmeasured = stat.value === null;
           return (
             <g key={i} textAnchor={anchor}>
