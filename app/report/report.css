@@ -223,3 +223,10 @@
 .fm-next-course .reason .cite { margin: 10px 0 0; font-size: 13px; font-style: italic; color: var(--fm-gray-500); }
 @media (max-width: 900px) { .fm-next-comps { grid-template-columns: 1fr; } }
 @media (max-width: 767px) { .fm-next-comp, .fm-next-courses-head, .fm-next-course { padding: 20px 18px; } .fm-next-course { grid-template-columns: 30px minmax(0, 1fr); } }
+
+/* PDF 글자 위치 보정.
+   html2canvas 는 글자 기준선을 재려고 body 바로 아래에 숨긴 div 를 만들고 그 안에 1px <img> 를
+   글줄에 끼워 offsetTop 을 잰다. Tailwind 기본 스타일(img { display: block })이 이 img 를 블록으로
+   만들어 측정값이 줄 높이만큼 커지고, 캡처된 모든 글자가 그만큼 아래로 내려간다(상자 안 글자에서 두드러짐).
+   측정용 img 만 다시 인라인으로 돌린다. 웹폰트(Pretendard) 기준이라 맥·윈도우 모두 같은 결과. */
+body > div[style*="visibility: hidden"][style*="nowrap"] > img[width="1"][height="1"] { display: inline !important; }
