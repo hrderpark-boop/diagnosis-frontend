@@ -19,15 +19,15 @@ interface Coach {
 
 interface ActiveSession { session_id: string; coach_id: string; coach_name: string }
 
-// 코치 유형 한 단어·"이런 분께" 문구(API 에 없음). 키는 코치 영문 이름 대문자.
-// 매핑이 없는 코치는 해당 줄을 숨긴다. 문구는 샘플 design/light-sample/b/coach.html 기준.
-const COACH_PROFILE: Record<string, { type: string; fit: string }> = {
-  ELLA: { type: '경청형', fit: '말로 풀어내며 생각을 정리하는 편인 분' },
-  JESSICA: { type: '분석형', fit: '근거와 숫자로 짚어 주길 원하는 분' },
-  OLIVIA: { type: '탐색형', fit: '익숙한 방식 바깥의 관점이 필요한 분' },
-  DANIEL: { type: '멘토형', fit: '경험 많은 선배의 조언을 원하는 분' },
-  MICHAEL: { type: '추진형', fit: '밀어붙이는 에너지가 필요한 분' },
-  LUCAS: { type: '해결형', fit: '빠르게 핵심만 짚고 싶은 분' },
+// 코치 유형 한 단어·"이런 분께 추천" 문구·소개 문단(API 에 없음). 키는 코치 영문 이름 대문자.
+// 매핑이 없는 코치는 유형·추천 줄을 숨기고, 소개는 API 의 description 으로 대신한다.
+const COACH_PROFILE: Record<string, { type: string; fit: string; intro: string }> = {
+  ELLA: { type: '경청형', fit: '말로 풀어내며 생각을 정리하는 편인 분', intro: '이야기를 끝까지 들으며 생각이 정리될 때까지 기다려 주는 코치입니다. 편안하게 말하다 보면 스스로 놓치고 있던 행동과 감정을 함께 찾아냅니다.' },
+  JESSICA: { type: '분석형', fit: '근거와 숫자로 짚어 주길 원하는 분', intro: '말씀하신 사례를 근거와 숫자로 하나씩 짚어 보는 코치입니다. 무엇을 기준으로 판단했고 결과가 어땠는지 논리적으로 정리해 줍니다.' },
+  OLIVIA: { type: '탐색형', fit: '익숙한 방식 바깥의 관점이 필요한 분', intro: '익숙한 방식에서 한 걸음 떨어져 다른 각도로 묻는 코치입니다. 당연하게 여기던 선택을 새롭게 보게 하며 숨은 가능성을 끌어냅니다.' },
+  DANIEL: { type: '멘토형', fit: '경험 많은 선배의 조언을 원하는 분', intro: '현장 경험이 많은 선배처럼 차분하게 이끌어 주는 코치입니다. 비슷한 상황에서의 고민을 함께 짚으며 든든한 시각을 더해 줍니다.' },
+  MICHAEL: { type: '추진형', fit: '밀어붙이는 에너지가 필요한 분', intro: '밝은 에너지로 대화를 힘 있게 이끄는 코치입니다. 망설이던 경험도 자신 있게 꺼낼 수 있도록 응원하며 실행 의지를 높여 줍니다.' },
+  LUCAS: { type: '해결형', fit: '빠르게 핵심만 짚고 싶은 분', intro: '군더더기 없이 핵심만 묻는 코치입니다. 짧은 시간 안에 상황과 행동, 결과를 빠르게 정리하고 다음 단계로 넘어갑니다.' },
 };
 
 // FindME 리뉴얼 1B / SELECT COACH — 헤더(눈썹·제목·부제) + 3열 카드(번호·사진·
@@ -299,7 +299,7 @@ export default function StartPage() {
             </div>
           ) : (
             <div className="fm-start-grid">
-              {coaches?.map((coach) => {
+              {coaches?.map((coach, idx) => {
                 const { en, ko } = splitName(coach.name);
                 const busy = startingId === coach.id;
                 const isActiveCoach = active?.coach_id === coach.id;
@@ -308,7 +308,7 @@ export default function StartPage() {
                 // 선택 상태 테두리: 시작 중인 코치, 시작 전이면 진행 중 세션의 코치
                 const selected = busy || (!startingId && isActiveCoach);
                 return (
-                  <article key={coach.id} className={`fm-card fm-coach-card${selected ? ' selected' : ''}`}>
+                  <article key={coach.id} className={`fm-card fm-coach-card${selected ? ' selected' : ''}`} style={{ '--i': idx } as React.CSSProperties}>
                     {isActiveCoach && <span className="fm-chip tint picked">진행 중</span>}
                     <div className="top">
                       <div className="fm-ph">
@@ -328,11 +328,11 @@ export default function StartPage() {
                     </div>
                     {profile && (
                       <div className="fit">
-                        <div className="k">이런 분께</div>
+                        <div className="k">이런 분께 추천</div>
                         <div className="v">{profile.fit}</div>
                       </div>
                     )}
-                    <p className="quote">{getCoachDescription(coach.description)}</p>
+                    <p className="intro">{profile?.intro ?? getCoachDescription(coach.description)}</p>
                     {tags.length > 0 && (
                       <div className="traits">
                         {tags.map((t) => <span key={t} className="fm-chip">{t}</span>)}

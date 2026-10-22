@@ -22,44 +22,74 @@
 .fm-start-spin { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--fm-gray-100); border-top-color: var(--fm-accent); animation: fmStartSpin 1s linear infinite; }
 @keyframes fmStartSpin { to { transform: rotate(360deg); } }
 
-/* ---------- 코치 카드 그리드 ---------- */
+/* ---------- 코치 카드 그리드 ----------
+   화면 폭을 넓게(최대 1440) 쓰고, 카드는 마우스를 올리면 떠오르며 위쪽 네이비 선이 그어진다.
+   처음 들어올 때 카드가 차례로 떠오른다(움직임 줄이기 설정이면 생략). */
+.fm-start-main > .fm-wrap { max-width: 1440px; }
 .fm-start-grid {
   margin-top: 24px;
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px;
 }
 .fm-coach-card {
-  position: relative;
+  position: relative; overflow: hidden;
   display: flex; flex-direction: column;
-  transition: box-shadow .15s, border-color .15s;
+  padding: 32px 32px 28px;
+  transition: transform .28s cubic-bezier(.2, .8, .2, 1), box-shadow .28s ease, border-color .28s ease;
+  animation: fmCoachIn .6s cubic-bezier(.16, 1, .3, 1) backwards; animation-delay: calc(.05s + var(--i, 0) * .07s);
 }
-.fm-coach-card:hover { box-shadow: var(--fm-shadow-sm); border-color: var(--fm-gray-300); }
-.fm-coach-card.selected { border-color: var(--fm-accent); box-shadow: inset 0 0 0 1px var(--fm-accent); }
-.fm-coach-card.selected:hover { border-color: var(--fm-accent); box-shadow: inset 0 0 0 1px var(--fm-accent), var(--fm-shadow-sm); }
-.fm-coach-card .picked { position: absolute; top: 20px; right: 20px; }
-.fm-coach-card .top { display: flex; align-items: center; gap: 16px; }
-.fm-coach-card .top .fm-ph { width: 72px; height: 72px; }
+@keyframes fmCoachIn { from { opacity: 0; transform: translateY(18px); } }
+/* 위쪽 두꺼운 선: 평소엔 접혀 있다가 마우스를 올리면 왼쪽부터 펼쳐짐 */
+.fm-coach-card::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px;
+  background: var(--fm-accent); transform: scaleX(0); transform-origin: left;
+  transition: transform .35s cubic-bezier(.65, 0, .35, 1);
+}
+.fm-coach-card:hover, .fm-coach-card:focus-within {
+  transform: translateY(-8px);
+  border-color: var(--fm-accent);
+  box-shadow: 0 22px 44px rgba(10, 22, 48, .14), 0 0 0 1px var(--fm-accent);
+}
+.fm-coach-card:hover::before, .fm-coach-card:focus-within::before, .fm-coach-card.selected::before { transform: scaleX(1); }
+.fm-coach-card:active { transform: translateY(-4px) scale(.995); }
+.fm-coach-card.selected { border-color: var(--fm-accent); box-shadow: 0 0 0 1px var(--fm-accent); }
+.fm-coach-card .picked { position: absolute; top: 22px; right: 22px; }
+.fm-coach-card .top { display: flex; align-items: center; gap: 20px; }
+.fm-coach-card .top .fm-ph { width: 104px; height: 104px; transition: box-shadow .28s ease; }
+.fm-coach-card .top .fm-ph img { transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
+.fm-coach-card:hover .top .fm-ph { box-shadow: 0 0 0 3px var(--fm-paper), 0 0 0 5px var(--fm-accent); }
+.fm-coach-card:hover .top .fm-ph img { transform: scale(1.06); }
 .fm-coach-card .who { min-width: 0; }
-.fm-coach-card .who .en { font: 600 10px/1.2 var(--fm-font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--fm-gray-300); }
+.fm-coach-card .who .en { font: 600 11px/1.2 var(--fm-font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--fm-gray-300); }
 .fm-coach-card .who .nm { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.fm-coach-card .who .nm b { font-size: 20px; line-height: 1.2; font-weight: 700; color: var(--fm-ink); letter-spacing: -.01em; }
-.fm-coach-card .fit { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--fm-paper-mute); }
-.fm-coach-card .fit .k { font-size: 11px; font-weight: 600; color: var(--fm-gray-500); letter-spacing: .02em; }
-.fm-coach-card .fit .v { margin-top: 3px; font-size: 14px; line-height: 1.6; font-weight: 600; color: var(--fm-ink); }
-.fm-coach-card .quote { margin: 12px 0 0; font-size: 14.5px; line-height: 1.7; color: var(--fm-gray-500); }
-.fm-coach-card .quote::before { content: "\201C"; }
-.fm-coach-card .quote::after { content: "\201D"; }
-.fm-coach-card .traits { margin-top: auto; padding-top: 20px; display: flex; flex-wrap: wrap; gap: 6px; }
-/* 기존 흐름 유지: 카드 버튼으로 바로 시작 */
-.fm-coach-card .go { margin-top: 20px; }
+.fm-coach-card .who .nm b { font-size: 24px; line-height: 1.2; font-weight: 700; color: var(--fm-ink); letter-spacing: -.015em; }
+.fm-coach-card .fit { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--fm-paper-mute); }
+.fm-coach-card .fit .k { font-size: 12px; font-weight: 600; color: var(--fm-accent); letter-spacing: .02em; }
+.fm-coach-card .fit .v { margin-top: 4px; font-size: 16px; line-height: 1.55; font-weight: 700; color: var(--fm-ink); }
+/* 소개 문단: 카드마다 같은 높이(4줄)를 차지해 아래 특성 칩·버튼 줄이 가지런히 맞는다 */
+.fm-coach-card .intro { margin: 12px 0 0; min-height: calc(1.75em * 4); font-size: 15px; line-height: 1.75; color: var(--fm-ink-body); text-align: left; word-break: keep-all; }
+.fm-coach-card .traits { margin-top: auto; padding-top: 22px; display: flex; flex-wrap: wrap; gap: 6px; }
+/* 기존 흐름 유지: 카드 버튼으로 바로 시작. 카드에 올리면 버튼도 네이비로 채워짐 */
+.fm-coach-card .go { margin-top: 22px; transition: background .2s, color .2s, border-color .2s; }
+.fm-coach-card:hover .go.secondary { background: var(--fm-accent); color: var(--fm-paper); border-color: var(--fm-accent); }
 
 .fm-start-bottom { height: 64px; }
 
 /* ---------- 유동 ---------- */
 @media (max-width: 1200px) {
-  .fm-start-grid { gap: 20px; }
+  .fm-start-grid { gap: 22px; }
+  .fm-coach-card { padding: 28px 26px 24px; }
+  .fm-coach-card .top .fm-ph { width: 88px; height: 88px; }
 }
 @media (max-width: 1024px) {
   .fm-start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (hover: none) {
+  .fm-coach-card:hover { transform: none; box-shadow: none; border-color: var(--fm-gray-100); }
+  .fm-coach-card:hover::before { transform: scaleX(0); }
+  .fm-coach-card.selected:hover::before { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fm-coach-card, .fm-coach-card::before, .fm-coach-card .top .fm-ph img { animation: none; transition: none; }
 }
 
 /* ---------- 모바일 ---------- */
@@ -72,8 +102,10 @@
   .fm-start-resume .acts .fm-btn { flex: 1; }
   .fm-start-grid { margin-top: 20px; grid-template-columns: 1fr; gap: 12px; }
   .fm-coach-card .picked { top: 16px; right: 16px; }
-  .fm-coach-card .top .fm-ph { width: 56px; height: 56px; }
-  .fm-coach-card .who .nm b { font-size: 18px; }
+  .fm-coach-card { padding: 24px 20px 20px; }
+  .fm-coach-card .top .fm-ph { width: 80px; height: 80px; }
+  .fm-coach-card .who .nm b { font-size: 20px; }
+  .fm-coach-card .intro { min-height: 0; }
   .fm-coach-card .fit { margin-top: 16px; padding-top: 14px; }
   .fm-coach-card .traits { padding-top: 16px; }
   .fm-coach-card .go { margin-top: 16px; }
