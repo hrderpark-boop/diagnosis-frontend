@@ -11,6 +11,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import './report.css';
 import { useRollingScores, finishReportMotion, buildCompareLevels, OrgCompare } from './reportMotion';
+import ReportNextStep from './ReportNextStep';
 
 // 미리보기(?demo=compare) 전용 추천 교육 예시. 실제 리포트에서는 백엔드 course_recommendation 만 쓴다.
 const DEMO_COURSE_RECOMMENDATION = {
@@ -839,15 +840,8 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
             || `${cov?.total ?? 26}개 지표 중 ${measuredCnt}개 확인`;
           return (
             <>
-              {/* ── 핵심 지표 한 줄: 종합 점수 · 강화 역량 · 개선 필요 역량 · 리더십 아키타입 ── */}
+              {/* ── 핵심 지표 한 줄: 종합 점수 · 리더십 아키타입 (강화·개선 역량과 추천 교육은 리포트 끝 04 다음 단계) ── */}
               {(() => {
-                // 강화/개선 필요 역량: 측정된 대역량 점수(레이더와 같은 값) 중 최고·최저. 모두 같으면 '고르게 분포'.
-                const measuredComps = frameworkCompetencies
-                  .map((c) => { const raw = report.radar_chart?.[c.name] ?? report.radar_chart?.[c.key]; return { name: c.name, v: typeof raw === 'number' ? raw : null }; })
-                  .filter((x): x is { name: string; v: number } => x.v !== null);
-                const hi = measuredComps.length ? measuredComps.reduce((a, b) => (b.v > a.v ? b : a)) : null;
-                const lo = measuredComps.length ? measuredComps.reduce((a, b) => (b.v < a.v ? b : a)) : null;
-                const flat = !!hi && !!lo && hi.v === lo.v;
                 return (
                   <section className="print-section fm-report-kpis pdf-unit" aria-label="핵심 지표">
                     <div className="fm-card fm-report-kpi print:break-inside-avoid">
@@ -860,34 +854,6 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
                         {!official && <span className="fm-chip tint ml-2 align-middle">{cov?.composite_badge || '참고치'}</span>}
                         {cov && typeof cov.asked === 'number' && <span className="block mt-1">탐색 {cov.asked}/{cov.total} · 측정 {cov.measured}/{cov.total} 하위역량</span>}
                       </div>
-                    </div>
-                    <div className="fm-card fm-report-kpi print:break-inside-avoid">
-                      <div className="kk">강화 역량</div>
-                      {hi && !flat ? (
-                        <>
-                          <div className="nmv">{hi.name}</div>
-                          <div className="k fm-caption">가장 높게 나타난 역량 · <b className="fm-report-fig">{hi.v.toFixed(1)}</b></div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="nmv off">{flat ? '고르게 분포' : '—'}</div>
-                          <div className="k fm-caption">{flat ? '역량 간 점수 차이가 없습니다' : '측정된 역량이 없습니다'}</div>
-                        </>
-                      )}
-                    </div>
-                    <div className="fm-card fm-report-kpi print:break-inside-avoid">
-                      <div className="kk">개선 필요 역량</div>
-                      {lo && !flat ? (
-                        <>
-                          <div className="nmv">{lo.name}</div>
-                          <div className="k fm-caption">가장 낮게 나타난 역량 · <b className="fm-report-fig">{lo.v.toFixed(1)}</b></div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="nmv off">{flat ? '고르게 분포' : '—'}</div>
-                          <div className="k fm-caption">{flat ? '역량 간 점수 차이가 없습니다' : '측정된 역량이 없습니다'}</div>
-                        </>
-                      )}
                     </div>
                     {report.archetype && (
                       <aside className="fm-card fm-report-kpi fm-report-arch print:break-inside-avoid">
@@ -1300,109 +1266,20 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
           })}
         </div>
 
-        {/* ── [섹션 6] 리더십 향상을 위한 추천 교육 - 리포트 최하단 ── */}
-        {courseRec && (
-          <div className="pdf-unit print:break-after-page print-section mt-14 fm-report-courses">
-            {/* 04 RECOMMENDED COURSES */}
-            <SectionHead no="04" en="Recommended Courses" ko="추천 교육" className="fm-report-sec" />
-            <div className="fm-card print:break-inside-avoid">
-              <h2 className="text-xl font-bold text-fm-ink">
-                리더십 향상을 위한 추천 교육
-                {courseIsDemo && <span className="fm-chip tint ml-3 align-middle">예시 데이터</span>}
-              </h2>
-              <p className="mt-3 mb-8 text-[15px] font-light leading-[1.8] text-fm-gray-500 max-w-3xl break-keep">
-                {courseRec.intro}
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
-                {[
-                  ...(courseRec.growth || []),
-                  courseRec.strength,
-                ]
-                  .filter(Boolean)
-                  .map((c: any, i: number) => {
-                    const strength = c.is_strength || c.type === "강점 활용";
-                    return (
-                      <div
-                        key={i}
-                        className={`print:break-inside-avoid rounded-lg border p-6 md:p-7 ${
-                          strength
-                            ? "border-fm-gray-100 bg-fm-accent-tint/50"
-                            : "border-fm-gray-100 bg-fm-paper-soft"
-                        }`}
-                      >
-                        {/* [구분] + [트랙/학습형식] - 배지 아닌 소제목 라벨 */}
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span
-                            className={`fm-eyebrow text-[11px] ${
-                              strength ? "text-fm-blue-mid" : "text-fm-accent"
-                            }`}
-                          >
-                            {c.type}
-                          </span>
-                          <span className="text-[11px] text-fm-gray-300">
-                            {c.track}트랙 · {c.track_format}
-                          </span>
-                        </div>
-
-                        {/* [과정명] [대역량명] 과정명 - 클릭 시 VOD 이동 */}
-                        <a
-                          href={c.vod_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 block text-lg font-bold leading-snug text-fm-ink underline-offset-4 hover:text-fm-accent hover:underline transition-colors break-keep"
-                        >
-                          <span className="text-fm-gray-500 font-semibold">[{c.category}]</span>{" "}
-                          {c.course}
-                        </a>
-                        {/* 수료 시 도달 행동 (Next Level Behavior) */}
-                        {c.subtitle && (
-                          <div className="mt-1 text-sm font-light text-fm-gray-500 break-keep">
-                            → {c.subtitle}
-                          </div>
-                        )}
-
-                        {/* [하위역량] - 진단 레벨 표기 */}
-                        <div className="mt-2 text-xs text-fm-gray-500 tabular-nums">
-                          진단 결과: {c.sub_competency} · Lv.{c.level} ({Number(c.score).toFixed(1)}점)
-                        </div>
-
-                        {/* [추천 이유] - 도약 총평 + 개조식 */}
-                        <div className="mt-5 border-t border-fm-gray-100 pt-4">
-                          <div className="fm-eyebrow text-fm-gray-500 mb-2">
-                            {strength ? "제안 이유" : "추천 이유"}
-                          </div>
-                          {c.reason_overview && (
-                            <p className="text-sm font-semibold leading-relaxed text-fm-ink break-keep">
-                              {c.reason_overview}
-                            </p>
-                          )}
-                          {Array.isArray(c.reason_bullets) && c.reason_bullets.length > 0 && (
-                            <ul className="mt-2.5 list-disc pl-5 space-y-1.5 text-sm font-light leading-relaxed text-fm-gray-500 marker:text-fm-accent break-keep">
-                              {c.reason_bullets.map((b: string, j: number) => (
-                                <li key={j}>{b}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-
-                        {/* BEI 분석 인용 - 리더의 딜레마/발화 한 줄 */}
-                        {c.bei_citation && (
-                          <div className="mt-4 rounded-md bg-fm-paper border border-fm-gray-100 px-3.5 py-2.5">
-                            <div className="fm-eyebrow text-fm-gray-500 mb-1">
-                              진단 대화 근거
-                            </div>
-                            <p className="text-xs italic leading-relaxed text-fm-gray-500 border-l-2 border-fm-gray-100 pl-2.5 break-keep">
-                              &ldquo;{c.bei_citation}&rdquo;
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
+        {/* ── [섹션 6] 04 다음 단계 - 분석을 마친 뒤 강화·개선 필요 역량과 그 이유, 이어서 들을 추천 교육 ── */}
+        <div className="mt-14">
+          <div className="pdf-unit" data-pdf-keep-next="1">
+            <SectionHead no="04" en="Next Step" ko="강화·개선 역량과 추천 교육" className="fm-report-sec" />
           </div>
-        )}
+          <ReportNextStep
+            competencies={frameworkCompetencies}
+            radar={report.radar_chart}
+            details={report.details}
+            maxScore={maxScore}
+            courseRec={courseRec}
+            courseIsDemo={courseIsDemo}
+          />
+        </div>
       </div>
 
       {/* 홈으로 돌아가기 버튼 - 인쇄물·PDF 캡처에서 완전 제외 */}
