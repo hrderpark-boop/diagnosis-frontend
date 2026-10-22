@@ -18,7 +18,7 @@ import './self-eval.css';
  * 받아야 하며, 코칭 대화에 영향을 주지 않도록 결과는 노출하지 않는다.
  *
  * 시각: 라이트 리디자인 B (design/light-sample/b/self-eval.html). 문항 카드 + 1~5 세그먼트 버튼.
- * 유지: 초기값 3, 언제든 제출 가능, PATCH 페이로드, 건너뛰기, 되돌리기 배너 로직 전부.
+ * 유지: 초기값 3, 언제든 제출 가능, PATCH 페이로드, 되돌리기 배너 로직. 건너뛰기 버튼은 2026-10-22 사용자 요청으로 제거.
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
@@ -40,7 +40,7 @@ const COMPETENCIES = COMPETENCY_ORDER.map((key) => ({
 }));
 
 const SCORE_LABELS: Record<string, string> = {
-  '1': '많이 부족',
+  '1': '매우 부족',
   '2': '부족',
   '3': '보통',
   '4': '자신 있음',
@@ -166,10 +166,6 @@ function SelfEvalContent() {
     }
   };
 
-  // 자가진단은 진단의 부가 정보다. 저장 실패나 거부가 본 진단을 막지 않도록
-  // 건너뛰기 경로를 열어 둔다.
-  const handleSkip = () => router.push(chatUrl);
-
   return (
     <div className="fm-app">
       <ParticipantHeader
@@ -210,11 +206,12 @@ function SelfEvalContent() {
             <h1>
               대화를 시작하기 전에,
               <br />
-              지금 나는 어느 정도일까요?
+              지금 나는 어디에 있을까요?
             </h1>
-            <p>
-              정답은 없습니다. 지금 떠오르는 대로 솔직하게 표시해 주세요. 이 응답은 진단이 끝난 뒤
-              &lsquo;스스로 보는 나&rsquo;와 &lsquo;대화에 드러난 나&rsquo;를 비교하는 데 쓰입니다.
+            <p className="fm-self-lead">
+              정답은 없습니다. 지금 떠오르는 대로 솔직하게 표시해 주세요.{' '}
+              <br />
+              이 응답은 진단이 끝난 뒤 &lsquo;스스로 생각한 나&rsquo;와 &lsquo;대화에 드러난 나&rsquo;를 비교하는 데 쓰입니다.
             </p>
           </div>
 
@@ -225,8 +222,10 @@ function SelfEvalContent() {
                 <div className="left">
                   역량 <span>5</span>문항
                 </div>
-                <div className="fm-caption">
-                  나의 자가 평가 평균 <b>{average}</b> / 5.0
+                <div className="avg">
+                  <span className="k">자가 평가 평균</span>
+                  <b>{average}</b>
+                  <span className="max">/ 5.0</span>
                 </div>
               </div>
             </div>
@@ -263,7 +262,7 @@ function SelfEvalContent() {
                       })}
                     </div>
                     <div className="fm-self-ends">
-                      <span>많이 부족</span>
+                      <span>매우 부족</span>
                       <span>매우 자신 있음</span>
                     </div>
                     <div className="fm-self-val">
@@ -278,10 +277,10 @@ function SelfEvalContent() {
 
             {/* 자유응답 */}
             <section className="fm-card fm-self-open">
-              <div className="fm-eyebrow">Open response</div>
+              <div className="fm-eyebrow">Open response <span className="opt">선택</span></div>
               <div className="fm-field">
                 <label htmlFor="sw-text">본인이 생각하는 리더로서의 가장 큰 강점과 약점을 짧게 적어주세요</label>
-                <p className="help">길게 쓰지 않아도 괜찮습니다. 떠오르는 그대로 두세 문장이면 충분합니다.</p>
+                <p className="help">선택 항목입니다. 비워 두어도 대화를 시작할 수 있고, 적는다면 두세 문장이면 충분합니다.</p>
                 <textarea
                   id="sw-text"
                   rows={4}
@@ -296,19 +295,11 @@ function SelfEvalContent() {
 
             {error && <div className="fm-self-error" role="alert">{error}</div>}
 
-            {/* 제출 / 건너뛰기 */}
+            {/* 제출 */}
             <div className="fm-self-submit">
               <button type="submit" disabled={submitting} className="fm-btn block">
                 {submitting ? '저장 중입니다...' : '대화 시작하기'}
               </button>
-              <div className="skip">
-                <button type="button" onClick={handleSkip} disabled={submitting} className="fm-btn ghost sm">
-                  자가진단 건너뛰기
-                </button>
-                <p className="fm-caption" style={{ margin: 0 }}>
-                  건너뛰면 리포트의 자기인식 비교가 제공되지 않습니다
-                </p>
-              </div>
             </div>
           </form>
         </div>
