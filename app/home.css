@@ -45,27 +45,42 @@
   letter-spacing: -.045em; color: var(--fm-ink);
 }
 .fm-home-wm .find { font-weight: 300; }
-.fm-home-wm .me { font-weight: 600; color: var(--fm-accent); }
+.fm-home-wm .me { font-family: var(--fm-font-me); font-weight: 700; letter-spacing: -.03em; color: var(--fm-accent); }
 /* 워드마크 애니메이션 (폰트 준비 후 .go 가 붙으면 시작)
    0.1s  Find 네 글자가 차례로 떠오름
-   0.75s Me 아래 네이비 선이 왼쪽에서 그어짐
-   1.3s  Me 가 크게 시작해 제자리로(감싸는 .me-in 에만 적용, Me 글자 요소에는 걸지 않음) */
+   0.75s Me 자리에 네이비 선이 왼쪽에서 그어짐
+   1.35s M, e 가 Find 와 같은 방식으로 차례로 떠오름
+   2.25s M, e 가 차례로 한 번 갸웃 튀고 제자리로 정렬
+   3.35s 빛 한 줄기가 M 에서 e 로 지나가며 마무리(이후 정지)
+   움직임은 감싸는 i 에만, 색(빛 스침)은 b(.fm-me-wave)의 배경 위치로만 준다. */
 .fm-home-wm .find i { display: inline-block; font-style: normal; opacity: 0; transform: translateY(.32em); }
 .fm-home-wm.go .find i { animation: fmHomeRise .7s cubic-bezier(.16, 1, .3, 1) forwards; animation-delay: calc(.08s * var(--i) + .1s); }
-.fm-home-wm .me { position: relative; display: inline-block; padding-bottom: .08em; }
-.fm-home-wm .me-in { display: inline-block; opacity: 0; transform: scale(1.45); transform-origin: 40% 70%; }
-.fm-home-wm.go .me-in { animation: fmHomeZoom .8s cubic-bezier(.16, 1, .3, 1) 1.3s forwards; }
-.fm-home-wm .me b { display: inline-block; font-weight: inherit; padding: 0 .04em .06em 0; }
+.fm-home-wm .me { position: relative; display: inline-block; padding-bottom: .08em; white-space: nowrap; }
+.fm-home-wm .me i { display: inline-block; font-style: normal; opacity: 0; transform: translateY(.32em); transform-origin: 50% 100%; }
+.fm-home-wm.go .me i {
+  animation:
+    fmHomeRise .7s cubic-bezier(.16, 1, .3, 1) calc(1.35s + .08s * var(--i)) forwards,
+    fmHomeTilt .9s cubic-bezier(.3, 0, .3, 1) calc(2.25s + .2s * var(--i)) forwards;
+}
+.fm-home-wm .me b { display: inline-block; font-weight: inherit; padding: 0 .02em .06em 0; }
+.fm-home-wm.go .me b { animation: fmHomeShine 1.1s ease-in-out calc(3.35s + .2s * var(--i)) forwards; }
 .fm-home-wm .me::after {
   content: ""; position: absolute; left: .04em; right: .1em; bottom: -.02em; height: .055em; min-height: 4px;
   background: var(--fm-accent); transform: scaleX(0); transform-origin: left;
 }
 .fm-home-wm.go .me::after { animation: fmHomeLine .65s cubic-bezier(.65, 0, .35, 1) .75s forwards; }
 @keyframes fmHomeRise { to { opacity: 1; transform: none; } }
-@keyframes fmHomeZoom { to { opacity: 1; transform: none; } }
+@keyframes fmHomeTilt {
+  0% { transform: translateY(0) rotate(0); }
+  28% { transform: translateY(-.12em) rotate(-6deg); }
+  56% { transform: translateY(0) rotate(3deg); }
+  78% { transform: translateY(0) rotate(-1deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
+@keyframes fmHomeShine { from { background-position: 160% 0, 0 0; } to { background-position: -60% 0, 0 0; } }
 @keyframes fmHomeLine { to { transform: scaleX(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .fm-home-wm .find i, .fm-home-wm .me, .fm-home-wm .me-in, .fm-home-glow .v-lines { animation: none !important; opacity: 1; transform: none; filter: none; clip-path: none; }
+  .fm-home-wm .find i, .fm-home-wm .me, .fm-home-wm .me i, .fm-home-wm .me b, .fm-home-glow .v-lines { animation: none !important; opacity: 1; transform: none; filter: none; clip-path: none; }
   .fm-home-wm .me::after { animation: none; transform: none; }
 }
 
@@ -79,6 +94,14 @@
 .fm-home-copy .meta span { display: inline-flex; align-items: center; }
 .fm-home-copy .meta span + span::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--fm-gray-300); margin: 0 14px; }
 .fm-home-copy .meta b { font-family: var(--fm-font-display); font-weight: 600; color: var(--fm-ink); margin-right: 5px; letter-spacing: .02em; }
+/* 숫자 요약(크게): 숫자 위, 라벨 아래, 세로 괘선 구분. 숫자 폭을 고정해 카운트 중 흔들리지 않게 */
+.fm-home-stats { margin: 34px 0 0; display: flex; align-items: stretch; }
+.fm-home-stats > div { display: flex; flex-direction: column-reverse; padding: 0 32px; border-left: 1px solid var(--fm-gray-100); }
+.fm-home-stats > div:first-child { padding-left: 0; border-left: 0; }
+.fm-home-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; }
+.fm-home-stats dd b { font: 600 48px/1 var(--fm-font-display); letter-spacing: -.03em; color: var(--fm-accent); font-variant-numeric: tabular-nums; }
+.fm-home-stats dd small { font-size: 16px; font-weight: 700; color: var(--fm-accent); }
+.fm-home-stats dt { margin-top: 10px; font-size: 13px; font-weight: 500; color: var(--fm-gray-500); }
 @media (max-width: 767px) {
   .fm-home-br-d { display: none; }
 }
@@ -98,26 +121,7 @@
 .fm-card.fm-home-login .fm-btn { margin-top: 28px; height: 58px; font-size: 16px; }
 .fm-card.fm-home-login .note { margin: 18px 0 0; text-align: center; }
 
-/* ---------- 여정 섹션 ---------- */
-.fm-home-journey { padding: 96px 0; background: var(--fm-paper-soft); }
-.fm-home-steps { margin-top: 48px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
-.fm-card.fm-home-stepcard { display: flex; flex-direction: column; min-height: 236px; padding: 32px 32px 28px; }
-.fm-card.fm-home-stepcard .fm-num { font-size: 32px; line-height: 1; letter-spacing: -.02em; }
-.fm-card.fm-home-stepcard h3 { margin: 22px 0 0; font-size: 18px; line-height: 1.35; font-weight: 700; color: var(--fm-ink); letter-spacing: -.01em; }
-.fm-card.fm-home-stepcard p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.7; color: var(--fm-ink-body); }
-.fm-card.fm-home-stepcard .time { margin-top: auto; padding-top: 20px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fm-gray-500); }
-.fm-card.fm-home-stepcard .time::before { content: ""; width: 12px; height: 1px; background: var(--fm-accent); }
-.fm-card.fm-home-stepcard .time strong { font-weight: 600; color: var(--fm-ink); }
 
-/* ---------- 신뢰 띠(코치) ---------- */
-.fm-home-coaches { padding: 88px 0; text-align: center; }
-.fm-home-coaches h2 { margin: 0; font-size: 24px; line-height: 1.35; font-weight: 700; letter-spacing: -.015em; color: var(--fm-ink); }
-.fm-home-coaches p { margin: 10px auto 0; max-width: 520px; font-size: 14.5px; color: var(--fm-ink-body); }
-.fm-home-coach-row { margin-top: 36px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
-.fm-home-coach { width: 96px; }
-.fm-home-coach .fm-ph { width: 56px; height: 56px; margin: 0 auto; }
-.fm-home-coach .nm { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--fm-ink); }
-.fm-home-coach .en { font: 600 10px/1.2 var(--fm-font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--fm-gray-300); margin-top: 3px; }
 
 /* ---------- 유동 ---------- */
 @media (max-width: 1200px) {
@@ -142,20 +146,14 @@
   .fm-home-copy h1 { margin-top: 16px; font-size: 26px; line-height: 1.25; }
   .fm-home-copy .lead { margin-top: 16px; font-size: 15px; }
   .fm-home-copy .meta { margin-top: 20px; font-size: 13px; }
+  .fm-home-stats { margin-top: 24px; }
+  .fm-home-stats > div { padding: 0 20px; }
+  .fm-home-stats dd b { font-size: 34px; }
+  .fm-home-stats dt { margin-top: 6px; font-size: 12px; }
   .fm-card.fm-home-login { max-width: none; margin-right: 0; margin-top: 32px; padding: 26px 20px 22px; }
   .fm-card.elev.fm-home-login { box-shadow: var(--fm-shadow); }
   .fm-card.fm-home-login h2 { font-size: 22px; }
   .fm-card.fm-home-login .fm-field input { height: 50px; }
   .fm-card.fm-home-login .fm-btn { height: 54px; }
   .fm-card.fm-home-login .fields { margin-top: 22px; gap: 14px; }
-  .fm-home-journey { padding: 56px 0; }
-  .fm-home-steps { margin-top: 32px; grid-template-columns: 1fr; gap: 12px; }
-  .fm-card.fm-home-stepcard { min-height: 0; padding: 22px 20px 20px; }
-  .fm-card.fm-home-stepcard .fm-num { font-size: 26px; }
-  .fm-card.fm-home-stepcard h3 { margin-top: 14px; }
-  .fm-card.fm-home-stepcard .time { padding-top: 14px; }
-  .fm-home-coaches { padding: 56px 0; }
-  .fm-home-coaches h2 { font-size: 20px; }
-  .fm-home-coach-row { gap: 12px 8px; }
-  .fm-home-coach { width: 92px; }
 }

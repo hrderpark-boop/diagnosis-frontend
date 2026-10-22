@@ -432,7 +432,7 @@ function ChatContent() {
   return (
     <main className="fm-app fm-chat-root">
       <ParticipantHeader
-        step={4}
+        step={5}
         right={
           <>
             {progressCaption && (
@@ -464,13 +464,15 @@ function ChatContent() {
 
         {/* 우 메인: 상단 바 / 메시지 / 상태 바 / 입력 바 */}
         <section className="fm-chat-main" aria-label="코치 대화">
+          {/* 대화 영역 전체를 회색 바탕 위에 떠 있는 카드(fm-chat-frame)로 감싼다 */}
+          <div className="fm-chat-frame">
           <div className="fm-chat-topbar">
             <div className="l">
               <span className="fm-chip tint">Session {sessionNo}</span>
               <span className="title">{currentTopicName || '진단 대화'}</span>
             </div>
             <div className="tb-m">
-              <b>04 코치 대화</b>
+              <b>05 코치 대화</b>
               {currentTopicName ? ` · ${currentTopicName}` : ''}
               {topicTotal > 0 && currentTopicIdx >= 0 ? ` ${currentTopicIdx + 1}/${topicTotal}` : ''}
             </div>
@@ -639,6 +641,7 @@ function ChatContent() {
                 </>
               )}
             </div>
+          </div>
           </div>
         </section>
       </div>

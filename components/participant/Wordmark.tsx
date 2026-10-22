@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 /**
- * 워드마크 "Find Me" (Outfit: Find 300 검정 / Me 600, Me 안의 색은 남색 ↔ 연한 파랑 8초 왕복).
+ * 워드마크 "Find Me" (Find: Outfit 300 검정 / Me: Quicksand 700, 밝은 파랑 → 남색 그라데이션).
  * 스타일은 app/fm-light.css 의 .fm-wm / .fm-me-wave.
  * Me 요소(.fm-me-wave)에는 transform·filter·opacity 애니메이션을 걸지 말 것.
  */

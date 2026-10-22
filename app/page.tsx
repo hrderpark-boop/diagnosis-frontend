@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
@@ -8,21 +8,32 @@ import ParticipantFooter from '@/components/participant/ParticipantFooter';
 import './home.css';
 
 // Find Me 라이트 리디자인 · 01 참여 확인(홈). 샘플: design/light-sample/b/home.html
-// 로직(그룹코드/이름/이메일 → /participants/token → /start)은 기존 그대로, 표현만 교체.
-const STEPS = [
-  { no: '03', title: '자가진단', desc: '5개 대역량에 대한 현재 인식을 기록합니다.', timeLabel: '소요 시간', time: '약 5분' },
-  { no: '04', title: '코치 대화', desc: '실제 행동 사례를 바탕으로 역량을 진단합니다.', timeLabel: '역량당 30분', time: '총 150분' },
-  { no: '05', title: '리포트', desc: '하위역량 26개 분석과 추천 과정을 받습니다.', timeLabel: '발급', time: '즉시' },
-];
-
-const COACHES = [
-  { img: '/images/female1.png', ko: '엘라', en: 'Ella' },
-  { img: '/images/female2.png', ko: '제시카', en: 'Jessica' },
-  { img: '/images/female3.png', ko: '올리비아', en: 'Olivia' },
-  { img: '/images/male1.png', ko: '다니엘', en: 'Daniel' },
-  { img: '/images/male2.png', ko: '마이클', en: 'Michael' },
-  { img: '/images/male3.png', ko: '루카스', en: 'Lucas' },
-];
+// 로직(그룹코드/이름/이메일 → /participants/token)은 기존 그대로. 로그인 뒤 이동만 /intro(진단 소개)로 바뀜.
+/**
+ * 숫자가 0에서 빠르게 올라가다 천천히 멈추는 카운터(슬롯처럼 처음엔 빠르게, 끝에서 감속).
+ * - 서버 렌더와 스크립트가 없을 때는 최종 숫자를 그대로 보여 준다.
+ * - 움직임 줄이기 설정이면 애니메이션 없이 최종 숫자.
+ */
+function CountUp({ to, delay = 0, duration = 1600 }: { to: number; delay?: number; duration?: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    let start = 0;
+    const ease = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t)); // easeOutExpo
+    const tick = (now: number) => {
+      if (!start) start = now;
+      const t = Math.min(1, (now - start) / duration);
+      el.textContent = String(Math.round(to * ease(t)));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    el.textContent = '0';
+    const timer = window.setTimeout(() => { raf = requestAnimationFrame(tick); }, delay);
+    return () => { window.clearTimeout(timer); cancelAnimationFrame(raf); el.textContent = String(to); };
+  }, [to, delay, duration]);
+  return <span ref={ref}>{to}</span>;
+}
 
 // 네이비 면의 실선 리본: 두 3차 베지어 곡선 A, B 사이를 보간한 가는 선 81개(샘플 스크립트와 같은 계산)
 const STRAND_A = [[60, -40], [180, 260], [520, 60], [640, 420]];
@@ -77,7 +88,7 @@ export default function LoginPage() {
       localStorage.setItem('participant_id', participant_id);
       localStorage.setItem('participant_name', name ?? formData.name);
 
-      router.push('/start');
+      router.push('/intro'); // (2026-10 리디자인) 로그인 뒤 진단 소개(02)를 거쳐 코치 선택으로
     } catch (error) {
       alert("접속에 실패했습니다. 입력 정보를 확인해주세요.");
       console.error(error);
@@ -137,18 +148,21 @@ export default function LoginPage() {
                   ))}
                 </span>
                 <span className="me" aria-hidden="true">
-                  <span className="me-in"><b className="fm-me-wave">Me</b></span>
+                  {['M', 'e'].map((ch, i) => (
+                    <i key={ch} style={{ '--i': i } as React.CSSProperties}><b className="fm-me-wave">{ch}</b></i>
+                  ))}
                 </span>
               </div>
               <h1>내 안의 진짜 리더를 찾는 여정</h1>
               <p className="lead">
                 데이터 기반 리더십 역량 진단으로 당신의 진정한 잠재력을 발견하세요.<br className="fm-home-br-d" /> 자가진단과 AI 코치 대화, 그리고 리포트까지 한 흐름으로 이어집니다.
               </p>
-              <div className="meta">
-                <span><b>5</b>대역량</span>
-                <span><b>26</b>하위역량</span>
-                <span><b>150</b>분 코치 대화</span>
-              </div>
+              {/* 숫자 요약: 워드마크 등장 뒤 0에서 올라가 멈춤 */}
+              <dl className="fm-home-stats">
+                <div><dt>대역량</dt><dd><b><CountUp to={5} delay={1700} duration={1100} /></b></dd></div>
+                <div><dt>하위역량</dt><dd><b><CountUp to={26} delay={1800} duration={1500} /></b></dd></div>
+                <div><dt>코치와 심층대화</dt><dd><b><CountUp to={150} delay={1900} duration={1900} /></b><small>분</small></dd></div>
+              </dl>
             </div>
 
             {/* 로그인 카드: 흰 면과 네이비 면 경계에 걸침. 폼 로직·name 속성은 기존 그대로 */}
@@ -212,46 +226,6 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* 여정 3단계 */}
-        <section className="fm-home-journey">
-          <div className="fm-wrap">
-            <div className="fm-sec-head">
-              <div className="fm-eyebrow">How it works</div>
-              <h2>세 단계, 한 흐름</h2>
-              <p>자가진단으로 시작해 AI 코치와의 대화를 거쳐, 26개 하위역량 리포트로 마무리됩니다.</p>
-            </div>
-            <div className="fm-home-steps">
-              {STEPS.map((s) => (
-                <article key={s.no} className="fm-card fm-home-stepcard">
-                  <div className="fm-num">{s.no}</div>
-                  <h3>{s.title}</h3>
-                  <p>{s.desc}</p>
-                  <div className="time">{s.timeLabel} <strong>{s.time}</strong></div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* 신뢰 띠: 6명의 AI 코치 */}
-        <section className="fm-home-coaches">
-          <div className="fm-wrap">
-            <h2>6명의 AI 코치가 같은 기준으로 진단합니다</h2>
-            <p>코치는 대화 스타일만 다를 뿐, 5개 대역량과 26개 하위역량이라는 동일한 기준으로 역량을 평가합니다.</p>
-            <div className="fm-home-coach-row">
-              {COACHES.map((c) => (
-                <div key={c.en} className="fm-home-coach">
-                  <div className="fm-ph">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={c.img} alt={`AI 코치 ${c.ko}`} />
-                  </div>
-                  <div className="nm">{c.ko}</div>
-                  <div className="en">{c.en}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
       </main>
 
       <ParticipantFooter />

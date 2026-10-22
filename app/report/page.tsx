@@ -10,6 +10,19 @@ import { getKeyToNameMap, getSubCompetenciesMap, fetchFramework, FrameworkCompet
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import './report.css';
+import { useRollingScores, finishReportMotion, buildCompareLevels, OrgCompare } from './reportMotion';
+import ReportNextStep from './ReportNextStep';
+
+// 미리보기(?demo=compare) 전용 추천 교육 예시. 실제 리포트에서는 백엔드 course_recommendation 만 쓴다.
+const DEMO_COURSE_RECOMMENDATION = {
+  intro: '진단 결과 점수가 낮고 대화 근거가 확인된 하위역량을 우선으로, 다음 단계로 도약하는 데 필요한 과정을 골랐습니다.',
+  growth: [
+    { type: '성장 집중', track: 'A', track_format: '워크숍', category: '사람관리', course: '피드백 대화 스킬', subtitle: '구체적 행동 근거로 피드백하고 합의된 다음 행동을 남긴다', sub_competency: '코칭과 피드백', level: 2, score: 2.1, reason_overview: '피드백을 미루거나 일반론으로 전달하는 패턴이 대화에서 반복되었습니다.', reason_bullets: ['저성과 팀원 면담을 분기 말까지 미룬 사례', '피드백 후 후속 점검 약속이 없었음'] },
+    { type: '성장 집중', track: 'B', track_format: '온라인 4주', category: '성과관리', course: '목표 설정과 실행 점검', subtitle: '팀 목표를 측정 가능한 지표로 쪼개고 주간 점검 루틴을 만든다', sub_competency: '목표설정 및 공유', level: 2, score: 2.4, reason_overview: '목표는 공유했지만 진척을 확인하는 기준이 모호했습니다.', reason_bullets: ['분기 목표 변경 시 기준 재정의가 늦어짐'] },
+    { type: '성장 집중', track: 'C', track_format: '워크숍 반일', category: '사람관리', course: '갈등 조정 실습', subtitle: '이해관계가 엇갈리는 상황에서 합의점을 구조적으로 찾는다', sub_competency: '갈등 조정', level: 2, score: 2.6, reason_overview: '갈등 상황에서 결정을 위임하거나 회피한 사례가 있었습니다.', reason_bullets: ['부서 간 일정 충돌을 상위 보고로 넘긴 사례'] },
+  ],
+  strength: { type: '강점 활용', is_strength: true, track: 'D', track_format: '코칭', category: '일관리', course: '우선순위 의사결정', subtitle: '기준을 먼저 세우고 설명하는 강점을 팀 운영 원칙으로 확장한다', sub_competency: '자원 배분', level: 4, score: 3.8, reason_overview: '기준을 먼저 세우고 그 기준으로 설명한 행동이 여러 번 확인되었습니다.', reason_bullets: ['보류 과제 선정 기준을 주간 회의에서 공유'] },
+};
 
 // ----------------------------------------------------------------------
 // [ICONS]
@@ -54,8 +67,11 @@ const RadarChart = ({
   maxScore,
   selfScores,
   groupAverages,
+  displayData,
 }: {
   data: any;
+  /** 등장 효과 중 표시할 값(굴러가는 점수). 없으면 data 그대로 */
+  displayData?: Record<string, number | null> | null;
   competencies: Array<{ key: string; name: string }>;
   maxScore: number;
   /** 자가진단 대역량 점수(같은 1~5 축). null 이면 자가 폴리곤을 그리지 않는다. */
@@ -73,7 +89,9 @@ const RadarChart = ({
   // B: 미측정(null) 역량은 0점이 아니라 '빈 점 + 회색 점선 축'으로 그려 빈칸이 보이게 한다.
   const stats = competencies.map((c) => {
     const raw = safeData[c.name] ?? safeData[c.key];  // 과거 포맷 호환 유지
-    return { label: c.name, value: typeof raw === 'number' ? raw : null };
+    const shown = displayData ? displayData[c.name] : undefined;
+    const value = typeof raw === 'number' ? (typeof shown === 'number' ? shown : raw) : null;
+    return { label: c.name, value };
   });
 
   const size = 300; const center = size / 2; const radius = 85;
@@ -168,15 +186,25 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
     .map(([label, score]) => ({ label, value: typeof score === 'number' ? score : null }));
   if (stats.length < 3) return null;  // 축이 3개 미만이면 레이더 생략
 
-  // 반경 80→62: 라벨이 viewBox 밖으로 벗어나 잘리던 현상 복구.
-  // 확대된 폰트(13px)는 유지하되, 라벨이 온전히 보이도록 내부 여백 확보
-  const size = 220; const center = size / 2; const radius = 62;
+  // 넓은 캔버스(좌우 라벨 공간 확보) + 폭 100% 로 칸을 채우고 가운데 정렬.
+  // 라벨은 위치에 따라 왼쪽·오른쪽·가운데로 정렬해 바깥쪽으로 뻗고, 긴 이름은 두 줄로 나눈다.
+  const W = 480; const cx = W / 2; const cy = 0; const radius = 138;
   const angleStep = (Math.PI * 2) / stats.length;
 
   const getPoint = (value: number, index: number) => {
     const angle = index * angleStep - Math.PI / 2;
     const r = (value / safeMax) * radius;
-    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  };
+  // 7자를 넘으면 괄호 앞이나 가운데 가까운 띄어쓰기에서 두 줄로
+  const splitLabel = (t: string): string[] => {
+    if (t.length <= 7) return [t];
+    const paren = t.indexOf('(');
+    if (paren > 0) return [t.slice(0, paren).trim(), t.slice(paren)];
+    const spaces = [...t].map((c, k) => (c === ' ' ? k : -1)).filter((k) => k > 0);
+    if (!spaces.length) return [t];
+    const mid = spaces.reduce((a, b) => (Math.abs(b - t.length / 2) < Math.abs(a - t.length / 2) ? b : a));
+    return [t.slice(0, mid), t.slice(mid + 1)];
   };
 
   const levels = Array.from({ length: safeMax }, (_, i) => i + 1).filter((_, i) => i === 0 || i === 2 || i === safeMax - 1);
@@ -185,17 +213,37 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
     .filter((p): p is { x: number; y: number } => p !== null);
   const points = measuredPts.map(p => `${p.x},${p.y}`).join(" ");
 
+  const lineH = 18;
+  const labels = stats.map((stat, i) => {
+    const angle = i * angleStep - Math.PI / 2;
+    const cos = Math.cos(angle); const sin = Math.sin(angle);
+    const lx = cx + (radius + 14) * cos;
+    const ly = cy + (radius + 14) * sin;
+    const anchor: 'start' | 'end' | 'middle' = cos > 0.25 ? 'start' : cos < -0.25 ? 'end' : 'middle';
+    const lines = splitLabel(stat.label);
+    const blockH = (lines.length + 1) * lineH;
+    // 위쪽 축은 블록 아래가, 아래쪽 축은 블록 위가 꼭짓점에 오도록. 옆쪽은 가운데
+    const top = sin < -0.6 ? ly - blockH : sin > 0.6 ? ly : ly - blockH / 2;
+    return { lx, top, anchor, lines, blockH };
+  });
+  // 축 수에 따라 아래(또는 위)가 비므로, 실제로 그려지는 세로 범위에 맞춰 잘라 가운데에 오게 한다
+  // (눈으로 볼 때 가운데가 되도록 그래프 전체를 12px 아래로: top-3)
+  const outer = stats.map((_, i) => getPoint(safeMax, i).y);
+  const pad = 8;
+  const minY = Math.min(...outer, ...labels.map((l) => l.top)) - pad;
+  const maxY = Math.max(...outer, ...labels.map((l) => l.top + l.blockH)) + pad;
+
   return (
     <div className="flex justify-center items-center w-full h-full">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
+      <svg viewBox={`0 ${minY} ${W} ${maxY - minY}`} className="relative top-3 block w-full max-w-[480px] h-auto mx-auto" role="img" aria-label="세부 역량 방사형 그래프">
         {levels.map((level) => (
           <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#D9D9D9" strokeWidth="1" />
         ))}
         {stats.map((stat, i) => {
           const p = getPoint(safeMax, i);
           return stat.value === null
-            ? <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#A6A6A6" strokeWidth="1" strokeDasharray="3 3" />
-            : <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="#D9D9D9" strokeWidth="1" />;
+            ? <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#A6A6A6" strokeWidth="1" strokeDasharray="3 3" />
+            : <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#D9D9D9" strokeWidth="1" />;
         })}
         {measuredPts.length >= 3 && (
           <polygon points={points} fill="#E9EDF4" fillOpacity="0.75" stroke="#1C2B4A" strokeWidth="2" />
@@ -206,20 +254,20 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
         {stats.map((stat, i) => {
           if (stat.value === null) {
             const p = getPoint(safeMax, i);
-            return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="white" stroke="#A6A6A6" strokeWidth="1.2" strokeDasharray="2 2" />;
+            return <circle key={i} cx={p.x} cy={p.y} r="4" fill="white" stroke="#A6A6A6" strokeWidth="1.2" strokeDasharray="2 2" />;
           }
           const p = getPoint(stat.value, i);
-          return <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#1C2B4A" />;
+          return <circle key={i} cx={p.x} cy={p.y} r="4" fill="#1C2B4A" />;
         })}
         {stats.map((stat, i) => {
-          // 라벨 배율 6.8: 다각형 모서리(5.0 지점)와 22px 가량 간격을 두면서도
-          // viewBox 경계(반폭 110) 안에 라벨·점수가 온전히 들어오는 위치
-          const pLabel = getPoint(6.8, i);
+          const { lx, top, anchor, lines } = labels[i];
           const unmeasured = stat.value === null;
           return (
-            <g key={i}>
-              <text x={pLabel.x} y={pLabel.y - 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#000000'} fontSize="13" fontWeight="600">{stat.label}</text>
-              <text x={pLabel.x} y={pLabel.y + 8} textAnchor="middle" dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#1C2B4A'} fontSize="12" fontWeight="700">{unmeasured ? '–' : Number(stat.value).toFixed(1)}</text>
+            <g key={i} textAnchor={anchor}>
+              {lines.map((ln, k) => (
+                <text key={k} x={lx} y={top + lineH * (k + 0.5)} dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#1C2B4A'} fontSize="14" fontWeight="600">{ln}</text>
+              ))}
+              <text x={lx} y={top + lineH * (lines.length + 0.5)} dominantBaseline="middle" fill={unmeasured ? '#A6A6A6' : '#2E4A85'} fontSize="14" fontWeight="700">{unmeasured ? '–' : Number(stat.value).toFixed(1)}</text>
             </g>
           );
         })}
@@ -345,7 +393,7 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
           const step = getStep(item.key);
           if (!step || !step.description) return null;
           return (
-            <div key={item.key} className="print:break-inside-avoid p-6 rounded-lg border border-fm-gray-100 bg-fm-paper-soft">
+            <div key={item.key} data-pdf-break="1" className="print:break-inside-avoid p-6 rounded-lg border border-fm-gray-100 bg-fm-paper-soft">
               <span className="block fm-eyebrow mb-3">
                 {item.label}
               </span>
@@ -490,6 +538,22 @@ function ReportContent() {
 
   const reportRef = useRef<HTMLDivElement>(null);
 
+  // 등장 효과: 종합 점수 → 대역량 점수(레이더와 같은 값)가 1~5 를 돌다 멈추고, 멈춘 뒤 막대가 채워진다.
+  const compScoreTargets: Array<number | null> = frameworkCompetencies.map((c) => {
+    const raw = report?.radar_chart?.[c.name] ?? report?.radar_chart?.[c.key];
+    return typeof raw === 'number' ? raw : null;
+  });
+  const totalTarget: Array<number | null> = [typeof report?.total_score === 'number' ? report.total_score : null];
+  const totalRoll = useRollingScores(report ? totalTarget : [], { delay: 150, duration: 1800, loops: 3 });
+  const compRoll = useRollingScores(report ? compScoreTargets : [], { delay: 450, duration: 1700, stagger: 160, loops: 2 });
+  const rolledByName: Record<string, number | null> = Object.fromEntries(
+    frameworkCompetencies.map((c, i) => [c.name, compRoll.values[i] ?? null]),
+  );
+  // 미리보기용 예시 데이터: /report?...&demo=compare (조직 비교 · 추천 교육이 비어 있을 때만 예시로 채움)
+  const compareDemo = searchParams.get('demo') === 'compare';
+  const courseIsDemo = !report?.course_recommendation && compareDemo;
+  const courseRec = report?.course_recommendation || (courseIsDemo ? DEMO_COURSE_RECOMMENDATION : null);
+
   useEffect(() => {
     if (!sessionId) return setStatusMsg("세션 정보가 없습니다.");
     loadReport();
@@ -572,58 +636,139 @@ function ReportContent() {
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
+    // 등장 효과가 진행 중이어도 PDF 는 마무리된 상태로: 즉시 최종 값으로 맞추고 두 프레임 기다린다
+    finishReportMotion();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       // 블록 단위 독립 캡처(Block-by-Block Capture):
       // 거대 캔버스를 297mm 씩 기계적으로 자르던 방식은 중간 잘림·억지 여백을
       // 유발하므로 폐기. 문서에 배치된 '.pdf-page-block' 래퍼들을 각각 독립
       // 캡처해 1블록 = 1페이지(A4)로 담는다 → 페이지 경계가 항상 블록 경계.
-      const blocks = Array.from(
-        reportRef.current.querySelectorAll<HTMLElement>('.pdf-page-block')
-      );
-      if (blocks.length === 0) {
-        throw new Error('pdf-page-block 요소를 찾을 수 없습니다.');
+      // 페이지 채우기(Flow Packing): 리포트를 의미 단위(.pdf-unit)로 나눠 각각 캡처한 뒤,
+      // A4 폭에 맞춰 위에서부터 차곡차곡 쌓는다. 남은 공간에 다음 단위가 들어가지 않으면
+      // 새 페이지로 넘긴다. 한 단위가 한 장보다 크면 그 단위만 비율을 유지한 채 축소한다.
+      // → 페이지 중간에서 잘리지 않으면서, 예전처럼 반쪽씩 비는 페이지가 생기지 않는다.
+      const units = Array.from(reportRef.current.querySelectorAll<HTMLElement>('.pdf-unit'))
+        .filter((el) => el.offsetParent !== null && !el.parentElement?.closest('.pdf-unit'));
+      if (units.length === 0) {
+        throw new Error('pdf-unit 요소를 찾을 수 없습니다.');
       }
 
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210;
       const pageHeight = 297;
-      const margin = 8;
+      const margin = 10;
+      const gap = 4;
       const contentWidth = pageWidth - margin * 2;
       const maxHeight = pageHeight - margin * 2;
+      let y = margin;
+      let pageHasContent = false;
 
-      let isFirstPage = true;
-
-      for (const block of blocks) {
-        // 📉 PDF 경량화: scale 2→1.5 (해상도 충분·용량 절감),
-        //    캡처 시 pdf-mode 클래스로 그림자·그라데이션·애니메이션 제거.
-        const canvas = await html2canvas(block, {
-          scale: 1.5,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-        } as any);
-
-        if (canvas.width === 0 || canvas.height === 0) continue;
-
-        // A4 폭 기준 환산 높이. 한 페이지를 넘으면 비율을 유지한 채 축소해
-        // 어떤 블록도 절대 잘리지 않고 한 장 안에 온전히 수납되게 한다.
-        const imgHeight = (canvas.height * contentWidth) / canvas.width;
-        const drawHeight = Math.min(imgHeight, maxHeight);
-        const drawWidth = imgHeight > maxHeight
-          ? contentWidth * (maxHeight / imgHeight)
-          : contentWidth;
-        const x = margin + (contentWidth - drawWidth) / 2;
-
-        if (!isFirstPage) pdf.addPage();
-        isFirstPage = false;
-
-        // 📉 PNG → JPEG(quality 0.82): 무손실 PNG 대비 용량을 대폭 줄인다
-        //    (텍스트·차트 가독성은 유지되는 수준). 업로드 실패의 주원인 해결.
-        pdf.addImage(
-          canvas.toDataURL('image/jpeg', 0.82), 'JPEG',
-          x, margin, drawWidth, drawHeight,
-        );
+      // 1) 모든 단위를 먼저 캡처(제목 줄은 다음 단위와 같은 페이지에 붙이기 위해 높이를 미리 안다)
+      reportRef.current.classList.add('fm-pdf-capturing');
+      // breaks: 이 단위를 나눠도 되는 지점(단위 위쪽에서의 mm). 평가 근거의 상황·행동·결과 사이
+      const shots: { canvas: HTMLCanvasElement; w: number; h: number; keepNext: boolean; group: string; breaks: number[] }[] = [];
+      try {
+        for (const unit of units) {
+          const canvas = await html2canvas(unit, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            logging: false,
+          } as any);
+          if (canvas.width === 0 || canvas.height === 0) continue;
+          let w = contentWidth;
+          let h = (canvas.height * contentWidth) / canvas.width;
+          const box = unit.getBoundingClientRect();
+          const mmPerPx = h / box.height;
+          // 블록 위쪽 12px(블록 사이 여백의 가운데)에서 자른다
+          const breaks = Array.from(unit.querySelectorAll<HTMLElement>('[data-pdf-break]'))
+            .map((el) => (el.getBoundingClientRect().top - box.top - 12) * mmPerPx)
+            .filter((b) => b > 0 && b < h - 20)
+            // 첫 블록 앞에서는 자르지 않는다(제목이 혼자 남지 않게)
+            .slice(1);
+          if (h > maxHeight && breaks.length === 0) { w = contentWidth * (maxHeight / h); h = maxHeight; }
+          shots.push({ canvas, w, h, keepNext: unit.dataset.pdfKeepNext === '1', group: unit.dataset.pdfGroup || '', breaks });
+        }
+      } finally {
+        reportRef.current.classList.remove('fm-pdf-capturing');
       }
+
+      // 2) 같은 그룹(역량 상세 + 평가 근거)은 한 덩어리로 묶는다. 한 장을 넘으면 줄이지 않고
+      //    (폭은 모든 페이지 동일) 단위별로 풀어서 이어 쌓는다.
+      const grouped: { parts: typeof shots; h: number; keepNext: boolean }[] = [];
+      for (const sh of shots) {
+        const last = grouped[grouped.length - 1];
+        // 같은 그룹이거나, 바로 앞이 '다음과 붙여 둘' 섹션 제목이면 한 덩어리로 합친다
+        if (last && ((sh.group && last.parts[last.parts.length - 1].group === sh.group) || last.keepNext)) {
+          last.parts.push(sh);
+          last.keepNext = sh.keepNext;
+        } else {
+          grouped.push({ parts: [sh], h: 0, keepNext: sh.keepNext });
+        }
+      }
+      const items: typeof grouped = [];
+      for (const it of grouped) {
+        const total = it.parts.reduce((a, p) => a + p.h, 0) + gap * (it.parts.length - 1);
+        if (total <= maxHeight || it.parts.length === 1) {
+          items.push({ ...it, h: total });
+        } else {
+          // 한 장을 넘는 덩어리: 단위별로 풀어 이어 쌓는다(평가 근거는 남은 공간부터 블록 단위로 채움)
+          it.parts.forEach((p, j) => {
+            const isLast = j === it.parts.length - 1;
+            items.push({ parts: [p], h: p.h, keepNext: isLast ? it.keepNext : false });
+          });
+        }
+      }
+
+      // 캡처 이미지의 [from, to] mm 구간을 현재 위치에 싣는다
+      const place = (p: (typeof shots)[number], from: number, to: number) => {
+        const k = p.canvas.height / p.h;
+        const sy = Math.round(from * k);
+        const sh = Math.max(1, Math.round(to * k) - sy);
+        let src = p.canvas;
+        if (sy > 0 || sh < p.canvas.height) {
+          src = document.createElement('canvas');
+          src.width = p.canvas.width;
+          src.height = sh;
+          src.getContext('2d')!.drawImage(p.canvas, 0, sy, p.canvas.width, sh, 0, 0, p.canvas.width, sh);
+        }
+        pdf.addImage(src.toDataURL('image/jpeg', 0.85), 'JPEG', margin + (contentWidth - p.w) / 2, y, p.w, to - from);
+        y += to - from + gap;
+      };
+      const newPage = () => { pdf.addPage(); y = margin; pageHasContent = false; };
+
+      // 3) 위에서부터 차곡차곡. 남은 공간에 안 들어가면 새 페이지.
+      //    keepNext(섹션 제목)는 다음 덩어리 일부까지 함께 들어갈 공간이 없으면 같이 다음 페이지로.
+      //    나눌 지점이 있는 단위(평가 근거)는 남은 공간에 들어가는 블록까지 싣고 나머지는 다음 페이지로.
+      items.forEach((it, i) => {
+        const next = items[i + 1];
+        // 다음 덩어리가 나눌 수 있는 단위면 첫 조각만큼만 함께 들어가면 된다
+        const nextHead = next ? (next.parts.length === 1 && next.parts[0].breaks.length ? next.parts[0].breaks[0] : Math.min(next.h, maxHeight / 3)) : 0;
+        const need = it.keepNext && next ? it.h + gap + nextHead : it.h;
+        const only = it.parts.length === 1 ? it.parts[0] : null;
+        if (only && only.breaks.length && y + it.h > pageHeight - margin) {
+          let from = 0;
+          while (from < only.h) {
+            const room = pageHeight - margin - y;
+            if (only.h - from <= room) { place(only, from, only.h); break; }
+            const cut = only.breaks.filter((b) => b > from && b - from <= room).pop();
+            if (cut === undefined) {
+              if (!pageHasContent) { place(only, from, only.h); break; } // 블록 하나가 한 장보다 큰 경우
+              newPage();
+              continue;
+            }
+            place(only, from, cut);
+            from = cut;
+            newPage();
+          }
+          pageHasContent = true;
+          return;
+        }
+        if (pageHasContent && y + need > pageHeight - margin) newPage();
+        for (const p of it.parts) place(p, 0, p.h);
+        pageHasContent = true;
+      });
 
       pdf.save('Leadership_Report.pdf');
     } catch (error) {
@@ -635,7 +780,7 @@ function ReportContent() {
   if (!report) {
     return (
       <div className="fm-app fm-report">
-        <ParticipantHeader step={5} />
+        <ParticipantHeader step={6} />
         <div className="fm-report-wait fm-wrap-narrow">
           {!canRetry && !isProgressRunning(progress) && (
             <div className="fm-report-spinner" aria-hidden="true"></div>
@@ -680,12 +825,32 @@ function ReportContent() {
     { label: '진단일', value: String(report.created_at || new Date().toISOString().slice(0, 10)) },
   ].filter((r): r is { label: string; value: string } => r !== null);
 
+  // IDP - 있으면 번호 01/02/03, 없으면 04 추천 교육으로 잇는 한 줄(자가진단 제출 여부와 무관하게 표시)
+  const renderIdp = () => (
+Array.isArray(report.idp) && report.idp.length > 0 ? (
+                  <div className="print:break-inside-avoid mt-4 fm-card">
+                    <p className="fm-eyebrow">Individual Development Plan</p>
+                    <h3 className="mt-1 text-lg font-bold text-fm-ink mb-5">개인 발전 계획 (IDP)</h3>
+                    <div className="divide-y divide-fm-gray-100">
+                      {report.idp.map((item: string, idx: number) => (
+                        <div key={idx} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+                          <span className="fm-eyebrow shrink-0 pt-1 tabular-nums">{String(idx + 1).padStart(2, '0')}</span>
+                          <p className="text-fm-ink text-[15px] font-light leading-[1.8] break-keep">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-5 px-1 text-sm font-light text-fm-gray-500 break-keep">구체적인 다음 걸음은 04 추천 교육에서 이어집니다.</p>
+                )
+  );
+
   return (
     <main className="fm-app fm-report">
       {/* 상단 헤더 - 인쇄물(print:hidden, ParticipantHeader 기본)·PDF 캡처(data-html2canvas-ignore)에서 제외 */}
       <div data-html2canvas-ignore="true">
         <ParticipantHeader
-          step={5}
+          step={6}
           right={
             <>
               <span className="user">{displayName} 님</span>
@@ -700,16 +865,16 @@ function ReportContent() {
         />
       </div>
       <div data-html2canvas-ignore="true" className="fm-wrap-narrow print:hidden">
-        <ParticipantMobileStep step={5} className="fm-report-mstep" />
+        <ParticipantMobileStep step={6} className="fm-report-mstep" />
       </div>
 
       <div ref={reportRef} className="fm-wrap-narrow fm-report-body">
 
         {/* ══ [PDF 페이지 1] 타이틀 & 응답자 정보 & 3단 대시보드 ══ */}
-        <div className="pdf-page-block print:break-after-page">
+        <div className="print:break-after-page">
 
         {/* ── [섹션 1] 타이틀 & 아키타입 & 응답자 정보 - 샘플 타이틀 블록(눈썹 + 제목 + 메타 / 아키타입 카드) ── */}
-        <section className="print-section fm-report-title">
+        <section className="print-section fm-report-title pdf-unit">
           <div className="min-w-0">
             <div className="fm-eyebrow">Leadership Diagnosis Report</div>
             <h1 className="break-keep">{displayName} 님의 리더십 역량 심층 분석 리포트</h1>
@@ -721,13 +886,6 @@ function ReportContent() {
             </div>
           </div>
 
-          {report.archetype && (
-            <aside className="fm-card fm-report-arch">
-              <div className="fm-eyebrow">Leadership Archetype</div>
-              <h2 className="break-keep">{report.archetype.name}</h2>
-              <p className="break-keep">{report.archetype.description}</p>
-            </aside>
-          )}
         </section>
 
         {/* 🚧 T-A fail-closed: 레벨 게이트 검증 미완료 경고 (상단). 도구 상태이며
@@ -758,41 +916,36 @@ function ReportContent() {
             || `${cov?.total ?? 26}개 지표 중 ${measuredCnt}개 확인`;
           return (
             <>
-              {/* ── KPI 카드 - 종합 점수 · (있으면) 탐색률 · 측정률. 값은 백엔드 그대로 ── */}
-              <section className="print-section fm-report-kpis" aria-label="핵심 지표">
-                <div className="fm-card fm-report-kpi print:break-inside-avoid">
-                  <div className={`v fm-report-fig ${official ? '' : 'ref'}`}>
-                    {hasScore ? Number(report.total_score).toFixed(1) : '—'}<small>/ {maxScore.toFixed(1)}</small>
-                  </div>
-                  <div className="k fm-caption">
-                    종합 점수 · 측정된 역량의 심층 평가 평균치
-                    {!official && (
-                      <span className="fm-chip tint ml-2 align-middle">{cov?.composite_badge || '참고치'}</span>
+              {/* ── 핵심 지표 한 줄: 종합 점수 · 리더십 아키타입 (강화·개선 역량과 추천 교육은 리포트 끝 04 다음 단계) ── */}
+              {(() => {
+                return (
+                  <section className="print-section fm-report-kpis pdf-unit" aria-label="핵심 지표">
+                    <div className="fm-card fm-report-kpi print:break-inside-avoid">
+                      <div className="kk">종합 점수</div>
+                      <div className={`v fm-report-fig ${official ? '' : 'ref'}`}>
+                        {hasScore ? Number(totalRoll.values[0] ?? report.total_score).toFixed(1) : '—'}<small>/ {maxScore.toFixed(1)}</small>
+                      </div>
+                      <div className="k fm-caption">
+                        측정된 역량의 심층 평가 평균
+                        {!official && <span className="fm-chip tint ml-2 align-middle">{cov?.composite_badge || '참고치'}</span>}
+                        {cov && typeof cov.asked === 'number' && <span className="block mt-1">탐색 {cov.asked}/{cov.total} · 측정 {cov.measured}/{cov.total} 하위역량</span>}
+                      </div>
+                    </div>
+                    {report.archetype && (
+                      <aside className="fm-card fm-report-kpi fm-report-arch print:break-inside-avoid">
+                        <div className="kk">리더십 아키타입</div>
+                        <h2 className="break-keep">{report.archetype.name}</h2>
+                        <p className="break-keep">{report.archetype.description}</p>
+                      </aside>
                     )}
-                  </div>
-                </div>
-                {cov && typeof cov.asked === 'number' && (
-                  /* 🧭 T3 2단 지표: 탐색률(질문한 하위역량) + 측정률(근거 확보).
-                     '얼마나 물었는가'와 '그중 몇 개에 근거가 있었는가'를 분리 노출. */
-                  <div className="fm-card fm-report-kpi print:break-inside-avoid"
-                    title="탐색률 - 이번 진단에서 질문한 하위역량 수(26개 중). 측정률과 달리 근거 확보 여부와 무관합니다.">
-                    <div className="v fm-report-fig">{cov.asked}<small>/ {cov.total}</small></div>
-                    <div className="k fm-caption">탐색 하위역량</div>
-                  </div>
-                )}
-                {cov && (
-                  <div className="fm-card fm-report-kpi print:break-inside-avoid"
-                    title="측정률 - 질문한 것 중 구체 행동 근거가 확인되어 점수를 산출한 하위역량 수.">
-                    <div className={`v fm-report-fig ${cov.is_low_confidence ? 'ref' : ''}`}>{cov.measured}<small>/ {cov.total}</small></div>
-                    <div className="k fm-caption">측정 하위역량</div>
-                  </div>
-                )}
-              </section>
+                  </section>
+                );
+              })()}
 
               {/* 01 OVERALL SUMMARY - 역량 밸런스 · 대역량별 점수 · 종합 피드백 · 키워드 */}
-              <SectionHead no="01" en="Overview" ko="종합 요약" className="fm-report-sec" />
-
               {/* ── [섹션 2] 대시보드 - 좌: 역량 밸런스 레이더 / 우: 대역량별 점수 ── */}
+              <div className="pdf-unit">
+              <SectionHead no="01" en="Overview" ko="종합 요약" className="fm-report-sec" />
               <div className="print-section fm-report-ov mb-6">
                 {/* B: 레이더도 항상 표시 - 미측정 역량은 빈 점·회색 점선으로 빈칸을 드러낸다. */}
                 <div className="fm-card print:break-inside-avoid">
@@ -810,6 +963,7 @@ function ReportContent() {
                       maxScore={maxScore}
                       selfScores={report.self_assessment?.scores ?? null}
                       groupAverages={report.group_comparison?.available ? (report.group_comparison.averages ?? null) : null}
+                      displayData={rolledByName}
                     />
                   </div>
                   {/* 범례 - 실선: 대화에 드러난 나 / 점선: 스스로 보는 나 / (조건부) 진회색 실선: 그룹 평균 */}
@@ -844,9 +998,11 @@ function ReportContent() {
                   </div>
                   {frameworkCompetencies.length > 0 && (
                     <div>
-                      {frameworkCompetencies.map((c) => {
+                      {frameworkCompetencies.map((c, ci) => {
                         const raw = report.radar_chart?.[c.name] ?? report.radar_chart?.[c.key];
                         const v = typeof raw === 'number' ? raw : null;
+                        const shownV = compRoll.values[ci] ?? v;   // 굴러가는 표시 값
+                        const settled = compRoll.done[ci] ?? false;  // 숫자가 멈춘 뒤에 막대를 채운다
                         return (
                           <div key={c.key} className="srow">
                             <div className="top">
@@ -854,13 +1010,13 @@ function ReportContent() {
                               <span
                                 title={v === null ? '이번 세션에서 확인되지 않은 영역입니다(미측정).' : undefined}
                                 className={`fm-report-fig ${v === null ? 'off' : ''}`}>
-                                {v === null ? '—' : v.toFixed(1)}<small>/{(maxScore || 5).toFixed(1)}</small>
+                                {v === null ? '—' : Number(shownV).toFixed(1)}<small>/{(maxScore || 5).toFixed(1)}</small>
                               </span>
                             </div>
                             {c.description && <div className="d fm-caption break-keep">{c.description}</div>}
                             <div className={`fm-bar ${v === null ? 'fm-report-bar-off' : ''}`}>
                               {v !== null && (
-                                <i style={{ width: `${Math.min(100, Math.max(0, (v / (maxScore || 5)) * 100))}%` }} />
+                                <i className="fm-report-fill" style={{ width: settled ? `${Math.min(100, Math.max(0, (v / (maxScore || 5)) * 100))}%` : '0%' }} />
                               )}
                             </div>
                           </div>
@@ -875,24 +1031,33 @@ function ReportContent() {
                   )}
                 </div>
               </div>
+              </div>
             </>
           );
         })()}
 
-        {/* 조직 내 위치 - 비교 대상이 모이기 전에는 백엔드 안내 문구만(가짜 숫자 금지) */}
-        {report.group_comparison && !report.group_comparison.available && report.group_comparison.label && (
-          <div className="print:break-inside-avoid -mt-2 mb-6 flex flex-col lg:flex-row lg:items-baseline gap-1 lg:gap-4 px-1">
-            <span className="fm-eyebrow text-fm-gray-500 shrink-0">조직 내 위치</span>
-            <span className="text-[13px] font-light text-fm-gray-500 break-keep">{report.group_comparison.label}</span>
-          </div>
-        )}
+        {/* 조직 내 위치 비교 - 전체 · 본부 · 팀. 데이터가 없는 단계는 안내만(가짜 숫자 금지).
+            demo=compare 일 때만 '예시 데이터' 로 채운 미리보기. */}
+        {(() => {
+          const names = frameworkCompetencies.map((c) => c.name);
+          const { levels, demo } = buildCompareLevels(report, names, compareDemo);
+          const mine: Record<string, number | null> = Object.fromEntries(frameworkCompetencies.map((c) => {
+            const raw = report.radar_chart?.[c.name] ?? report.radar_chart?.[c.key];
+            return [c.name, typeof raw === 'number' ? raw : null];
+          }));
+          return (
+            <div className="print-section mb-6 pdf-unit">
+              <OrgCompare competencies={frameworkCompetencies} myScores={mine} maxScore={maxScore} levels={levels} demo={demo} />
+            </div>
+          );
+        })()}
 
         {/* ── [섹션 3] 종합 피드백 & 키워드 - 요구사항: 점수/차트/피드백/
               키워드를 여백 없이 '단일 1페이지'에 모두 압축. 별도 페이지 블록을
               해제하고 상단 대시보드와 같은 pdf-page-block 안에 병합한다. ── */}
         <div className="print-section mb-4">
           {/* 종합 피드백 - 전체 너비 */}
-          <div className="fm-card mb-4">
+          <div className="fm-card mb-4 pdf-unit">
             <p className="fm-eyebrow">Summary</p>
             <h3 className="mt-1 text-lg font-bold text-fm-ink mb-4">종합 피드백</h3>
             <p className="text-fm-ink text-base font-light leading-[1.9] break-keep">
@@ -900,7 +1065,7 @@ function ReportContent() {
             </p>
           </div>
           {/* 핵심 키워드 - {keyword, meaning} 구조 (구버전 문자열 배열도 호환) */}
-          <div className="print:break-inside-avoid fm-card">
+          <div className="print:break-inside-avoid fm-card pdf-unit">
             <p className="fm-eyebrow">Keywords</p>
             <h3 className="mt-1 text-lg font-bold text-fm-ink mb-5">핵심 키워드</h3>
             {/* 2단 격자 카드 - 상단 배지(키워드) + 하단 설명 */}
@@ -929,16 +1094,19 @@ function ReportContent() {
 
         {/* ══ [PDF 페이지 2] 스스로 보는 나 · 대화에 드러난 나 & IDP ══ */}
         {/* ── [섹션 4] 자가진단 비교(Self View) & IDP - 문구·차이·해석은 전부 백엔드 값 그대로 ── */}
-        <div className="pdf-page-block print:break-after-page print-section mb-16">
+        <div className="print:break-after-page print-section mb-16 pdf-unit">
           <SectionHead no="02" en="Self View & Discovery" ko="스스로 보는 나와 대화에 드러난 나" className="fm-report-sec" />
           {(() => {
             const sv = report.self_view;
             // 자가진단 미제출: 섹션 전체를 안내 한 줄 카드로.
             if (sv && sv.submitted === false) {
               return (
-                <div className="fm-card">
-                  <p className="text-[15px] font-light leading-[1.8] text-fm-gray-500 break-keep">{sv.message}</p>
-                </div>
+                <>
+                  <div className="fm-card">
+                    <p className="text-[15px] font-light leading-[1.8] text-fm-gray-500 break-keep">{sv.message}</p>
+                  </div>
+                  {renderIdp()}
+                </>
               );
             }
             const rows: SelfViewRow[] = Array.isArray(sv?.rows) ? sv.rows : [];
@@ -1016,23 +1184,7 @@ function ReportContent() {
                   </div>
                 )}
 
-                {/* IDP - 있으면 번호 01/02/03, 없으면 04 추천 교육으로 잇는 한 줄 */}
-                {Array.isArray(report.idp) && report.idp.length > 0 ? (
-                  <div className="print:break-inside-avoid mt-4 fm-card">
-                    <p className="fm-eyebrow">Individual Development Plan</p>
-                    <h3 className="mt-1 text-lg font-bold text-fm-ink mb-5">개인 발전 계획 (IDP)</h3>
-                    <div className="divide-y divide-fm-gray-100">
-                      {report.idp.map((item: string, idx: number) => (
-                        <div key={idx} className="flex gap-4 py-4 first:pt-0 last:pb-0">
-                          <span className="fm-eyebrow shrink-0 pt-1 tabular-nums">{String(idx + 1).padStart(2, '0')}</span>
-                          <p className="text-fm-ink text-[15px] font-light leading-[1.8] break-keep">{item}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-5 px-1 text-sm font-light text-fm-gray-500 break-keep">구체적인 다음 걸음은 04 추천 교육에서 이어집니다.</p>
-                )}
+                {renderIdp()}
               </>
             );
           })()}
@@ -1041,7 +1193,7 @@ function ReportContent() {
         {/* ── [섹션 5] 역량별 심층 진단 ── */}
         <div className="space-y-4">
           {/* 03 COMPETENCY DEEP DIVE */}
-          <div className="fm-report-sec fm-report-sec-row">
+          <div className="fm-report-sec fm-report-sec-row pdf-unit" data-pdf-keep-next="1">
             <SectionHead no="03" en="Competency Deep Dive" ko="역량별 상세" className="flex-1" />
             <button type="button" onClick={() => setOpenDetail(openDetail === "ALL" ? null : "ALL")}
               data-html2canvas-ignore="true"
@@ -1077,7 +1229,7 @@ function ReportContent() {
               <React.Fragment key={idx}>
 
                 {/* ① [역량 블록 1: 요약 및 차트] 헤더 + 코치 피드백 + 세부 역량 + 산출 근거 */}
-                <div className={`pdf-page-block print:break-after-page print-section print:break-inside-avoid fm-card fm-report-flush transition-colors duration-300 overflow-hidden ${isOpen ? '' : 'hover:border-fm-gray-300'}`}>
+                <div data-pdf-group={`comp-${idx}`} className={`pdf-unit print:break-after-page print-section print:break-inside-avoid fm-card fm-report-flush transition-colors duration-300 overflow-hidden ${isOpen ? '' : 'hover:border-fm-gray-300'}`}>
 
                   {/* 헤더 - 샘플 .dhead(번호 + 제목·요약 + 점수 + 펼침 화살표) */}
                   <button type="button" onClick={() => setOpenDetail(isOpen && openDetail !== "ALL" ? null : key)}
@@ -1093,7 +1245,7 @@ function ReportContent() {
                       {/* 역량 요약 설명 */}
                       <span className={`sum break-keep ${measured ? '' : 'off'}`}>
                         {/* F: 측정 0 역량엔 평가 문장을 쓰지 않는다(과거 리포트 포함). */}
-                        {measured ? (strengthPoint || "역량 상세 분석 클릭") : "이번 세션에서 확인되지 않았습니다."}
+                        {measured ? (strengthPoint || <span className="fm-click-hint">역량 상세 분석 클릭</span>) : "이번 세션에서 확인되지 않았습니다."}
                       </span>
                     </span>
                     <span className="score">
@@ -1154,7 +1306,7 @@ function ReportContent() {
                             <h4 className="mt-1 text-base font-bold text-fm-ink">세부 역량 분석</h4>
                           </div>
                           {/* 좌: 방사형(Radar) / 우: 가로 막대 - order 로 배치 확정 */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-2 gap-6 items-center">
+                          <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] print:grid-cols-[1.15fr_1fr] gap-6 items-center">
                             <div className="w-full flex justify-center lg:order-1">
                               <SubRadarChart subScores={subScores} fallbackScore={Number(score)} maxScore={maxScore} />
                             </div>
@@ -1178,7 +1330,7 @@ function ReportContent() {
 
                 {/* ② [역량 블록 2: 심층 평가 근거] - measured 대역량만(C-2) */}
                 {isOpen && measured && (
-                  <div className="pdf-page-block print:break-after-page print-section print:break-inside-avoid fm-card fm-report-flush overflow-hidden mt-3">
+                  <div data-pdf-group={`comp-${idx}`} className="pdf-unit print:break-after-page print-section print:break-inside-avoid fm-card fm-report-flush overflow-hidden mt-3">
                     <div className="px-6 md:px-8 py-7">
                       <ReasoningProcess reasoning={reasoning} gapAnalysis={gapAnalysis} evidenceList={evidenceList} />
                     </div>
@@ -1190,108 +1342,20 @@ function ReportContent() {
           })}
         </div>
 
-        {/* ── [섹션 6] 리더십 향상을 위한 추천 교육 - 리포트 최하단 ── */}
-        {report.course_recommendation && (
-          <div className="pdf-page-block print:break-after-page print-section mt-14 fm-report-courses">
-            {/* 04 RECOMMENDED COURSES */}
-            <SectionHead no="04" en="Recommended Courses" ko="추천 교육" className="fm-report-sec" />
-            <div className="fm-card print:break-inside-avoid">
-              <h2 className="text-xl font-bold text-fm-ink">
-                리더십 향상을 위한 추천 교육
-              </h2>
-              <p className="mt-3 mb-8 text-[15px] font-light leading-[1.8] text-fm-gray-500 max-w-3xl break-keep">
-                {report.course_recommendation.intro}
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
-                {[
-                  ...(report.course_recommendation.growth || []),
-                  report.course_recommendation.strength,
-                ]
-                  .filter(Boolean)
-                  .map((c: any, i: number) => {
-                    const strength = c.is_strength || c.type === "강점 활용";
-                    return (
-                      <div
-                        key={i}
-                        className={`print:break-inside-avoid rounded-lg border p-6 md:p-7 ${
-                          strength
-                            ? "border-fm-gray-100 bg-fm-accent-tint/50"
-                            : "border-fm-gray-100 bg-fm-paper-soft"
-                        }`}
-                      >
-                        {/* [구분] + [트랙/학습형식] - 배지 아닌 소제목 라벨 */}
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span
-                            className={`fm-eyebrow text-[11px] ${
-                              strength ? "text-fm-blue-mid" : "text-fm-accent"
-                            }`}
-                          >
-                            {c.type}
-                          </span>
-                          <span className="text-[11px] text-fm-gray-300">
-                            {c.track}트랙 · {c.track_format}
-                          </span>
-                        </div>
-
-                        {/* [과정명] [대역량명] 과정명 - 클릭 시 VOD 이동 */}
-                        <a
-                          href={c.vod_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 block text-lg font-bold leading-snug text-fm-ink underline-offset-4 hover:text-fm-accent hover:underline transition-colors break-keep"
-                        >
-                          <span className="text-fm-gray-500 font-semibold">[{c.category}]</span>{" "}
-                          {c.course}
-                        </a>
-                        {/* 수료 시 도달 행동 (Next Level Behavior) */}
-                        {c.subtitle && (
-                          <div className="mt-1 text-sm font-light text-fm-gray-500 break-keep">
-                            → {c.subtitle}
-                          </div>
-                        )}
-
-                        {/* [하위역량] - 진단 레벨 표기 */}
-                        <div className="mt-2 text-xs text-fm-gray-500 tabular-nums">
-                          진단 결과: {c.sub_competency} · Lv.{c.level} ({Number(c.score).toFixed(1)}점)
-                        </div>
-
-                        {/* [추천 이유] - 도약 총평 + 개조식 */}
-                        <div className="mt-5 border-t border-fm-gray-100 pt-4">
-                          <div className="fm-eyebrow text-fm-gray-500 mb-2">
-                            {strength ? "제안 이유" : "추천 이유"}
-                          </div>
-                          {c.reason_overview && (
-                            <p className="text-sm font-semibold leading-relaxed text-fm-ink break-keep">
-                              {c.reason_overview}
-                            </p>
-                          )}
-                          {Array.isArray(c.reason_bullets) && c.reason_bullets.length > 0 && (
-                            <ul className="mt-2.5 list-disc pl-5 space-y-1.5 text-sm font-light leading-relaxed text-fm-gray-500 marker:text-fm-accent break-keep">
-                              {c.reason_bullets.map((b: string, j: number) => (
-                                <li key={j}>{b}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-
-                        {/* BEI 분석 인용 - 리더의 딜레마/발화 한 줄 */}
-                        {c.bei_citation && (
-                          <div className="mt-4 rounded-md bg-fm-paper border border-fm-gray-100 px-3.5 py-2.5">
-                            <div className="fm-eyebrow text-fm-gray-500 mb-1">
-                              진단 대화 근거
-                            </div>
-                            <p className="text-xs italic leading-relaxed text-fm-gray-500 border-l-2 border-fm-gray-100 pl-2.5 break-keep">
-                              &ldquo;{c.bei_citation}&rdquo;
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
+        {/* ── [섹션 6] 04 다음 단계 - 분석을 마친 뒤 강화·개선 필요 역량과 그 이유, 이어서 들을 추천 교육 ── */}
+        <div className="mt-14">
+          <div className="pdf-unit" data-pdf-keep-next="1">
+            <SectionHead no="04" en="Next Step" ko="강화·개선 역량과 추천 교육" className="fm-report-sec" />
           </div>
-        )}
+          <ReportNextStep
+            competencies={frameworkCompetencies}
+            radar={report.radar_chart}
+            details={report.details}
+            maxScore={maxScore}
+            courseRec={courseRec}
+            courseIsDemo={courseIsDemo}
+          />
+        </div>
       </div>
 
       {/* 홈으로 돌아가기 버튼 - 인쇄물·PDF 캡처에서 완전 제외 */}
