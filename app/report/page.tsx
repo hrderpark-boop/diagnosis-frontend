@@ -227,6 +227,7 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
     return { lx, top, anchor, lines, blockH };
   });
   // 축 수에 따라 아래(또는 위)가 비므로, 실제로 그려지는 세로 범위에 맞춰 잘라 가운데에 오게 한다
+  // (눈으로 볼 때 가운데가 되도록 그래프 전체를 12px 아래로: top-3)
   const outer = stats.map((_, i) => getPoint(safeMax, i).y);
   const pad = 8;
   const minY = Math.min(...outer, ...labels.map((l) => l.top)) - pad;
@@ -234,7 +235,7 @@ const SubRadarChart = ({ subScores, fallbackScore, maxScore }: { subScores: any,
 
   return (
     <div className="flex justify-center items-center w-full h-full">
-      <svg viewBox={`0 ${minY} ${W} ${maxY - minY}`} className="block w-full max-w-[480px] h-auto mx-auto" role="img" aria-label="세부 역량 방사형 그래프">
+      <svg viewBox={`0 ${minY} ${W} ${maxY - minY}`} className="relative top-3 block w-full max-w-[480px] h-auto mx-auto" role="img" aria-label="세부 역량 방사형 그래프">
         {levels.map((level) => (
           <polygon key={level} points={stats.map((_, i) => { const p = getPoint(level, i); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke="#D9D9D9" strokeWidth="1" />
         ))}
