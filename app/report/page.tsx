@@ -522,6 +522,8 @@ function ReportContent() {
   const [report, setReport] = useState<any>(null);
   const [statusMsg, setStatusMsg] = useState("데이터 분석 중...");
   const [canRetry, setCanRetry] = useState(false);  // item4: 지연/실패 재시도
+  // (2026-10-22 P0) 분석 실패 3회 확정: '준비 중' 반복 대신 운영자 알림 안내로 종료(자동 재시도 없음)
+  const [failedFinal, setFailedFinal] = useState<{ errorId?: string } | null>(null);
   const [retryCount, setRetryCount] = useState(0);  // B: 재시도 상한(3)
   // item6: 서버가 분석 중이면 진행 단계(라벨·경과)를 보여준다.
   const [progress, setProgress] = useState<AnalysisProgress | null>(null);
@@ -585,7 +587,12 @@ function ReportContent() {
     } catch (err: any) {
       const st = err.response?.status;
       const status = err.response?.data?.detail?.analysis_status;
-      if (st === 404 && status === "degraded") {
+      if (st === 404 && status === "failed") {
+        // (2026-10-22 P0) 서버가 3회 실패를 확정하고 운영자에게 알림. 더 이상 폴링·자동 재시도하지 않는다.
+        setFailedFinal({ errorId: err.response?.data?.detail?.error_id });
+        setStatusMsg("리포트 생성에 문제가 있어 운영자에게 알렸습니다. 대화 내용은 저장되어 있습니다.");
+        setCanRetry(false);
+      } else if (st === 404 && status === "degraded") {
         // 오염: 기다려도 안 나옴 → 폴링 중단, 재시도 유도.
         setStatusMsg("리포트 생성이 일시적으로 실패했습니다. 다시 시도해 주세요. (대화 내용은 저장되어 있어 이어서 진행할 수 있습니다)");
         setCanRetry(true);
@@ -629,9 +636,19 @@ function ReportContent() {
     // item6: 분석 완료(수 분)를 기다리지 않고 바로 폴링 - 폴링이 진행 단계를
     //   보여주고, 끝나면 리포트를 띄운다. 실패는 서버 진행 상태(failed)나
     //   degraded 마커로 폴링이 판정한다. 409(이미 분석 중)도 폴링으로 합류.
+    let finalFailed = false;
     apiClient.post(`/reports/${sessionId}/analyze`)
-      .catch(() => { /* 폴링이 상태를 다시 판정 */ });
-    setTimeout(() => loadReport(0), 1500);
+      .catch((e: any) => {
+        // (2026-10-22 P0) 503 + analysis_status=failed → 폴링으로 넘어가지 않고 바로 종료 안내
+        if (e?.response?.status === 503 && e?.response?.data?.detail?.analysis_status === "failed") {
+          finalFailed = true;
+          setFailedFinal({ errorId: e.response.data.detail.error_id });
+          setStatusMsg("리포트 생성에 문제가 있어 운영자에게 알렸습니다. 대화 내용은 저장되어 있습니다.");
+          setCanRetry(false);
+        }
+        /* 그 외는 폴링이 상태를 다시 판정 */
+      });
+    setTimeout(() => { if (!finalFailed) loadReport(0); }, 1500);
   };
 
   const handleDownloadPDF = async () => {
@@ -782,7 +799,7 @@ function ReportContent() {
       <div className="fm-app fm-report">
         <ParticipantHeader step={6} />
         <div className="fm-report-wait fm-wrap-narrow">
-          {!canRetry && !isProgressRunning(progress) && (
+          {!canRetry && !failedFinal && !isProgressRunning(progress) && (
             <div className="fm-report-spinner" aria-hidden="true"></div>
           )}
           <div className="fm-eyebrow">Leadership Diagnosis Report</div>
@@ -794,7 +811,12 @@ function ReportContent() {
               <p className="fm-caption">이 화면을 닫지 말고 기다려 주세요.</p>
             </div>
           )}
-          {canRetry && (
+          {failedFinal && (
+            <p className="fm-caption mt-3">
+              운영자가 확인 후 안내드립니다.{failedFinal.errorId ? ` 문의 번호 ${failedFinal.errorId}` : ''}
+            </p>
+          )}
+          {canRetry && !failedFinal && (
             <button
               type="button"
               onClick={handleRetry}
