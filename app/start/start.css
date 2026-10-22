@@ -4,6 +4,8 @@
    ============================================================ */
 .fm-start-main { padding: 64px 0 0; }
 .fm-start-main .fm-sec-head { margin-bottom: 40px; }
+.fm-start-main .fm-sec-head { max-width: 760px; }
+.fm-start-main .fm-start-lead { font-size: 17px; line-height: 1.75; word-break: keep-all; }
 .fm-start-main .fm-mstep { justify-content: center; margin-bottom: 22px; }
 
 /* ---------- 재개 배너 ---------- */
@@ -96,6 +98,8 @@
 @media (max-width: 767px) {
   .fm-start-main { padding-top: 40px; }
   .fm-start-main .fm-sec-head { margin-bottom: 28px; }
+  .fm-start-main .fm-start-lead { font-size: 15px; }
+  .fm-start-main .fm-start-lead br { display: none; }
   .fm-start-resume { flex-wrap: wrap; padding: 16px; gap: 12px 14px; }
   .fm-start-resume .txt { flex: 1 1 200px; }
   .fm-start-resume .acts { width: 100%; }
