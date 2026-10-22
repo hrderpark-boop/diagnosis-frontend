@@ -206,7 +206,7 @@ function SelfEvalContent() {
 
           {/* 섹션 머리 */}
           <div className="fm-sec-head">
-            <div className="fm-eyebrow">Step 03 · Self assessment</div>
+            <div className="fm-eyebrow">Step 04 · Self assessment</div>
             <h1>
               대화를 시작하기 전에,
               <br />
