@@ -1064,7 +1064,7 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
           );
         })()}
 
-        {/* 조직 내 위치 비교 - 전체 · 본부 · 팀. 데이터가 없는 단계는 안내만(가짜 숫자 금지).
+        {/* 조직 내 위치 비교 - 전체 평균 한 줄(2026-10-23: 팀·본부는 필드가 생기면). 데이터가 없으면 안내만(가짜 숫자 금지).
             demo=compare 일 때만 '예시 데이터' 로 채운 미리보기. */}
         {(() => {
           const names = frameworkCompetencies.map((c) => c.name);

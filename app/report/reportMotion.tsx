@@ -99,7 +99,7 @@ export function useRollingScores(targets: Array<number | null>, opts: RollOption
 }
 
 // ----------------------------------------------------------------------
-// 조직 비교(전체 · 본부 · 팀)
+// 조직 비교 — 전체 평균 한 줄. (2026-10-23) 팀·본부 줄은 참가자에 팀·본부 필드가 생기면 다시 넣는다.
 // ----------------------------------------------------------------------
 
 export type CompareLevel = {
@@ -134,13 +134,12 @@ export function buildCompareLevels(report: ReportLike, competencyNames: string[]
       demo: true,
       levels: [
         { key: 'all', label: '전체', n: 128, available: true, averages: mk([0, 0, 0, 0, 0]) },
-        { key: 'division', label: '본부', n: 34, available: true, averages: mk([0.2, -0.1, 0.1, 0.3, -0.2]) },
-        { key: 'team', label: '팀', n: 9, available: true, averages: mk([0.4, 0.1, -0.2, 0.2, 0.1]) },
       ],
     };
   }
+  // 백엔드가 단계별 비교(org_comparison.levels)를 주더라도 지금은 '전체' 만 쓴다.
   const org = report?.org_comparison?.levels;
-  if (Array.isArray(org) && org.length) return { demo: false, levels: org };
+  if (Array.isArray(org) && org.length) return { demo: false, levels: org.filter((l) => l.key === 'all') };
 
   const gc = report?.group_comparison;
   const all: CompareLevel = {
@@ -149,14 +148,7 @@ export function buildCompareLevels(report: ReportLike, competencyNames: string[]
     averages: gc?.available ? gc?.averages ?? null : null,
     note: gc?.label || '비교 대상이 모이면 전체 평균과 비교해 드립니다',
   };
-  return {
-    demo: false,
-    levels: [
-      all,
-      { key: 'division', label: '본부', n: 0, available: false, averages: null, note: '본부 정보가 등록되면 비교가 표시됩니다' },
-      { key: 'team', label: '팀', n: 0, available: false, averages: null, note: '팀 정보가 등록되면 비교가 표시됩니다' },
-    ],
-  };
+  return { demo: false, levels: [all] };
 }
 
 const LEVEL_COLOR: Record<CompareLevel['key'], string> = {
@@ -173,8 +165,8 @@ function FillBar({ pct, color, go }: { pct: number; color: string; go: boolean }
 }
 
 /**
- * 조직 비교 카드. 역량마다 나 · 팀 · 본부 · 전체 막대를 나란히 보여 주고,
- * 전체 평균과의 차이를 숫자로 붙인다.
+ * 조직 비교 카드. 역량마다 나 · 전체 평균 막대를 나란히 보여 주고,
+ * 전체 평균과의 차이를 숫자로 붙인다. (팀·본부 줄은 필드가 생기면 order 에 다시 넣는다)
  */
 export function OrgCompare({
   competencies, myScores, maxScore, levels, demo,
@@ -200,7 +192,7 @@ export function OrgCompare({
     return () => { io.disconnect(); window.removeEventListener(REPORT_FINISH_EVENT, show); window.removeEventListener('beforeprint', show); };
   }, []);
 
-  const order: CompareLevel['key'][] = ['team', 'division', 'all'];
+  const order: CompareLevel['key'][] = ['all'];
   const byKey = useMemo(() => Object.fromEntries(levels.map((l) => [l.key, l])) as Record<string, CompareLevel>, [levels]);
   const shown = order.map((k) => byKey[k]).filter((l): l is CompareLevel => !!l);
   const pct = (v: number) => Math.min(100, Math.max(0, (v / (maxScore || 5)) * 100));

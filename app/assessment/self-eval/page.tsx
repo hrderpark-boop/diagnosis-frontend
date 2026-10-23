@@ -18,7 +18,9 @@ import './self-eval.css';
  * 받아야 하며, 코칭 대화에 영향을 주지 않도록 결과는 노출하지 않는다.
  *
  * 시각: 라이트 리디자인 B (design/light-sample/b/self-eval.html). 문항 카드 + 1~5 세그먼트 버튼.
- * 유지: 초기값 3, 언제든 제출 가능, PATCH 페이로드, 되돌리기 배너 로직. 건너뛰기 버튼은 2026-10-22 사용자 요청으로 제거.
+ * 유지: PATCH 페이로드, 되돌리기 배너 로직. 건너뛰기 버튼은 2026-10-22 사용자 요청으로 제거.
+ * (2026-10-23 파일럿 전 0) 초기값 없음(미선택). 5개 전부 선택해야 제출 버튼이 켜진다 — 기본값 3.0 이 그대로 제출돼
+ *   자가진단 전부 3.0 인 리포트가 나오던 문제(cbd5210b). 백엔드도 5개 값이 없으면 400.
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
@@ -63,9 +65,8 @@ function SelfEvalContent() {
         : null;
     return fromQuery || fromStorage || '';
   }, [searchParams]);
-  const [scores, setScores] = useState<Record<string, number>>(
-    () => Object.fromEntries(COMPETENCIES.map((c) => [c.key, 3]))
-  );
+  // 미선택 상태로 시작한다(기본값 제출 방지). 값이 들어온 키만 담긴다.
+  const [scores, setScores] = useState<Record<string, number>>({});
   // 헤더 표시 전용: 참여 확인 단계에서 저장한 이름을 읽기만 한다.
   const [participantName] = useState(() =>
     typeof window !== 'undefined' ? localStorage.getItem('participant_name') || '' : ''
@@ -133,10 +134,15 @@ function SelfEvalContent() {
       .catch(() => {});
   }, [sessionId, chatUrl, router]);
 
+  const selectedCount = useMemo(() => COMPETENCIES.filter((c) => typeof scores[c.key] === 'number').length, [scores]);
+  const missingCount = COMPETENCIES.length - selectedCount;
+  const allSelected = missingCount === 0;
+  // 평균은 5개가 전부 선택된 뒤에만 숫자로 보인다.
   const average = useMemo(() => {
-    const values = Object.values(scores);
+    if (!allSelected) return '—';
+    const values = COMPETENCIES.map((c) => scores[c.key]);
     return (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
-  }, [scores]);
+  }, [scores, allSelected]);
 
   const setScore = (key: string, value: number) => {
     setScores((prev) => ({ ...prev, [key]: value }));
@@ -146,6 +152,10 @@ function SelfEvalContent() {
     e.preventDefault();
     if (!sessionId) {
       setError('진단 세션 정보를 찾을 수 없습니다. 코치 선택 화면부터 다시 시작해주세요.');
+      return;
+    }
+    if (!allSelected) {
+      setError(`${missingCount}개 항목이 아직 선택되지 않았습니다.`);
       return;
     }
     setSubmitting(true);
@@ -223,7 +233,7 @@ function SelfEvalContent() {
                   역량 <span>5</span>문항
                 </div>
                 <div className="avg">
-                  <span className="k">자가 평가 평균</span>
+                  <span className="k">{allSelected ? '자가 평가 평균' : `선택 ${selectedCount} / ${COMPETENCIES.length}`}</span>
                   <b>{average}</b>
                   <span className="max">/ 5.0</span>
                 </div>
@@ -233,7 +243,8 @@ function SelfEvalContent() {
             {/* 문항 카드: 1~5, 0.5 단위 세그먼트 버튼 */}
             <div className="fm-self-qs">
               {COMPETENCIES.map((c, idx) => {
-                const v = scores[c.key];
+                const v: number | undefined = scores[c.key];
+                const picked = typeof v === 'number';
                 return (
                   <article key={c.key} className="fm-card fm-self-q">
                     <div className="head">
@@ -267,8 +278,14 @@ function SelfEvalContent() {
                     </div>
                     <div className="fm-self-val">
                       <span className="k">현재 선택</span>
-                      <span className="fm-num">{Number(v).toFixed(1)}</span>
-                      <span>{scoreLabel(v)}</span>
+                      {picked ? (
+                        <>
+                          <span className="fm-num">{v.toFixed(1)}</span>
+                          <span>{scoreLabel(v)}</span>
+                        </>
+                      ) : (
+                        <span className="k">미선택</span>
+                      )}
                     </div>
                   </article>
                 );
@@ -295,9 +312,15 @@ function SelfEvalContent() {
 
             {error && <div className="fm-self-error" role="alert">{error}</div>}
 
-            {/* 제출 */}
+            {/* 제출 — 5개 전부 선택되기 전에는 비활성 + 남은 개수 안내 */}
             <div className="fm-self-submit">
-              <button type="submit" disabled={submitting} className="fm-btn block">
+              {!allSelected && (
+                <p className="fm-caption" style={{ textAlign: 'center', marginBottom: 8 }} aria-live="polite">
+                  {missingCount}개 항목이 아직 선택되지 않았습니다
+                </p>
+              )}
+              <button type="submit" disabled={submitting || !allSelected} className="fm-btn block"
+                aria-disabled={submitting || !allSelected}>
                 {submitting ? '저장 중입니다...' : '대화 시작하기'}
               </button>
             </div>
