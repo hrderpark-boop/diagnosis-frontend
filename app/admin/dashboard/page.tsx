@@ -177,7 +177,29 @@ export default function AdminDashboard() {
               <tr><td colSpan={7} className="py-10 text-center text-gray-500">
                 {search ? `'${search}' 검색 결과가 없습니다.` : '아직 완료된 진단 데이터가 없습니다.'}
               </td></tr>
-            ) : reports.items.map((r: any, idx: number) => (
+            ) : reports.items.map((r: any, idx: number) => r.report_missing ? (
+              /* (2026-10-23 파일럿 전 2) 완료했지만 리포트 행이 없는 세션 — 백엔드가 1페이지 상단에 report_missing 으로 보낸다 */
+              <tr key={`missing-${r.session_id}`} className="text-sm text-gray-400 transition-colors hover:bg-gray-700/50">
+                <td className="px-4 py-4 text-center text-gray-500">{(reports.page - 1) * reports.page_size + idx + 1}</td>
+                <td className="px-4 py-4 font-bold text-white">{r.user_name}</td>
+                <td className="px-4 py-4 text-gray-400">{r.company_name}</td>
+                <td className="px-4 py-4 text-center">
+                  <span className="rounded-full border border-rose-800 bg-rose-900/30 px-2.5 py-1 text-xs font-bold text-rose-300">
+                    리포트 미생성
+                  </span>
+                </td>
+                <td className="px-4 py-4 text-xs text-gray-500">
+                  {r.analysis_status === 'failed' ? `종합 실패 확정 (${r.fail_count ?? '-'}회${r.error_id ? `, 문의 번호 ${r.error_id}` : ''}) — 대상자 현황에서 [재분석]`
+                    : r.analysis_status === 'degraded' ? `종합 실패 ${r.fail_count ?? '-'}회 — 리더 재시도 또는 [재분석] 대기`
+                    : r.analysis_status === 'reset' ? '관리자 재분석 진행 중 또는 대기'
+                    : '분석 중 또는 미시작'}
+                </td>
+                <td className="px-4 py-4 font-mono text-xs text-gray-500">
+                  {r.created_at ? new Date(r.created_at).toLocaleDateString('ko-KR') : '-'}
+                </td>
+                <td className="px-4 py-4 text-center text-xs text-gray-600">—</td>
+              </tr>
+            ) : (
               <tr key={r.id} className="group text-sm text-gray-300 transition-colors hover:bg-gray-700/50">
                 <td className="px-4 py-4 text-center text-gray-500">{(reports.page - 1) * reports.page_size + idx + 1}</td>
                 <td className="px-4 py-4 font-bold text-white">{r.user_name}</td>

@@ -6,10 +6,11 @@ import AdminLayout from '../../../components/layouts/AdminLayout';
 import TranscriptModal from '../../../components/admin/TranscriptModal';
 import {
   Search, FileDown, ChevronLeft, ChevronRight, Loader2, MessageSquare, FileText,
-  Trash2, AlertTriangle, RotateCcw,
+  Trash2, AlertTriangle, RotateCcw, RefreshCw,
 } from 'lucide-react';
 import {
-  fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, Paginated,
+  fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, reanalyzeSession, Paginated,
+  getCookie, ADMIN_ROLE_KEY,
 } from '@/lib/adminApi';
 
 /**
@@ -101,6 +102,32 @@ const ParticipantsPage = () => {
   // 4(b) 보관 세션 복원: 확인 모달 대상 + 진행 상태
   const [restoreTarget, setRestoreTarget] = useState<{ id: string; name: string; coach_name: string; message_count: number } | null>(null);
   const [restoring, setRestoring] = useState(false);
+  // (2026-10-23 파일럿 전 2) 관리자 재분석 — super_admin 에게만 버튼. 실패 마커 초기화 + analyze(수 분).
+  const [isSuper, setIsSuper] = useState(false);
+  useEffect(() => { setIsSuper(getCookie(ADMIN_ROLE_KEY) === 'super_admin'); }, []);
+  const [reanalyzingSid, setReanalyzingSid] = useState<string | null>(null);
+  const handleReanalyze = async (p: any) => {
+    if (!p.last_session_id || reanalyzingSid) return;
+    const why = p.report_missing
+      ? `리포트 미생성(${p.last_analysis_status || '마커 없음'}${p.last_analysis_fail_count ? `, 실패 ${p.last_analysis_fail_count}회` : ''})`
+      : '기존 리포트를 새 분석으로 교체(관리자 교정본은 보호됨)';
+    if (!confirm(`${p.name} 님의 최근 세션을 재분석합니다.\n${why}\n\n실패 횟수를 0 으로 되돌리고 분석을 다시 돌립니다. 수 분 걸릴 수 있습니다.`)) return;
+    setReanalyzingSid(p.last_session_id);
+    try {
+      const r = await reanalyzeSession(p.last_session_id);
+      const a = r.analysis || {};
+      alert(a.skipped === 'human_edited'
+        ? '관리자 교정본이 있어 재분석하지 않았습니다. 기존 리포트를 유지합니다.'
+        : `재분석이 끝났습니다. (리포트 ${a.report_id || '-'})`);
+      await load();
+    } catch (e: any) {
+      const d = e?.response?.data?.detail;
+      alert(`재분석 실패: ${typeof d === 'string' ? d : d?.message || e?.message || '알 수 없는 오류'}` +
+        (d?.analysis_status ? ` [${d.analysis_status}, ${d.fail_count ?? '-'}회]` : ''));
+    } finally {
+      setReanalyzingSid(null);
+    }
+  };
   const handleRestore = async () => {
     if (!restoreTarget) return;
     setRestoring(true);
@@ -370,6 +397,15 @@ const ParticipantsPage = () => {
                       <span className={`rounded-full px-2 py-1 text-xs ${STATUS_STYLE[p.last_status] || 'bg-gray-700/50 text-gray-400'}`}>
                         {STATUS_LABEL[p.last_status] || p.last_status}
                       </span>
+                      {/* (2026-10-23) 완료했지만 리포트 행이 없는 세션 — 종합 실패(degraded/failed) 또는 분석 중 */}
+                      {p.report_missing && (
+                        <span
+                          title={`분석 상태: ${p.last_analysis_status || '마커 없음'}${p.last_analysis_fail_count ? ` · 실패 ${p.last_analysis_fail_count}회` : ''}`}
+                          className="ml-1.5 inline-block rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-300"
+                        >
+                          리포트 미생성{p.last_analysis_status === 'failed' ? ' (실패 확정)' : ''}
+                        </span>
+                      )}
                       {/* 4(b) 보관(abandoned) 세션 — 참가자가 "잘못 눌렀다" 고 하면 여기서 [복원] */}
                       {Array.isArray(p.abandoned_sessions) && p.abandoned_sessions.length > 0 && (
                         <ul className="mt-2 space-y-1">
@@ -435,6 +471,24 @@ const ParticipantsPage = () => {
                             className="flex items-center rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500"
                           >
                             <FileText size={13} className="mr-1" /> 리포트
+                          </button>
+                        )}
+                        {/* (2026-10-23 파일럿 전 2) super_admin · 완료 세션: 실패 마커 초기화 + 재분석 */}
+                        {isSuper && done && p.last_session_id && (
+                          <button
+                            onClick={() => handleReanalyze(p)}
+                            disabled={!!reanalyzingSid}
+                            title={p.report_missing ? '실패 마커를 초기화하고 리포트 분석을 다시 돌립니다' : '리포트를 새 분석으로 교체합니다(교정본은 보호)'}
+                            className={`flex items-center rounded-lg border px-2.5 py-1.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                              p.report_missing
+                                ? 'border-rose-500/50 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25'
+                                : 'border-gray-600 bg-gray-700 text-gray-200 hover:bg-gray-600'
+                            }`}
+                          >
+                            {reanalyzingSid === p.last_session_id
+                              ? <Loader2 size={13} className="mr-1 animate-spin" />
+                              : <RefreshCw size={13} className="mr-1" />}
+                            {reanalyzingSid === p.last_session_id ? '분석 중…' : '재분석'}
                           </button>
                         )}
                       </div>

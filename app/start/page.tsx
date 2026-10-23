@@ -79,10 +79,15 @@ export default function StartPage() {
   useEffect(() => {
     const pid = localStorage.getItem('participant_id');
     if (!pid) return;
+    // (2026-10-23 파일럿 전 1) 리포트 화면의 [새 진단 시작] 만 ?new=1 을 달고 온다. 그 외 경로로 완주 리더가
+    //   여기 오면 새 세션을 만들지 않고 리포트 화면으로 돌려보낸다.
+    const wantsNew = new URLSearchParams(window.location.search).get('new') === '1';
     axios.get(`${API_BASE_URL}/diagnoses/active`, { params: { participant_id: pid } })
       .then((r) => {
         if (r.data?.has_active) {
           setActive({ session_id: r.data.session_id, coach_id: r.data.coach_id, coach_name: r.data.coach_name });
+        } else if (r.data?.completed?.session_id && !wantsNew) {
+          router.replace(`/report?session_id=${r.data.completed.session_id}`);
         }
       })
       .catch(() => {});

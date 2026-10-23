@@ -126,6 +126,12 @@ export const fetchParticipants = async (params: {
 };
 
 /** 4(b) 관리자 복원: 보관(abandoned) 세션 → in_progress. 현재 진행 중 세션은 abandoned 로 */
+// (2026-10-23 파일럿 전 2) 관리자 재분석 — super_admin 전용. 실패 마커 초기화 + analyze 동기 실행(수 분 걸릴 수 있음).
+export const reanalyzeSession = async (sessionId: string) => {
+  const { data } = await adminApi.post(`/admin/sessions/${sessionId}/reanalyze`);
+  return data as { reset: { prev_status: string | null; prev_fail_count: number }; analysis: { status?: string; report_id?: string; skipped?: string } };
+};
+
 export const restoreSession = async (sessionId: string) => {
   const { data } = await adminApi.post(`/admin/sessions/${sessionId}/restore`);
   return data as { restored: boolean; already_in_progress: boolean; abandoned_others: number; coach_name: string };

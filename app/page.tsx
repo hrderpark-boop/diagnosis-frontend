@@ -88,6 +88,17 @@ export default function LoginPage() {
       localStorage.setItem('participant_id', participant_id);
       localStorage.setItem('participant_name', name ?? formData.name);
 
+      // (2026-10-23 파일럿 전 1) 완주한 리더의 재로그인: 재개할 세션이 없고 completed 세션이 있으면
+      //   새 진단을 만들지 않고 리포트 화면으로 보낸다(리포트 미생성이면 같은 화면이 안내를 보여 준다).
+      //   "새 진단 시작" 은 리포트 화면 안의 버튼으로만.
+      try {
+        const act = await axios.get(`${API_BASE_URL}/diagnoses/active`, { params: { participant_id } });
+        const done = act.data?.has_active ? null : act.data?.completed;
+        if (done?.session_id) {
+          router.push(`/report?session_id=${done.session_id}`);
+          return;
+        }
+      } catch { /* 조회 실패면 기존 흐름(진단 소개)으로 */ }
       router.push('/intro'); // (2026-10 리디자인) 로그인 뒤 진단 소개(02)를 거쳐 코치 선택으로
     } catch (error) {
       alert("접속에 실패했습니다. 입력 정보를 확인해주세요.");

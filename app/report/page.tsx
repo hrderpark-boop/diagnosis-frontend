@@ -816,6 +816,12 @@ function ReportContent() {
               운영자가 확인 후 안내드립니다.{failedFinal.errorId ? ` 문의 번호 ${failedFinal.errorId}` : ''}
             </p>
           )}
+          {/* (2026-10-23 파일럿 전 1) 재로그인한 완주 리더는 여기로 온다. 실패 확정·재시도 소진이면 새 진단 길을 연다. */}
+          {(failedFinal || (canRetry && retryCount >= _MAX_RETRY)) && (
+            <button type="button" onClick={() => router.push('/start?new=1')} className="fm-btn secondary sm mt-3">
+              새 진단을 시작하시겠어요?
+            </button>
+          )}
           {canRetry && !failedFinal && (
             <button
               type="button"
@@ -1380,11 +1386,16 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
         </div>
       </div>
 
-      {/* 홈으로 돌아가기 버튼 - 인쇄물·PDF 캡처에서 완전 제외 */}
-      <div data-html2canvas-ignore="true" className="print:hidden flex justify-center mt-16 relative z-20 pb-16">
+      {/* 홈으로 돌아가기 · 새 진단 시작 - 인쇄물·PDF 캡처에서 완전 제외 */}
+      {/* (2026-10-23 파일럿 전 1) 완주 리더는 재로그인 시 이 화면으로 오므로, 새 진단은 여기 버튼으로만 시작한다(/start?new=1). */}
+      <div data-html2canvas-ignore="true" className="print:hidden flex flex-wrap justify-center gap-3 mt-16 relative z-20 pb-16">
         <button type="button" onClick={() => router.push('/')}
           className="fm-btn">
           홈으로 돌아가기
+        </button>
+        <button type="button" onClick={() => router.push('/start?new=1')}
+          className="fm-btn secondary">
+          새 진단을 시작하시겠어요?
         </button>
       </div>
     </main>
