@@ -140,7 +140,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     <div className="fa-root fa-app">
       <aside className="fa-nav">
         <Link href={`${baseForRole(profile?.role)}/dashboard`} className="fa-wm" style={{ padding: 0 }}>
-          <span className="f">Find</span><span className="m">Me</span>
+          <span className="f">Find</span><span className="m fm-me-wave">Me</span>
         </Link>
         <div className="org">{scopeLabel}</div>
         {menu.map((g) => (

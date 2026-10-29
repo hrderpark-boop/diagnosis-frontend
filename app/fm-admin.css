@@ -35,9 +35,10 @@
 .fa-num { font-family: var(--fm-font-wordmark); font-variant-numeric: tabular-nums; }
 
 /* 워드마크 */
-.fa-wm { display: inline-flex; align-items: baseline; gap: .2em; font-family: var(--fm-font-wordmark); font-size: 22px; line-height: 1; letter-spacing: -.04em; color: var(--fa-ink); }
+/* 참가자(진단) 화면 워드마크와 같은 색: Find 는 검정, Me 는 fm-me-wave(밝은 파랑 → 남색 그라데이션, fm-light.css) */
+.fa-wm { display: inline-flex; align-items: baseline; gap: .22em; font-family: var(--fm-font-wordmark); font-size: 22px; line-height: 1; letter-spacing: -.04em; color: var(--fm-ink); }
 .fa-wm .f { font-weight: 300; }
-.fa-wm .m { font-family: var(--fm-font-me); font-weight: 700; color: var(--fa-navy); }
+.fa-wm .m { font-family: var(--fm-font-me); font-weight: 700; letter-spacing: -.03em; color: var(--fa-navy); }
 
 /* ---------- 버튼 · 입력 ---------- */
 .fa-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: var(--fa-r-sm); border: 1px solid var(--fa-line); background: #fff; color: var(--fa-ink); font-weight: 600; font-size: 13.5px; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
@@ -66,14 +67,19 @@
 /* ---------- 로그인: 흰 바탕 + 모서리 곡면(교재 표지 구성) ---------- */
 .fa-login { position: relative; min-height: 100dvh; background: #fff; overflow: hidden; }
 .fa-login .waves { position: absolute; inset: 0; width: 100%; height: 100%; }
-.fa-login-in { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; min-height: 100dvh; padding: 56px 48px 24vh; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 400px); gap: 64px; align-items: center; }
+.fa-login-in { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; min-height: 100dvh; padding: 56px 48px 24vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 470px); gap: 64px; align-items: center; }
 .fa-login .title .fa-wm { font-size: 112px; }
 .fa-login .title h2 { margin: 14px 0 0; font-size: 52px; line-height: 1.15; letter-spacing: -.035em; font-weight: 800; color: var(--fa-navy); }
 .fa-login .title p { margin: 18px 0 0; color: var(--fa-gray); font-size: 17px; }
-.fa-login .box { background: #fff; border-radius: 16px; padding: 36px 34px 32px; box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 20px 48px -12px rgba(28,43,74,.18); }
-.fa-login .box h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -.02em; font-weight: 700; }
-.fa-login .box .lead { margin: 0 0 26px; color: var(--fa-gray); font-size: 14px; }
-.fa-login .box .foot { margin-top: 18px; font-size: 12.5px; color: var(--fa-gray); text-align: center; }
+.fa-login .box { background: #fff; border-radius: 20px; padding: 48px 44px 40px; box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 24px 56px -14px rgba(28,43,74,.2); }
+.fa-login .box h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: -.025em; font-weight: 700; }
+.fa-login .box .lead { margin: 0 0 32px; color: var(--fa-gray); font-size: 16px; }
+.fa-login .box .fa-field { margin-bottom: 22px; }
+.fa-login .box .fa-field label { font-size: 15px; margin-bottom: 10px; }
+.fa-login .box .fa-input { height: 56px; font-size: 16px; padding: 0 16px; border-radius: 10px; }
+.fa-login .box .fa-btn.block { height: 60px; font-size: 17px; border-radius: 10px; margin-top: 6px; }
+.fa-login .box .fa-error { font-size: 14.5px; }
+.fa-login .box .foot { margin-top: 22px; font-size: 14px; color: var(--fa-gray); text-align: center; }
 .fa-login-copy { position: absolute; z-index: 1; left: 48px; bottom: 28px; font-size: 12px; color: var(--fa-gray); }
 
 /* ---------- 앱 셸: 글자만 있는 좁은 내비 ---------- */
@@ -195,7 +201,8 @@
   .fa-login-in { grid-template-columns: 1fr; gap: 32px; padding: 72px 16px 160px; align-items: start; }
   .fa-login .title .fa-wm { font-size: 64px; }
   .fa-login .title h2 { font-size: 32px; }
-  .fa-login .box { padding: 28px 22px; }
+  .fa-login .box { padding: 32px 22px 28px; }
+  .fa-login .box h1 { font-size: 26px; }
   .fa-login-copy { left: 16px; }
   .fa-filters .fa-input { min-width: 0; flex: 1 1 100%; }
 }

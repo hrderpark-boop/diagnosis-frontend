@@ -126,7 +126,7 @@ export default function AdminLoginShell({ variant }: { variant: Variant }) {
       <Waves />
       <div className="fa-login-in">
         <div className="title">
-          <div className="fa-wm"><span className="f">Find</span><span className="m">Me</span></div>
+          <div className="fa-wm"><span className="f">Find</span><span className="m fm-me-wave">Me</span></div>
           <h2>{copy.title}</h2>
           <p>{copy.desc}</p>
         </div>
