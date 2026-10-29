@@ -2,13 +2,15 @@
 
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Check, Copy, Download, FileSpreadsheet, Loader2, LogIn, Upload } from 'lucide-react';
+import { Check, Copy, Download, FileSpreadsheet, Loader2, LogIn, Mail, Upload } from 'lucide-react';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import {
   fetchCompanies, createCompany, importRoster, downloadRosterTemplate, downloadRosterExcel,
   downloadOrgCodesExcel, fetchOrgUnits, createAdminUser, fetchAdminUsers, fetchPeriod, savePeriod,
-  startActing, IssuedAdmin, OrgTree, RosterResult, DiagnosisPeriod,
+  startActing, IssuedAdmin, OrgTree, RosterResult, DiagnosisPeriod, fetchMe, fetchParticipants,
 } from '@/lib/adminApi';
+import { buildInviteMail, InviteMail } from '@/lib/inviteMail';
+import InviteMailModal from '../../../components/admin/InviteMailModal';
 import './onboarding.css';
 
 /**
@@ -61,6 +63,8 @@ function OnboardingInner() {
   // 펼친 단계(완료된 단계도 '수정'으로 다시 펼칠 수 있다)
   const [openStep, setOpenStep] = useState<number | null>(null);
   const [delivered, setDelivered] = useState(false);
+  // 이번 화면에서 발급한 HR 임시 비밀번호(이메일 → 비밀번호). 안내 메일에 넣는다. 서버에는 저장돼 있지 않다
+  const [issuedPw, setIssuedPw] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -161,7 +165,10 @@ function OnboardingInner() {
 
           <StepCard i={3} title="HR 계정 발급" done={done[3]} open={current === 3} disabled={!company} onOpen={() => setOpenStep(3)}
             summary={`HR 계정 ${admins.length}개 · ${admins.map((a) => a.email).join(', ')}`} reopenLabel="추가 발급">
-            {company && <HrStep companyId={company.id} admins={admins} onIssued={load} />}
+            {company && <HrStep companyId={company.id} admins={admins} onIssued={(res) => {
+              if (res.generated_password) setIssuedPw((m) => ({ ...m, [res.email]: res.generated_password as string }));
+              load();
+            }} />}
           </StepCard>
 
           <StepCard i={4} title="진단 기간" done={done[4]} open={current === 4} disabled={!company} onOpen={() => setOpenStep(4)}
@@ -175,6 +182,9 @@ function OnboardingInner() {
               <DeliverStep
                 company={company}
                 period={period}
+                tree={tree}
+                admins={admins}
+                issuedPw={issuedPw}
                 hasPeople={registered > 0}
                 hasUnits={unitCount > 0}
                 onDelivered={() => setDelivered(true)}
@@ -407,7 +417,7 @@ function OrgStep({ tree, onFix }: { tree: OrgTree | null; onFix: () => void }) {
   );
 }
 
-function HrStep({ companyId, admins, onIssued }: { companyId: string; admins: AdminRow[]; onIssued: () => void }) {
+function HrStep({ companyId, admins, onIssued }: { companyId: string; admins: AdminRow[]; onIssued: (res: IssuedAdmin) => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -425,7 +435,7 @@ function HrStep({ companyId, admins, onIssued }: { companyId: string; admins: Ad
       setIssued(res);
       setName('');
       setEmail('');
-      onIssued();
+      onIssued(res);
     } catch (err: unknown) {
       setError(await errDetail(err, '계정을 발급하지 못했습니다.'));
     } finally {
@@ -506,24 +516,42 @@ function PeriodStep({ companyId, period, onSaved }: { companyId: string; period:
 }
 
 function DeliverStep({
-  company, period, hasPeople, hasUnits, onDelivered, onEnterHr,
+  company, period, tree, admins, issuedPw, hasPeople, hasUnits, onDelivered, onEnterHr,
 }: {
-  company: CompanyRow; period: DiagnosisPeriod | null; hasPeople: boolean; hasUnits: boolean;
+  company: CompanyRow; period: DiagnosisPeriod | null; tree: OrgTree | null; admins: AdminRow[];
+  issuedPw: Record<string, string>; hasPeople: boolean; hasUnits: boolean;
   onDelivered: () => void; onEnterHr: () => void;
 }) {
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState<'' | 'roster' | 'org'>('');
-  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState<'' | 'roster' | 'org' | 'mail'>('');
+  const [mail, setMail] = useState<InviteMail | null>(null);
+  const [mailPersonal, setMailPersonal] = useState(false);
 
-  const guide = [
-    `[${company.name}] 리더십 진단 안내`,
-    `접속 주소: ${PARTICIPANT_URL}`,
-    '로그인 화면에 이름·이메일을 넣고, 그룹 코드 칸에 본인의 개인 참여 코드를 입력하세요.',
-    '개인 참여 코드는 첨부한 엑셀에 있습니다. 이메일이 명단과 같아야 들어갈 수 있습니다.',
-    period?.diagnosis_start && period?.diagnosis_end
-      ? `진단 기간: ${fmtDate(period.diagnosis_start)} ~ ${fmtDate(period.diagnosis_end)}` : '',
-    `HR 관리자 화면: ${HR_LOGIN_URL}`,
-  ].filter(Boolean).join('\n');
+  // 공식 안내 메일: 이번 화면에서 발급한 임시 비밀번호가 있으면 넣고, 없으면 '별도 전달'
+  const openMail = async () => {
+    setBusy('mail');
+    try {
+      const [me, ppl] = await Promise.all([
+        fetchMe().catch(() => null),
+        fetchParticipants({ company_id: company.id, page_size: 200 }).catch(() => null),
+      ]);
+      const personal = !!ppl?.items?.some((p: { access_code?: string | null }) => !!p.access_code);
+      setMailPersonal(personal);
+      setMail(buildInviteMail({
+        companyName: company.name,
+        participantUrl: PARTICIPANT_URL,
+        hrLoginUrl: HR_LOGIN_URL,
+        period: period ? { start: period.diagnosis_start, end: period.diagnosis_end } : null,
+        hrAccounts: admins.map((a) => ({ name: a.name, email: a.email, tempPassword: issuedPw[a.email] || null })),
+        tree,
+        sender: me ? { name: me.name, email: me.email } : null,
+        hasPersonalCodes: personal,
+      }));
+      onDelivered();
+    } finally {
+      setBusy('');
+    }
+  };
 
   const run = async (kind: 'roster' | 'org') => {
     setError('');
@@ -537,12 +565,6 @@ function DeliverStep({
     } finally {
       setBusy('');
     }
-  };
-
-  const copy = async () => {
-    await navigator.clipboard.writeText(guide);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
   };
 
   return (
@@ -560,9 +582,16 @@ function DeliverStep({
       </div>
       {error && <div className="fa-error" style={{ marginBottom: 12 }}>{error}</div>}
       <div className="fa-ob-guide">
-        <pre>{guide}</pre>
-        <button type="button" className="fa-btn sm" onClick={copy}>{copied ? <Check /> : <Copy />} 안내문 복사</button>
+        <p style={{ margin: 0 }}>
+          HR 담당자에게 보낼 공식 안내 메일(진단 안내, 접속 주소, HR 계정·임시 비밀번호, 본부별 참여 코드 표, 첨부 안내)을 만듭니다.
+          {Object.keys(issuedPw).length === 0 && ' 이 화면에서 발급한 계정이 없으면 임시 비밀번호는 \'별도 전달\'로 표시됩니다.'}
+        </p>
+        <button type="button" className="fa-btn sm primary" onClick={openMail} disabled={busy !== ''}>
+          {busy === 'mail' ? <Loader2 className="animate-spin" /> : <Mail />} 참여 안내 메일
+        </button>
       </div>
+      <InviteMailModal open={!!mail} onClose={() => setMail(null)} mail={mail} companyId={company.id}
+        hasPersonalCodes={mailPersonal} hasOrgCodes={hasUnits} />
       <button type="button" className="fa-btn primary" style={{ marginTop: 16 }} onClick={onEnterHr}>
         <LogIn /> HR 화면 들어가서 확인
       </button>

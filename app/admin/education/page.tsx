@@ -20,7 +20,7 @@ import './education.css';
 // 한 반 권장 인원(권장 편성의 반 수 계산)
 const CLASS_SIZE = 20;
 
-interface CompanyOption { id: string; name: string }
+interface CompanyOption { id: string; name: string; code?: string }
 
 const errText = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || fallback;
@@ -59,6 +59,25 @@ const heatStyle = (v: number | null): React.CSSProperties => {
   return { background: `rgba(28,43,74,${(0.06 + t * 0.94).toFixed(2)})`, color: t > 0.45 ? '#fff' : 'var(--fa-navy)' };
 };
 
+
+// (2026-10-29) 마스터: 고객사 하나를 골라 그 회사만 본다. 고른 회사는 주소(?company=)와 브라우저에 기억(다른 마스터 화면과 공유)
+const MASTER_COMPANY_KEY = 'fm_master_company';
+const readMasterCompany = (): string => {
+  try {
+    const q = new URLSearchParams(window.location.search).get('company');
+    if (q !== null) return q;
+    return localStorage.getItem(MASTER_COMPANY_KEY) || '';
+  } catch { return ''; }
+};
+const rememberMasterCompany = (id: string) => {
+  try {
+    localStorage.setItem(MASTER_COMPANY_KEY, id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('company', id); else url.searchParams.delete('company');
+    window.history.replaceState(null, '', url.toString());
+  } catch { /* 저장 못 해도 화면은 동작 */ }
+};
+
 export default function EducationMapPage() {
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -81,10 +100,11 @@ export default function EducationMapPage() {
       if (!alive) return;
       setProfile(me);
       if (me.role === 'super_admin' && !me.acting) {
-        const list = ((await fetchCompanies()) as CompanyOption[]) || [];
+        const list = [...(((await fetchCompanies()) as CompanyOption[]) || [])].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
         if (!alive) return;
         setCompanies(list);
-        setCompanyId(list[0]?.id || '');
+        const saved = readMasterCompany();
+        setCompanyId(list.find((c) => c.id === saved)?.id || list[0]?.id || '');
       } else {
         setCompanyId(me.company_id || '');
       }
@@ -123,6 +143,7 @@ export default function EducationMapPage() {
   useEffect(() => { load(); }, [load]);
 
   const tracks = catalog?.tracks || [];
+  const chooseCompany = (id: string) => { setCompanyId(id); rememberMasterCompany(id); };
   const growthTracks = tracks.filter((t) => GROWTH_TRACKS.includes(t.track));
   const strengthTracks = tracks.filter((t) => !GROWTH_TRACKS.includes(t.track));
   const orderedTracks = [...growthTracks, ...strengthTracks];
@@ -181,14 +202,21 @@ export default function EducationMapPage() {
   return (
     <AdminLayout>
       <AdminPageHead
-        eyebrow={isSuper ? '마스터' : (profile?.company_name || undefined)}
+        eyebrow={isSuper ? `마스터 · ${companyName || '고객사 선택'}` : (profile?.company_name || undefined)}
         title="교육 체계도"
         desc="진단 결과로 추천된 과정을 역량 × 트랙으로 모았습니다. 숫자는 그 과정을 추천받은 인원입니다."
-        actions={
+        actions={<>
+          {isSuper && (
+            <select className="fa-select" style={{ minWidth: 220, fontWeight: 600 }} value={companyId}
+              onChange={(e) => chooseCompany(e.target.value)} aria-label="고객사 선택">
+              {companies.length === 0 && <option value="">고객사 없음</option>}
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>)}
+            </select>
+          )}
           <button type="button" className="fa-btn primary" onClick={exportPlan} disabled={!summary || summary.courses.length === 0}>
             <Download /> 편성안 CSV 내려받기
           </button>
-        }
+        </>}
         kpis={summary ? [
           { label: '대상자', value: participants, unit: '명', detail: orgUnitId ? '선택한 조직' : (companyName || '') },
           {
@@ -200,18 +228,10 @@ export default function EducationMapPage() {
         ] : undefined}
       />
 
-      {(isSuper || (tree && tree.divisions.length > 0)) && (
+      {tree && tree.divisions.length > 0 && (
         <div className="fa-edu-scope">
-          {isSuper && (
-            <>
-              <span className="lb">고객사</span>
-              <select className="fa-select" value={companyId} onChange={(e) => setCompanyId(e.target.value)} aria-label="고객사 선택">
-                {companies.length === 0 && <option value="">고객사 없음</option>}
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </>
-          )}
-          {tree && tree.divisions.length > 0 && (
+          {(
+
             <>
               <span className="lb">조직</span>
               <select className="fa-select" value={orgUnitId} onChange={(e) => setOrgUnitId(e.target.value)} aria-label="조직 선택">

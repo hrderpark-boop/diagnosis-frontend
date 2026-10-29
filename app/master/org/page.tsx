@@ -7,7 +7,10 @@ import AdminLayout, { AdminPageHead } from '@/components/layouts/AdminLayout';
 import {
   fetchCompanies, fetchOrgUnits, updateCompany, createOrgUnit, bulkCreateOrgUnits,
   updateOrgUnit, deleteOrgUnit, downloadOrgCodesExcel, OrgTree, OrgDivision, OrgOffice, OrgTeam,
+  fetchAdminUsers, fetchPeriod, fetchMe, fetchParticipants,
 } from '@/lib/adminApi';
+import { buildInviteMail, InviteMail } from '@/lib/inviteMail';
+import InviteMailModal from '@/components/admin/InviteMailModal';
 import './org.css';
 
 /**
@@ -22,6 +25,7 @@ import './org.css';
 interface CompanyRow { id: string; name: string; code: string; org_prefix: string | null }
 
 const LOGIN_URL = 'https://fm.connectn.co.kr';
+const HR_LOGIN_URL = 'https://fm.connectn.co.kr/admin/login';
 
 /** axios 오류에서 서버 안내문(detail)을 꺼낸다 */
 const errDetail = (e: unknown, fallback: string) => {
@@ -318,29 +322,38 @@ function OrgPage() {
     }
   };
 
-  const copyGuide = () => {
+  // 참여 안내 메일: HR 계정(비밀번호는 저장돼 있지 않아 '별도 전달')·진단 기간·발신자·개인 코드 여부를 모아 공식 메일로
+  const [mail, setMail] = useState<InviteMail | null>(null);
+  const [mailPersonal, setMailPersonal] = useState(false);
+  const [mailBusy, setMailBusy] = useState(false);
+  const openMail = async () => {
     if (!tree) return;
-    const lines: string[] = [
-      `[${tree.company.name}] 리더십 진단 참여 안내`,
-      '',
-      `접속 주소: ${LOGIN_URL}`,
-      '로그인 화면의 그룹 코드 칸에 소속 팀의 코드를 입력해 주세요.',
-      '',
-    ];
-    // 본부 › 실 › 팀 순서. 팀이 없는 실·본부는 그 단위 코드 자체를 안내한다.
-    for (const d of divisions.filter((x) => x.is_active)) {
-      const teams = d.teams.filter((t) => t.is_active);
-      const offices = (d.offices ?? []).filter((o) => o.is_active);
-      lines.push(`${d.name}`);
-      teams.forEach((t) => lines.push(`  ${t.name}: ${t.code}`));
-      for (const o of offices) {
-        const oTeams = o.teams.filter((t) => t.is_active);
-        if (oTeams.length) oTeams.forEach((t) => lines.push(`  ${d.name} › ${o.name} › ${t.name}: ${t.code}`));
-        else lines.push(`  ${d.name} › ${o.name} 전체: ${o.code}`);
-      }
-      if (!teams.length && !offices.length) lines.push(`  ${d.name} 전체: ${d.code}`);
+    setMailBusy(true);
+    try {
+      const [admins, period, me, ppl] = await Promise.all([
+        fetchAdminUsers(companyId).catch(() => []),
+        fetchPeriod(companyId).catch(() => null),
+        fetchMe().catch(() => null),
+        fetchParticipants({ company_id: companyId, page_size: 200 }).catch(() => null),
+      ]);
+      const hrAccounts = (Array.isArray(admins) ? admins : [])
+        .filter((a: { role?: string; company_id?: string | null }) => a.role === 'client_admin' && a.company_id === companyId)
+        .map((a: { name?: string | null; email: string }) => ({ name: a.name ?? null, email: a.email }));
+      const personal = !!ppl?.items?.some((p: { access_code?: string | null }) => !!p.access_code);
+      setMailPersonal(personal);
+      setMail(buildInviteMail({
+        companyName: tree.company.name,
+        participantUrl: LOGIN_URL,
+        hrLoginUrl: HR_LOGIN_URL,
+        period: period ? { start: period.diagnosis_start, end: period.diagnosis_end } : null,
+        hrAccounts,
+        tree,
+        sender: me ? { name: me.name, email: me.email } : null,
+        hasPersonalCodes: personal,
+      }));
+    } finally {
+      setMailBusy(false);
     }
-    copy(lines.join('\n'), '참여 안내문을 복사했습니다.');
   };
 
 
@@ -381,7 +394,9 @@ function OrgPage() {
               <>
                 <button type="button" className="fa-btn" onClick={() => openModal({ kind: 'bulk' })}>엑셀로 일괄 등록</button>
                 <button type="button" className="fa-btn" onClick={() => openModal({ kind: 'division' })}>+ 본부 추가</button>
-                <button type="button" className="fa-btn" onClick={copyGuide} disabled={!divisions.length}>참여 안내문 복사</button>
+                <button type="button" className="fa-btn" onClick={openMail} disabled={!divisions.length || mailBusy}>
+                  {mailBusy ? <Loader2 className="animate-spin" /> : null} 참여 안내 메일
+                </button>
                 <button type="button" className="fa-btn primary" onClick={exportExcel} disabled={!divisions.length || exporting}
                   title={divisions.length ? '고객사 전달용 참여 코드 엑셀' : '참여 코드를 먼저 발급하세요'}>
                   {exporting ? '내려받는 중…' : '코드 엑셀 다운로드'}
@@ -624,6 +639,8 @@ function OrgPage() {
           {modalError && <div className="fa-error" role="alert" style={{ marginTop: 12 }}>{modalError}</div>}
         </Modal>
       )}
+      <InviteMailModal open={!!mail} onClose={() => setMail(null)} mail={mail} companyId={companyId}
+        hasPersonalCodes={mailPersonal} hasOrgCodes={divisions.length > 0} />
     </AdminLayout>
   );
 }

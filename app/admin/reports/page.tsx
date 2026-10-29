@@ -628,7 +628,25 @@ const CompetencyAccordion = ({
 // (2026-10-29) 조직별 비교 — 전체 대비 본부·실·팀 평균
 //   /admin/companies/{id}/org-stats 의 실제 집계값만 쓴다. 측정이 없으면 '–'.
 // ----------------------------------------------------------------------
-type CompanyOption = { id: string; name: string };
+type CompanyOption = { id: string; name: string; code?: string };
+
+// (2026-10-29) 마스터: 고객사 하나를 골라 그 회사 리포트만 본다. 고른 회사는 주소(?company=)와 브라우저에 기억
+const MASTER_COMPANY_KEY = 'fm_master_company';
+const readMasterCompany = (): string => {
+  try {
+    const q = new URLSearchParams(window.location.search).get('company');
+    if (q !== null) return q;
+    return localStorage.getItem(MASTER_COMPANY_KEY) || '';
+  } catch { return ''; }
+};
+const rememberMasterCompany = (id: string) => {
+  try {
+    localStorage.setItem(MASTER_COMPANY_KEY, id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('company', id); else url.searchParams.delete('company');
+    window.history.replaceState(null, '', url.toString());
+  } catch { /* 저장 못 해도 화면은 동작 */ }
+};
 const LEVEL_TABS: { key: OrgLevel; label: string }[] = [
   { key: 'division', label: '본부' },
   { key: 'office', label: '실' },
@@ -645,38 +663,29 @@ const Diff = ({ v, base }: { v: number | null; base: number | null }) => {
   return <span className={`fa-rorg-diff ${d > 0 ? 'up' : 'down'}`}>{d > 0 ? '+' : ''}{d.toFixed(1)}</span>;
 };
 
-const OrgCompareSection = ({ isMaster }: { isMaster: boolean }) => {
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string | null>(null);
+const OrgCompareSection = ({ isMaster, masterCompanyId }: { isMaster: boolean; masterCompanyId?: string | null }) => {
+  const [ownCompanyId, setCompanyId] = useState<string | null>(null);
+  // 마스터는 페이지 위 '고객사 선택'을 따른다. HR 은 자사
+  const companyId = isMaster ? (masterCompanyId || null) : ownCompanyId;
   const [level, setLevel] = useState<OrgLevel>('division');
   // 회사가 정해졌는지(자사 조회·고객사 목록 응답 뒤 true)
   const [companyResolved, setCompanyResolved] = useState(false);
-  const [companyError, setCompanyError] = useState('');
   // 조회 결과는 '어느 회사·단계'에 대한 것인지 key 로 묶는다. key 가 지금 선택과 다르면 로딩 중.
   const [result, setResult] = useState<{ key: string; data: OrgStats | null; error: string } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // 회사 정하기: HR 은 자사, 마스터는 고객사 선택
+  // 회사 정하기: HR 은 자사, 마스터는 페이지 위에서 고른 고객사
   useEffect(() => {
     let alive = true;
     if (isMaster) {
-      fetchCompanies()
-        .then((list: CompanyOption[]) => {
-          if (!alive) return;
-          setCompanies(list);
-          setCompanyId(list[0]?.id ?? null);
-          setCompanyResolved(true);
-        })
-        .catch((err: unknown) => {
-          if (alive) { setCompanyError(errorDetail(err) || '고객사 목록을 불러오지 못했습니다.'); setCompanyResolved(true); }
-        });
+      // 마스터는 페이지가 고른 고객사를 따르므로 여기서 정할 것이 없다(아래 resolved 계산)
     } else {
       fetchMe()
         .then((me) => { if (alive) { setCompanyId(me.company_id); setCompanyResolved(true); } })
         .catch(() => { if (alive) setCompanyResolved(true); });
     }
     return () => { alive = false; };
-  }, [isMaster]);
+  }, [isMaster, masterCompanyId]);
 
   const key = companyId ? `${companyId}:${level}` : null;
   useEffect(() => {
@@ -695,9 +704,10 @@ const OrgCompareSection = ({ isMaster }: { isMaster: boolean }) => {
     return () => { alive = false; };
   }, [companyId, level, key]);
 
-  const loading = !companyResolved || (key !== null && result?.key !== key);
+  const resolved = isMaster ? (masterCompanyId !== undefined && masterCompanyId !== null) : companyResolved;
+  const loading = !resolved || (key !== null && result?.key !== key);
   const data = result?.key === key ? result.data : null;
-  const error = companyError || (result?.key === key ? result.error : '');
+  const error = result?.key === key ? result.error : '';
 
   const comps = data?.competencies || [];
   const total = data?.total;
@@ -716,12 +726,6 @@ const OrgCompareSection = ({ isMaster }: { isMaster: boolean }) => {
           <p>회사 전체 평균과 본부·실·팀 평균을 나란히 봅니다. 숫자 옆은 전체 대비 차이입니다.</p>
         </div>
         <div className="fa-actions">
-          {isMaster && companies.length > 0 && (
-            <select className="fa-select" style={{ width: 'auto' }} aria-label="고객사"
-              value={companyId ?? ''} onChange={(e) => setCompanyId(e.target.value)}>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
           <div className="fa-rorg-tabs" role="tablist" aria-label="조직 단계">
             {LEVEL_TABS.map((t) => (
               <button key={t.key} type="button" role="tab" aria-selected={level === t.key}
@@ -839,27 +843,69 @@ const OrgCompareSection = ({ isMaster }: { isMaster: boolean }) => {
 const ReportsPage = () => {
   const pathname = usePathname();
   const isMaster = pathname?.startsWith(MASTER_BASE) ?? false;
-  const [stats, setStats] = useState<CompetencyStats | null>(null);
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  // 응답은 '어느 고객사'에 대한 것인지 key 로 묶는다. key 가 지금 선택과 다르면 로딩 중
+  const [statsResult, setStatsResult] = useState<{ key: string; stats: CompetencyStats | null; overview: Overview | null; error: string } | null>(null);
+  const [listError, setListError] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
 
+  // 마스터: 고객사 목록 + 고른 고객사(하나만). null = 아직 정하는 중
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [masterCompanyId, setMasterCompanyId] = useState<string | null>(null);
   useEffect(() => {
+    if (!isMaster) return;
     let alive = true;
-    Promise.all([fetchCompetencyStats(), fetchOverview()])
-      .then(([s, o]) => { if (alive) { setStats(s); setOverview(o); } })
-      .catch((err: unknown) => { if (alive) setError(errorDetail(err) || '통계를 불러오지 못했습니다.'); })
-      .finally(() => { if (alive) setLoading(false); });
+    fetchCompanies()
+      .then((list: CompanyOption[]) => {
+        if (!alive) return;
+        const sorted = [...(list || [])].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+        setCompanies(sorted);
+        const saved = readMasterCompany();
+        setMasterCompanyId(sorted.find((c) => c.id === saved)?.id ?? sorted[0]?.id ?? '');
+      })
+      .catch((err: unknown) => { if (alive) { setListError(errorDetail(err) || '고객사 목록을 불러오지 못했습니다.'); setMasterCompanyId(''); } });
     return () => { alive = false; };
-  }, []);
+  }, [isMaster]);
+  const masterCompany = companies.find((c) => c.id === masterCompanyId) || null;
+  const chooseCompany = (id: string) => {
+    setMasterCompanyId(id);
+    rememberMasterCompany(id);
+    setOpenKey(null);
+  };
+
+  // 통계: HR 은 자사(백엔드가 정함), 마스터는 고른 고객사 하나
+  const statsKey = isMaster ? masterCompanyId : 'self';
+  useEffect(() => {
+    if (statsKey === null) return;
+    let alive = true;
+    const cid = isMaster ? (statsKey || undefined) : undefined;
+    Promise.all([fetchCompetencyStats(cid), fetchOverview(cid)])
+      .then(([s, o]) => { if (alive) setStatsResult({ key: statsKey, stats: s, overview: o, error: '' }); })
+      .catch((err: unknown) => {
+        if (alive) setStatsResult({ key: statsKey, stats: null, overview: null, error: errorDetail(err) || '통계를 불러오지 못했습니다.' });
+      });
+    return () => { alive = false; };
+  }, [isMaster, statsKey]);
+  const current = statsKey !== null && statsResult?.key === statsKey ? statsResult : null;
+  const loading = !current && !(isMaster && masterCompanyId === '');
+  const stats = current?.stats ?? null;
+  const overview = current?.overview ?? null;
+  const error = listError || current?.error || '';
 
   const title = isMaster ? '전체 리포트' : '종합 리포트';
+  const eyebrow = isMaster ? `마스터 · ${masterCompany?.name || '고객사 선택'}` : '리더십 역량 종합 분석';
+  // 마스터: 고객사 선택은 머리 면의 첫 컨트롤
+  const companySelect = isMaster ? (
+    <select className="fa-select" style={{ minWidth: 220, fontWeight: 600 }} aria-label="고객사 선택"
+      value={masterCompanyId ?? ''} onChange={(e) => chooseCompany(e.target.value)} disabled={companies.length === 0}>
+      {companies.length === 0 && <option value="">고객사 없음</option>}
+      {companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>)}
+    </select>
+  ) : null;
 
   if (loading) {
     return (
       <AdminLayout>
-        <AdminPageHead eyebrow="리더십 역량 종합 분석" title={title} />
+        <AdminPageHead eyebrow={eyebrow} title={title} actions={companySelect} />
         <div className="fa-empty flex items-center justify-center gap-2">
           <Loader2 className="h-5 w-5 animate-spin" /> 조직 통계를 집계하는 중입니다…
         </div>
@@ -881,19 +927,20 @@ const ReportsPage = () => {
 
   // 조직 평균 대비 편차가 큰 역량 (서술형 요약 보강용)
   const spread = best && worst ? Number((best.average - worst.average).toFixed(2)) : 0;
-  const scopeLabel = overview?.scope === 'all' ? '전체 고객사' : '자사';
+  const scopeLabel = isMaster ? (masterCompany?.name || '선택한 고객사') : overview?.scope === 'all' ? '전체 고객사' : '자사';
 
   return (
     <AdminLayout>
       <AdminPageHead
-        eyebrow="리더십 역량 종합 분석"
+        eyebrow={eyebrow}
         title={title}
         desc={`대상: ${scopeLabel} 리더 ${participantsCount}명${overview?.total_participants ? ` · 등록 대상자 ${overview.total_participants}명` : ''}`}
-        actions={
+        actions={<>
+          {companySelect}
           <button type="button" className="fa-btn primary" onClick={() => downloadExcel().catch(() => alert('다운로드에 실패했습니다.'))}>
             <Download /> 데이터 내려받기
           </button>
-        }
+        </>}
         kpis={participantsCount > 0 ? [
           { label: '분석 리더', value: participantsCount, unit: '명', detail: `${scopeLabel} 리포트 기준` },
           { label: '종합 평균', value: totalAverage, unit: '/ 5.0', detail: best && worst ? `최고·최저 격차 ${spread}점` : undefined },
@@ -905,7 +952,7 @@ const ReportsPage = () => {
       {error && <div className="fa-error fa-section">{error}</div>}
 
       {/* (2026-10-29) 회사 전체와 별도로 본부·실·팀별 결과 비교. 전사 리포트 유무와 상관없이 따로 집계 */}
-      <OrgCompareSection isMaster={isMaster} />
+      <OrgCompareSection isMaster={isMaster} masterCompanyId={masterCompanyId} />
 
       {participantsCount === 0 ? (
         <div className="fa-card pad fa-empty">

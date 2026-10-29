@@ -25,7 +25,7 @@ const TRACK_LABEL: Record<string, string> = { A: '기본기', B: '실습', C: '�
 const levelText = (from: number | null, to: number | string | null) =>
   typeof to === 'number' ? `Lv.${from}→${to}` : (to ? String(to) : '');
 
-interface CompanyOption { id: string; name: string }
+interface CompanyOption { id: string; name: string; code?: string }
 type StatusFilter = '' | 'completed' | 'not_completed';
 
 const errText = (err: unknown, fallback: string) =>
@@ -46,6 +46,25 @@ const downloadCsv = (name: string, rows: (string | number)[][]) => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+
+// (2026-10-29) 마스터: 고객사 하나를 골라 그 회사만 본다. 고른 회사는 주소(?company=)와 브라우저에 기억(다른 마스터 화면과 공유)
+const MASTER_COMPANY_KEY = 'fm_master_company';
+const readMasterCompany = (): string => {
+  try {
+    const q = new URLSearchParams(window.location.search).get('company');
+    if (q !== null) return q;
+    return localStorage.getItem(MASTER_COMPANY_KEY) || '';
+  } catch { return ''; }
+};
+const rememberMasterCompany = (id: string) => {
+  try {
+    localStorage.setItem(MASTER_COMPANY_KEY, id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('company', id); else url.searchParams.delete('company');
+    window.history.replaceState(null, '', url.toString());
+  } catch { /* 저장 못 해도 화면은 동작 */ }
 };
 
 export default function PeopleRecommendationPage() {
@@ -82,10 +101,11 @@ export default function PeopleRecommendationPage() {
       if (!alive) return;
       setProfile(me);
       if (me.role === 'super_admin' && !me.acting) {
-        const list = ((await fetchCompanies()) as CompanyOption[]) || [];
+        const list = [...(((await fetchCompanies()) as CompanyOption[]) || [])].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
         if (!alive) return;
         setCompanies(list);
-        setCompanyId(list[0]?.id || '');
+        const saved = readMasterCompany();
+        setCompanyId(list.find((c) => c.id === saved)?.id || list[0]?.id || '');
       } else {
         setCompanyId(me.company_id || '');
       }
@@ -199,18 +219,26 @@ export default function PeopleRecommendationPage() {
 
   const items = data?.items || [];
   const totalPages = data?.total_pages ?? 1;
+  const chooseCompany = (id: string) => { setCompanyId(id); rememberMasterCompany(id); setPage(1); };
 
   return (
     <AdminLayout>
       <AdminPageHead
-        eyebrow={isSuper ? '마스터' : (profile?.company_name || undefined)}
+        eyebrow={isSuper ? `마스터 · ${companyName || '고객사 선택'}` : (profile?.company_name || undefined)}
         title="개인별 추천 과정"
         desc={data ? `과정 안내서와 개인별 추천 명단입니다. 대상 ${data.total}명` : '과정 안내서와 개인별 추천 명단입니다.'}
-        actions={
+        actions={<>
+          {isSuper && (
+            <select className="fa-select" style={{ minWidth: 220, fontWeight: 600 }} value={companyId}
+              onChange={(e) => chooseCompany(e.target.value)} aria-label="고객사 선택">
+              {companies.length === 0 && <option value="">고객사 없음</option>}
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>)}
+            </select>
+          )}
           <button type="button" className="fa-btn primary" onClick={exportCsv} disabled={exporting || !data || data.total === 0}>
             {exporting ? <Loader2 className="animate-spin" /> : <Download />} 명단 CSV
           </button>
-        }
+        </>}
       />
 
       {error && <div className="fa-error" style={{ marginBottom: 20 }}>{error}</div>}
@@ -304,12 +332,6 @@ export default function PeopleRecommendationPage() {
           <div><h3>개인별 추천 과정</h3><p>한 사람당 강화 역량 · 개선 필요 역량 · 추천 과정을 한 줄로 봅니다.</p></div>
         </div>
         <div className="fa-filters">
-          {isSuper && (
-            <select className="fa-select" value={companyId} onChange={(e) => { setCompanyId(e.target.value); setPage(1); }} aria-label="고객사 선택">
-              {companies.length === 0 && <option value="">고객사 없음</option>}
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
           <input className="fa-input" placeholder="이름·이메일 검색" value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)} aria-label="이름·이메일 검색" />
           {tree && tree.divisions.length > 0 && (

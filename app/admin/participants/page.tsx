@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import TranscriptModal from '../../../components/admin/TranscriptModal';
@@ -13,7 +13,7 @@ import RosterImport from '../../../components/admin/RosterImport';
 import {
   fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, reanalyzeSession, Paginated,
   getCookie, ADMIN_ROLE_KEY, fetchMe, fetchOrgUnits, OrgTree, ParticipantStatusFilter, ProgressStatus,
-  downloadOrgCodesExcel, downloadRosterExcel,
+  downloadOrgCodesExcel, downloadRosterExcel, fetchCompanies,
 } from '@/lib/adminApi';
 import { adminPath, MASTER_BASE } from '@/lib/adminRoutes';
 
@@ -62,6 +62,25 @@ const STATUS_TABS: { key: ParticipantStatusFilter | null; label: string }[] = [
 ];
 
 type SortKey = 'recent' | 'org' | 'name';
+
+// (2026-10-29) 마스터: 고객사를 먼저 고르고 그 안에서 본부 → 실 → 팀으로 본다. 고른 고객사는 주소(?company=)와 브라우저에 기억
+const MASTER_COMPANY_KEY = 'fm_master_company';
+interface CompanyOption { id: string; name: string; code: string }
+const readMasterCompany = (): string => {
+  try {
+    const q = new URLSearchParams(window.location.search).get('company');
+    if (q !== null) return q;
+    return localStorage.getItem(MASTER_COMPANY_KEY) || '';
+  } catch { return ''; }
+};
+const rememberMasterCompany = (id: string) => {
+  try {
+    localStorage.setItem(MASTER_COMPANY_KEY, id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('company', id); else url.searchParams.delete('company');
+    window.history.replaceState(null, '', url.toString());
+  } catch { /* 저장 못 해도 화면은 동작 */ }
+};
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'recent', label: '최근 참여순' },
   { key: 'org', label: '조직순' },
@@ -105,25 +124,63 @@ const ParticipantsPage = () => {
 
   // 마스터 주소(/master)면 전 고객사 화면. /admin 은 HR 이거나, 고객사로 들어간 마스터(그 고객사 화면)
   const [onMaster, setOnMaster] = useState(false);
-  useEffect(() => { setOnMaster(window.location.pathname.startsWith(MASTER_BASE)); }, []);
+  const [baseKnown, setBaseKnown] = useState(false);
+  useEffect(() => { setOnMaster(window.location.pathname.startsWith(MASTER_BASE)); setBaseKnown(true); }, []);
 
-  // 지금 보고 있는 고객사(HR 자사 또는 마스터가 들어간 고객사). 명단 업로드·개인 코드 엑셀의 대상
+  // 마스터: 고객사 목록과 고른 고객사('' = 전체 고객사). 준비되기 전(null)에는 목록을 부르지 않는다
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [masterCompanyId, setMasterCompanyId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!onMaster) return;
+    let alive = true;
+    fetchCompanies()
+      .then((list: CompanyOption[]) => {
+        if (!alive) return;
+        const sorted = [...(list || [])].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+        setCompanies(sorted);
+        const saved = readMasterCompany();
+        setMasterCompanyId(sorted.some((c) => c.id === saved) ? saved : '');
+      })
+      .catch(() => { if (alive) setMasterCompanyId(''); });
+    return () => { alive = false; };
+  }, [onMaster]);
+  const masterCompany = useMemo(() => companies.find((c) => c.id === masterCompanyId) || null, [companies, masterCompanyId]);
+  const chooseMasterCompany = (id: string) => {
+    setMasterCompanyId(id);
+    rememberMasterCompany(id);
+    setDivId(''); setOfficeId(''); setTeamId(''); setPage(1);
+  };
+
+  // 지금 보고 있는 고객사(HR 자사 · 마스터가 들어간 고객사 · 마스터가 고른 고객사). 명단 업로드·개인 코드 엑셀의 대상
   const [company, setCompany] = useState<{ id: string; name: string } | null>(null);
 
-  // 조직 트리: /admin 화면이면 그 고객사(fetchMe 의 company_id). /master 는 고객사가 섞여 있어 조직 필터를 숨긴다.
+  // 조직 트리: /admin 화면이면 그 고객사(fetchMe 의 company_id). /master 는 고른 고객사(전체 고객사면 숨김).
   const loadOrg = useCallback(() => {
     let alive = true;
+    if (window.location.pathname.startsWith(MASTER_BASE)) {
+      const c = companies.find((x) => x.id === masterCompanyId) || null;
+      setCompany(c ? { id: c.id, name: c.name } : null);
+      if (c) fetchOrgUnits(c.id).then((tree) => { if (alive) setOrgTree(tree); }).catch(() => { if (alive) setOrgTree(null); });
+      else setOrgTree(null);
+      return () => { alive = false; };
+    }
     fetchMe()
       .then((me) => {
-        const here = !window.location.pathname.startsWith(MASTER_BASE) && me.company_id;
+        const here = me.company_id;
         if (alive) setCompany(here ? { id: me.company_id as string, name: me.company_name || '' } : null);
         return here ? fetchOrgUnits(me.company_id as string) : null;
       })
       .then((tree) => { if (alive) setOrgTree(tree); })
       .catch(() => { if (alive) setOrgTree(null); });
     return () => { alive = false; };
-  }, []);
+  }, [companies, masterCompanyId]);
   useEffect(() => loadOrg(), [loadOrg]);
+
+  // 마스터는 정렬 선택 대신: 고객사를 고르면 조직순, 전체 고객사면 최근 참여순
+  const effectiveSort: SortKey = onMaster ? (masterCompanyId ? 'org' : 'recent') : sort;
+  const masterScope = onMaster && masterCompanyId ? masterCompanyId : undefined;
+  // 마스터는 고객사 목록을 받기 전에는 조회하지 않는다(전체 → 고른 회사로 두 번 그리는 깜빡임 방지)
+  const ready = baseKnown && (!onMaster || masterCompanyId !== null);
 
   // (2026-10-29) 참여자 명단 업로드 모달 · 개인 코드 엑셀
   const [rosterOpen, setRosterOpen] = useState(false);
@@ -179,38 +236,47 @@ const ParticipantsPage = () => {
     }
   };
 
+  // 늦게 도착한 이전 조건의 응답이 새 결과를 덮지 않도록 요청 번호로 거른다(고객사를 빠르게 바꿀 때)
+  const reqSeq = useRef(0);
   const load = useCallback(async () => {
+    if (!ready) return;
+    const seq = ++reqSeq.current;
     setLoading(true);
     setError('');
     try {
       const res = await fetchParticipants({
-        search, page, page_size: PAGE_SIZE, sort,
-        status: statusFilter || undefined, org_unit_id: orgUnitId,
+        search, page, page_size: PAGE_SIZE, sort: effectiveSort,
+        status: statusFilter || undefined, org_unit_id: orgUnitId, company_id: masterScope,
       });
+      if (seq !== reqSeq.current) return;
       setData(res);
     } catch (err: any) {
       setError(err?.response?.data?.detail || '데이터를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
-  }, [search, page, sort, statusFilter, orgUnitId]);
+  }, [ready, search, page, effectiveSort, statusFilter, orgUnitId, masterScope]);
 
   useEffect(() => { load(); }, [load]);
 
   // 상태별 인원: 같은 검색·조직 조건으로 상태마다 1건만 조회해 total 을 읽는다(지어낸 숫자 없음)
+  const countSeq = useRef(0);
   const loadCounts = useCallback(async () => {
+    if (!ready) return;
+    const seq = ++countSeq.current;
     try {
       const keys = STATUS_TABS.map((t) => t.key);
       const totals = await Promise.all(keys.map((k) =>
-        fetchParticipants({ search, page: 1, page_size: 1, status: k || undefined, org_unit_id: orgUnitId })
+        fetchParticipants({ search, page: 1, page_size: 1, status: k || undefined, org_unit_id: orgUnitId, company_id: masterScope })
           .then((r) => r.total)));
       const out: Record<string, number> = {};
       keys.forEach((k, i) => { out[k || 'all'] = totals[i]; });
+      if (seq !== countSeq.current) return;
       setStatusCounts(out);
     } catch {
       setStatusCounts(null);
     }
-  }, [search, orgUnitId]);
+  }, [ready, search, orgUnitId, masterScope]);
 
   useEffect(() => { loadCounts(); }, [loadCounts]);
 
@@ -271,7 +337,7 @@ const ParticipantsPage = () => {
   const visibleItems = useMemo(() => data?.items || [], [data]);
 
   // 페이지/검색/필터가 바뀌면 선택을 초기화 (다른 페이지의 stale id 삭제 방지)
-  useEffect(() => { setSelectedIds(new Set()); }, [page, search, statusFilter, orgUnitId, sort]);
+  useEffect(() => { setSelectedIds(new Set()); }, [page, search, statusFilter, orgUnitId, effectiveSort, masterScope]);
 
   const toggleOne = (id: string) => {
     setSelectedIds((prev) => {
@@ -326,13 +392,26 @@ const ParticipantsPage = () => {
   return (
     <AdminLayout>
       <AdminPageHead
-        eyebrow={onMaster ? '마스터' : '진단'}
+        eyebrow={onMaster ? (masterCompany ? `마스터 · ${masterCompany.name}` : '마스터 · 전체 고객사') : '진단'}
         title={onMaster ? '전체 참여자' : '대상자 · 참여'}
         desc={<>
+          {onMaster && (masterCompany ? `${masterCompany.name}(${masterCompany.code}) · ` : '고객사를 고르면 본부·실·팀으로 나눠 볼 수 있습니다 · ')}
           {statusCounts ? `총 ${statusCounts.all.toLocaleString()}명` : data ? `총 ${data.total.toLocaleString()}명` : '불러오는 중…'}
           {anyFilter && data && ` · 조건에 맞는 ${data.total.toLocaleString()}명`}
         </>}
         actions={<>
+          {onMaster && (
+            <select
+              className="fa-select"
+              style={{ minWidth: 220, fontWeight: 600 }}
+              aria-label="고객사 선택"
+              value={masterCompanyId ?? ''}
+              onChange={(e) => chooseMasterCompany(e.target.value)}
+            >
+              <option value="">전체 고객사</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+            </select>
+          )}
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
@@ -442,14 +521,19 @@ const ParticipantsPage = () => {
               )}
             </>
           )}
-          <select
-            className="fa-select"
-            aria-label="정렬"
-            value={sort}
-            onChange={(e) => { setSort(e.target.value as SortKey); setPage(1); }}
-          >
-            {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-          </select>
+          {!onMaster && (
+            <select
+              className="fa-select"
+              aria-label="정렬"
+              value={sort}
+              onChange={(e) => { setSort(e.target.value as SortKey); setPage(1); }}
+            >
+              {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          )}
+          {onMaster && !masterCompanyId && (
+            <span className="fa-muted" style={{ fontSize: 13 }}>고객사를 고르면 본부·실·팀 필터가 나옵니다.</span>
+          )}
           {anyFilter && (
             <button type="button" onClick={resetFilters} className="fa-btn ghost sm">필터 초기화</button>
           )}
@@ -472,6 +556,7 @@ const ParticipantsPage = () => {
                     style={{ accentColor: 'var(--fa-navy)' }}
                   />
                 </th>
+                {onMaster && !masterCompanyId && <th>회사</th>}
                 <th>이름</th>
                 <th>본부</th>
                 <th>실</th>
@@ -484,11 +569,11 @@ const ParticipantsPage = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="fa-empty">
+                <tr><td colSpan={onMaster && !masterCompanyId ? 10 : 9} className="fa-empty">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                 </td></tr>
               ) : visibleItems.length === 0 ? (
-                <tr><td colSpan={9} className="fa-empty">
+                <tr><td colSpan={onMaster && !masterCompanyId ? 10 : 9} className="fa-empty">
                   {anyFilter ? '이 조건에 해당하는 대상자가 없습니다.'
                     : search ? `'${search}' 검색 결과가 없습니다.`
                     : '등록된 대상자가 없습니다.'}
@@ -512,13 +597,24 @@ const ParticipantsPage = () => {
                           style={{ accentColor: 'var(--fa-navy)' }}
                         />
                       </td>
+                      {/* 마스터 · 전체 고객사: 회사 열(누르면 그 고객사로 좁혀 봄) */}
+                      {onMaster && !masterCompanyId && (
+                        <td>
+                          {p.company_id ? (
+                            <button type="button" onClick={() => chooseMasterCompany(p.company_id)}
+                              title="이 고객사만 보기"
+                              style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', color: 'var(--fa-navy)', fontWeight: 600, textAlign: 'left' }}>
+                              {p.company_name}
+                            </button>
+                          ) : <span className="fa-muted">미지정</span>}
+                        </td>
+                      )}
                       <td className="fa-who">
                         <b>{p.name}</b>
                         <span>{p.email}</span>
                       </td>
-                      {/* 소속: 본부 / 실 / 팀(+참여 코드). 마스터는 회사명을 본부 칸 위에 */}
+                      {/* 소속: 본부 / 실 / 팀(+참여 코드) */}
                       <td>
-                        {onMaster && <div className="fa-pt-company">{p.company_name}</div>}
                         {p.division_name || <span className="fa-muted">–</span>}
                       </td>
                       <td>{p.office_name || <span className="fa-muted">–</span>}</td>

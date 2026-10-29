@@ -36,3 +36,14 @@
 
 .fa-md-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 12.5px; color: var(--fa-gray); }
 .fa-md-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+/* 표: 완료·미완료 숫자 열 */
+.fa-md-num b { font: 600 16px var(--fm-font-wordmark); }
+.fa-md-num small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--fa-gray); white-space: nowrap; }
+.fa-table tbody tr.fa-md-open td { background: var(--fa-soft); }
+
+/* 펼친 행: 고객사 진단 추이 */
+.fa-md-trend { margin-bottom: 22px; padding: 16px 18px 10px; background: #fff; border: 1px solid var(--fa-line); border-radius: 10px; }
+.fa-md-trend .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.fa-md-trend .head b { font-size: 14.5px; }
+.fa-md-trend-chart { height: 220px; width: 100%; }
