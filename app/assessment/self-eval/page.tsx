@@ -4,6 +4,7 @@ import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import axios from 'axios';
+import apiClient from '@/lib/api';   // (2026-10-29) 참여자 토큰을 자동으로 붙인다
 import { COMPETENCY_ORDER, toKoreanCompetency } from '@/lib/competencyLabels';
 import { clearRestoreCandidate, readRestoreCandidate, type RestoreCandidate } from '@/lib/restoreCandidate';
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
@@ -23,7 +24,6 @@ import './self-eval.css';
  *   자가진단 전부 3.0 인 리포트가 나오던 문제(cbd5210b). 백엔드도 5개 값이 없으면 400.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
 
 // 백엔드 COMPETENCY_FRAMEWORK 와 동일한 영문 키를 사용해야
 // AI 점수(radar_chart)와 역량 단위로 정렬 비교가 가능하다.
@@ -90,16 +90,16 @@ function SelfEvalContent() {
     if (!pid) return;
     setRestoring(true);
     try {
-      const r = await axios.post(`${API_BASE_URL}/diagnoses/restore`, { session_id: restoreCand.session_id });
+      const r = await apiClient.post(`/diagnoses/restore`, { session_id: restoreCand.session_id });
       clearRestoreCandidate();
       // 복원된 세션으로 /start → 재개 응답(마지막 코치 메시지·코치) → 채팅
       const TEMPLATE_ID = process.env.NEXT_PUBLIC_DEFAULT_TEMPLATE_ID || '10000000-0000-0000-0000-000000000008';
-      const st = await axios.post(`${API_BASE_URL}/diagnoses/start`, {
+      const st = await apiClient.post(`/diagnoses/start`, {
         coach_id: r.data.coach_id, participant_id: pid, template_id: TEMPLATE_ID,
       });
       let avatar = '';
       try {
-        const cs = await axios.get(`${API_BASE_URL}/coaches`);
+        const cs = await apiClient.get(`/coaches`);
         avatar = (cs.data as Array<{ id: string; avatar_url: string }>).find((c) => c.id === r.data.coach_id)?.avatar_url || '';
       } catch { /* 아바타는 기본 이미지로 */ }
       const name = st.data.coach_name || r.data.coach_name;
@@ -129,7 +129,7 @@ function SelfEvalContent() {
   //   보여주지 않고 곧바로 채팅으로 넘긴다(직접 URL 진입·start 우회 대비).
   useEffect(() => {
     if (!sessionId) return;
-    axios.get(`${API_BASE_URL}/sessions/${sessionId}/self-eval`)
+    apiClient.get(`/sessions/${sessionId}/self-eval`)
       .then((r) => { if (r.data?.submitted) router.replace(chatUrl); })
       .catch(() => {});
   }, [sessionId, chatUrl, router]);
@@ -161,7 +161,7 @@ function SelfEvalContent() {
     setSubmitting(true);
     setError('');
     try {
-      await axios.patch(`${API_BASE_URL}/sessions/${sessionId}/self-eval`, {
+      await apiClient.patch(`/sessions/${sessionId}/self-eval`, {
         scores,
         strength_weakness_text: text.trim() || null,
       });

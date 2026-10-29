@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
+import apiClient from '@/lib/api';   // (2026-10-29) 참여자 토큰을 자동으로 붙인다
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
 import ParticipantFooter from '@/components/participant/ParticipantFooter';
 import './home.css';
@@ -60,7 +60,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   // 백엔드 API 주소 (.env.local 의 NEXT_PUBLIC_API_URL 로 override 가능, 없으면 로컬 기본값)
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -75,7 +74,7 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      const res = await axios.post(`${API_BASE_URL}/participants/token`, {
+      const res = await apiClient.post(`/participants/token`, {
         email: formData.email,
         password: "password",
         group_code: formData.groupCode,
@@ -92,7 +91,7 @@ export default function LoginPage() {
       //   새 진단을 만들지 않고 리포트 화면으로 보낸다(리포트 미생성이면 같은 화면이 안내를 보여 준다).
       //   "새 진단 시작" 은 리포트 화면 안의 버튼으로만.
       try {
-        const act = await axios.get(`${API_BASE_URL}/diagnoses/active`, { params: { participant_id } });
+        const act = await apiClient.get(`/diagnoses/active`, { params: { participant_id } });
         const done = act.data?.has_active ? null : act.data?.completed;
         if (done?.session_id) {
           router.push(`/report?session_id=${done.session_id}`);

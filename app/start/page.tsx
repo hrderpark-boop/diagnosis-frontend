@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import axios from 'axios';
+import apiClient from '@/lib/api';   // (2026-10-29) 참여자 토큰을 자동으로 붙인다
 import { RESTORE_KEY, type RestoreCandidate } from '@/lib/restoreCandidate';
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
 import ParticipantFooter from '@/components/participant/ParticipantFooter';
@@ -59,7 +59,6 @@ export default function StartPage() {
   }, []);
 
   // 백엔드 API 주소 (.env.local 의 NEXT_PUBLIC_API_URL 로 override 가능)
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
   // 진단 템플릿 ID: 템플릿 목록 라우터가 아직 마운트돼 있지 않아 동적 조회가 불가하므로
   // 시드된 유효 템플릿 ID 를 환경변수(NEXT_PUBLIC_DEFAULT_TEMPLATE_ID)로 관리한다.
@@ -82,7 +81,7 @@ export default function StartPage() {
     // (2026-10-23 파일럿 전 1) 리포트 화면의 [새 진단 시작] 만 ?new=1 을 달고 온다. 그 외 경로로 완주 리더가
     //   여기 오면 새 세션을 만들지 않고 리포트 화면으로 돌려보낸다.
     const wantsNew = new URLSearchParams(window.location.search).get('new') === '1';
-    axios.get(`${API_BASE_URL}/diagnoses/active`, { params: { participant_id: pid } })
+    apiClient.get(`/diagnoses/active`, { params: { participant_id: pid } })
       .then((r) => {
         if (r.data?.has_active) {
           setActive({ session_id: r.data.session_id, coach_id: r.data.coach_id, coach_name: r.data.coach_name });
@@ -95,7 +94,7 @@ export default function StartPage() {
 
   // 코치 목록 불러오기
   useEffect(() => {
-    axios.get(`${API_BASE_URL}/coaches`)
+    apiClient.get(`/coaches`)
       .then(res => {
         setCoaches(res.data);
       })
@@ -120,7 +119,7 @@ export default function StartPage() {
       }
 
       // 진단 시작 요청 (coach_persona_id 는 백엔드가 coach_id 로 직접 해석하므로 생략)
-      const res = await axios.post(`${API_BASE_URL}/diagnoses/start`, {
+      const res = await apiClient.post(`/diagnoses/start`, {
         coach_id: coachId,
         participant_id: participantId,
         template_id: TEMPLATE_ID,
@@ -196,7 +195,7 @@ export default function StartPage() {
     if (!pid) { setConfirmNew(false); return; }
     setAbandoning(true);
     try {
-      const r = await axios.post(`${API_BASE_URL}/diagnoses/abandon`, { participant_id: pid });
+      const r = await apiClient.post(`/diagnoses/abandon`, { participant_id: pid });
       const first = r.data?.sessions?.[0];
       const cand: RestoreCandidate | null = first
         ? { session_id: first.session_id, coach_id: first.coach_id, coach_name: first.coach_name }
