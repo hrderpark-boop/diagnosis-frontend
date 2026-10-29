@@ -48,36 +48,29 @@ export default function Modal({
   if (!open) return null;
 
   return (
+    // 배경(오버레이) 클릭으로 닫힘. 폭은 widthClass(Tailwind max-w-*)가 정한다.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fa-modal-bg"
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      onClick={(e) => { if (e.target === e.currentTarget && closable) onClose(); }}
     >
-      {/* 배경 오버레이 */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={() => closable && onClose()}
-      />
-
-      {/* 본문 */}
-      <div className={`relative w-full ${widthClass} rounded-2xl border border-gray-700 bg-gray-800 shadow-2xl`}>
-        <div className="flex items-start justify-between border-b border-gray-700 p-6">
-          <div>
-            <h3 className="text-lg font-bold text-white">{title}</h3>
-            {description && <p className="mt-1 text-sm text-gray-400">{description}</p>}
+      <div className={`w-full ${widthClass}`}>
+        <div className="fa-modal" style={{ maxWidth: 'none' }}>
+          <div className="mh">
+            <div>
+              <h3>{title}</h3>
+              {description && <p className="fa-muted" style={{ margin: '4px 0 0', fontSize: 13.5 }}>{description}</p>}
+            </div>
+            {closable && (
+              <button type="button" onClick={onClose} aria-label="닫기" className="fa-btn ghost sm">
+                <X size={18} />
+              </button>
+            )}
           </div>
-          {closable && (
-            <button
-              onClick={onClose}
-              aria-label="닫기"
-              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-white"
-            >
-              <X size={18} />
-            </button>
-          )}
+          <div className="mb">{children}</div>
         </div>
-        <div className="p-6">{children}</div>
       </div>
     </div>
   );

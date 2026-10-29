@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import AdminLayout from '../../../components/layouts/AdminLayout';
+import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import PasswordChangeForm from '../../../components/admin/PasswordChangeForm';
-import { Building2, Loader2, Mail, ShieldCheck, User } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { fetchMe, AdminProfile } from '@/lib/adminApi';
 
 const SettingsPage = () => {
@@ -23,38 +23,36 @@ const SettingsPage = () => {
 
   return (
     <AdminLayout>
-      <h2 className="mb-6 text-2xl font-bold text-white">환경 설정</h2>
+      <AdminPageHead
+        eyebrow={isSuper ? '마스터' : (profile?.company_name || undefined)}
+        title="설정"
+        desc="내 계정 정보를 확인하고 비밀번호를 바꿉니다."
+      />
 
       {/* 내 계정 정보 */}
-      <div className="mb-6 rounded-xl border border-gray-700 bg-gray-800 p-6">
-        <h3 className="mb-5 text-lg font-bold text-gray-200">내 계정</h3>
+      <div className="fa-card pad fa-section">
+        <div className="fa-cap"><div><h3>내 계정</h3></div></div>
         {loading ? (
-          <div className="flex items-center text-sm text-gray-500">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 계정 정보를 불러오는 중입니다...
+          <div className="flex items-center gap-2 fa-muted" style={{ fontSize: 14 }}>
+            <Loader2 className="h-4 w-4 animate-spin" /> 계정 정보를 불러오는 중입니다…
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div>
-              <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-gray-500">
-                <User size={12} /> 이름
-              </div>
-              <div className="text-sm font-semibold text-white">{profile?.name || '-'}</div>
+              <div className="fa-muted" style={{ fontSize: 12.5, marginBottom: 6 }}>이름</div>
+              <div style={{ fontWeight: 600 }}>{profile?.name || '-'}</div>
             </div>
             <div>
-              <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-gray-500">
-                <Mail size={12} /> 이메일 (아이디)
-              </div>
-              <div className="text-sm font-semibold text-white">{profile?.email || '-'}</div>
+              <div className="fa-muted" style={{ fontSize: 12.5, marginBottom: 6 }}>이메일 (아이디)</div>
+              <div style={{ fontWeight: 600, wordBreak: 'break-all' }}>{profile?.email || '-'}</div>
             </div>
             <div>
-              <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-gray-500">
-                {isSuper ? <ShieldCheck size={12} /> : <Building2 size={12} />} 권한 / 소속
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-bold ${isSuper ? 'bg-violet-600/20 text-violet-300' : 'bg-blue-600/20 text-blue-300'}`}>
-                  {isSuper ? 'SUPER ADMIN' : 'CLIENT ADMIN'}
+              <div className="fa-muted" style={{ fontSize: 12.5, marginBottom: 6 }}>권한 · 소속</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`fa-chip ${isSuper ? 'navy' : 'tint'}`}>
+                  {isSuper ? '마스터' : '고객사 HR'}
                 </span>
-                <span className="text-sm text-gray-300">
+                <span style={{ fontWeight: 600 }}>
                   {isSuper ? '전체 고객사' : (profile?.company_name || '소속 미지정')}
                 </span>
               </div>

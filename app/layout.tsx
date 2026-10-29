@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Montserrat, Instrument_Serif, Outfit, Quicksand } from "next/font/google";
 import "./globals.css"; // 👈 [핵심] 이 줄이 반드시 있어야 디자인이 적용됩니다!
 import "./fm-light.css"; // 참가자 화면 라이트 리디자인 공통 토큰·컴포넌트(fm- 접두어)
+import "./fm-admin.css"; // 관리자 콘솔(/admin · /master) 공통 스타일(fa- 접두어)
 
 // FindME 리뉴얼 타이포그래피(디자인 캔버스 기준)
 //   본문: Pretendard Variable (jsDelivr 동적 서브셋, globals.css 의 font-family 기본값)

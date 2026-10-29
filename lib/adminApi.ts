@@ -75,8 +75,10 @@ adminApi.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401 && typeof window !== 'undefined') {
       clearAdminSession();
-      if (!window.location.pathname.startsWith('/admin/login')) {
-        window.location.href = '/admin/login';
+      // 지금 보고 있는 콘솔(/admin 또는 /master)의 로그인 화면으로
+      const login = window.location.pathname.startsWith('/master') ? '/master/login' : '/admin/login';
+      if (window.location.pathname !== login) {
+        window.location.href = login;
       }
     }
     return Promise.reject(error);

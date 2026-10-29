@@ -2,16 +2,17 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import AdminLayout from '../../../components/layouts/AdminLayout';
+import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import TranscriptModal from '../../../components/admin/TranscriptModal';
 import {
-  Search, FileDown, ChevronLeft, ChevronRight, Loader2, MessageSquare, FileText,
-  Trash2, AlertTriangle, RotateCcw, RefreshCw,
+  FileDown, ChevronLeft, ChevronRight, Loader2, MessageSquare, FileText,
+  Trash2, RotateCcw, RefreshCw,
 } from 'lucide-react';
 import {
   fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, reanalyzeSession, Paginated,
   getCookie, ADMIN_ROLE_KEY,
 } from '@/lib/adminApi';
+import { adminPath } from '@/lib/adminRoutes';
 
 /**
  * 대상자 진단 현황 (구 '참여자 관리').
@@ -28,14 +29,15 @@ const PAGE_SIZE = 20;
 // 백엔드 세션 상태 모델(M16): in_progress / paused / aborted_disengaged(참여 이탈
 // 중단 — 원장 보존·재개 가능) / aborted(3-Strike — 재개 불가) / completed.
 // 'incomplete' 는 V-6 에서 제거된 상태라 라벨도 삭제.
-const STATUS_STYLE: Record<string, string> = {
-  completed: 'bg-green-900/50 text-green-400',
-  in_progress: 'bg-blue-900/50 text-blue-400',
-  paused: 'bg-amber-900/50 text-amber-400',
-  aborted_disengaged: 'bg-orange-900/50 text-orange-300',
-  aborted: 'bg-rose-900/50 text-rose-300',
-  abandoned: 'bg-slate-700/60 text-slate-300',
-  미시작: 'bg-gray-700/50 text-gray-400',
+// 상태 칩: 완료=tint, 진행=line, 보관·미시작=off, 강제 종료=danger
+const STATUS_CHIP: Record<string, string> = {
+  completed: 'tint',
+  in_progress: 'line',
+  paused: 'line',
+  aborted_disengaged: 'line',
+  aborted: 'danger',
+  abandoned: 'off',
+  미시작: 'off',
 };
 const STATUS_LABEL: Record<string, string> = {
   completed: '완료',
@@ -45,16 +47,6 @@ const STATUS_LABEL: Record<string, string> = {
   aborted: '강제 종료',
   abandoned: '보관(새로 시작)',
   미시작: '미시작',
-};
-
-// 행동 태그 → 뱃지 색상 (유형별 구분)
-const BEHAVIOR_STYLE: Record<string, string> = {
-  투머치토커: 'bg-purple-900/50 text-purple-300 border border-purple-700/50',
-  단답형: 'bg-slate-700/50 text-slate-300 border border-slate-600/50',
-  표준형: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/50',
-  협조적: 'bg-sky-900/50 text-sky-300 border border-sky-700/50',
-  방어적: 'bg-orange-900/50 text-orange-300 border border-orange-700/50',
-  불신형: 'bg-rose-900/50 text-rose-300 border border-rose-700/50',
 };
 
 // 필터 토글 대상 (상태 + 행동 태그)
@@ -68,14 +60,6 @@ const STATUS_FILTERS = [
   { key: '미시작', label: '미시작' },
 ];
 const BEHAVIOR_FILTERS = ['투머치토커', '단답형', '표준형'];
-
-// 진행률 색상 (구간별)
-const progressColor = (pct: number, status: string) => {
-  if (status === 'completed' || pct >= 100) return 'bg-emerald-500';
-  if (pct >= 60) return 'bg-blue-500';
-  if (pct >= 20) return 'bg-sky-500';
-  return 'bg-gray-500';
-};
 
 const ParticipantsPage = () => {
   const router = useRouter();
@@ -235,330 +219,287 @@ const ParticipantsPage = () => {
   const totalPages = data?.total_pages ?? 1;
   const anyFilter = statusFilter || behaviorFilter;
 
+  // 마스터 주소(/master)면 전체 고객사, HR(/admin)이면 자사 대상자
+  const onMaster = isSuper;
+
   return (
     <AdminLayout>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-white">대상자 진단 현황</h2>
-          <p className="mt-1 text-sm text-gray-400">
-            {data ? `총 ${data.total.toLocaleString()}명` : '불러오는 중...'}
-            {anyFilter && data && ` · 현재 페이지 ${visibleItems.length}명 표시`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <AdminPageHead
+        eyebrow={onMaster ? '마스터' : '진단'}
+        title={onMaster ? '전체 참여자' : '대상자 · 참여'}
+        desc={<>
+          {data ? `총 ${data.total.toLocaleString()}명` : '불러오는 중…'}
+          {anyFilter && data && ` · 현재 페이지 ${visibleItems.length}명 표시`}
+        </>}
+        actions={<>
           <button
+            type="button"
             onClick={() => setConfirmOpen(true)}
             disabled={selectedIds.size === 0 || deleting}
-            className="flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-lg transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-500"
+            className="fa-btn"
           >
-            <Trash2 size={16} className="mr-2" />
+            <Trash2 />
             선택 삭제{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
           </button>
-          <button
-            onClick={handleExcelDownload}
-            disabled={downloading}
-            className="flex items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-lg transition hover:bg-green-700 disabled:bg-gray-700"
-          >
-            {downloading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileDown size={16} className="mr-2" />}
+          <button type="button" onClick={handleExcelDownload} disabled={downloading} className="fa-btn primary">
+            {downloading ? <Loader2 className="animate-spin" /> : <FileDown />}
             엑셀 다운로드
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
-      {/* 검색 */}
-      <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-        <input
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="이름, 이메일, 부서로 검색"
-          className="w-full max-w-md rounded-lg border border-gray-700 bg-gray-800 py-2.5 pl-10 pr-4 text-sm text-white outline-none transition-colors focus:border-blue-500"
-        />
-      </div>
+      <div className="fa-card pad">
+        {/* 검색 + 필터 토글 (상태 + 행동 유형) */}
+        <div className="fa-filters">
+          <input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="이름, 이메일, 부서로 검색"
+            className="fa-input"
+            aria-label="대상자 검색"
+          />
+        </div>
+        <div className="fa-filters" style={{ rowGap: 10, columnGap: 20 }}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs font-semibold fa-muted">진행 상태</span>
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setStatusFilter(statusFilter === f.key ? null : f.key)}
+                className={`fa-btn sm ${statusFilter === f.key ? 'primary' : ''}`}
+                aria-pressed={statusFilter === f.key}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs font-semibold fa-muted">행동 유형</span>
+            {BEHAVIOR_FILTERS.map((b) => (
+              <button
+                key={b}
+                type="button"
+                onClick={() => setBehaviorFilter(behaviorFilter === b ? null : b)}
+                className={`fa-btn sm ${behaviorFilter === b ? 'primary' : ''}`}
+                aria-pressed={behaviorFilter === b}
+              >
+                {b}
+              </button>
+            ))}
+          </div>
+          {anyFilter && (
+            <button type="button" onClick={() => { setStatusFilter(null); setBehaviorFilter(null); }} className="fa-btn ghost sm">
+              필터 초기화
+            </button>
+          )}
+        </div>
 
-      {/* 필터 토글 (상태 + 행동 유형) */}
-      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-gray-500">진행 상태</span>
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setStatusFilter(statusFilter === f.key ? null : f.key)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                statusFilter === f.key
-                  ? 'bg-blue-600 text-white'
-                  : 'border border-gray-700 bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        {error && <div className="fa-error" style={{ marginBottom: 16 }}>{error}</div>}
+
+        <div className="fa-tbl">
+          <table className="fa-table" style={{ minWidth: 980 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 40 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="전체 선택"
+                    checked={allVisibleSelected}
+                    onChange={toggleAll}
+                    disabled={visibleIds.length === 0}
+                    className="h-4 w-4 cursor-pointer"
+                    style={{ accentColor: 'var(--fa-navy)' }}
+                  />
+                </th>
+                <th>이름</th>
+                <th>소속</th>
+                <th>진단 상태</th>
+                <th style={{ width: 200 }}>진행률</th>
+                <th>행동 태그</th>
+                <th style={{ textAlign: 'right' }}>보기</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={7} className="fa-empty">
+                  <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                </td></tr>
+              ) : visibleItems.length === 0 ? (
+                <tr><td colSpan={7} className="fa-empty">
+                  {anyFilter ? '이 필터에 해당하는 대상자가 현재 페이지에 없습니다.'
+                    : search ? `'${search}' 검색 결과가 없습니다.`
+                    : '등록된 대상자가 없습니다.'}
+                </td></tr>
+              ) : (
+                visibleItems.map((p: any) => {
+                  const pct = p.progress_pct ?? 0;
+                  const done = p.last_status === 'completed';
+                  const isSelected = selectedIds.has(p.id);
+                  return (
+                    <tr key={p.id} style={isSelected ? { background: 'var(--fa-tint)' } : undefined}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`${p.name} 선택`}
+                          checked={isSelected}
+                          onChange={() => toggleOne(p.id)}
+                          className="h-4 w-4 cursor-pointer"
+                          style={{ accentColor: 'var(--fa-navy)' }}
+                        />
+                      </td>
+                      <td className="fa-who">
+                        <b>{p.name}</b>
+                        <span>{p.email}</span>
+                      </td>
+                      <td>
+                        <div className="fa-muted">{p.company_name}</div>
+                        {/* (2026-10-15) 최근 세션에 고정된 LLM provider(null = 환경 기본값/구 세션) */}
+                        {p.llm_provider && (
+                          <span className="fa-chip" style={{ marginTop: 4, height: 20, fontSize: 11 }}>{p.llm_provider}</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`fa-chip ${STATUS_CHIP[p.last_status] || 'off'}`}>
+                          {STATUS_LABEL[p.last_status] || p.last_status}
+                        </span>
+                        {/* (2026-10-23) 완료했지만 리포트 행이 없는 세션 — 종합 실패(degraded/failed) 또는 분석 중 */}
+                        {p.report_missing && (
+                          <span
+                            title={`분석 상태: ${p.last_analysis_status || '마커 없음'}${p.last_analysis_fail_count ? ` · 실패 ${p.last_analysis_fail_count}회` : ''}`}
+                            className="fa-chip danger"
+                            style={{ marginLeft: 6 }}
+                          >
+                            리포트 미생성{p.last_analysis_status === 'failed' ? ' (실패 확정)' : ''}
+                          </span>
+                        )}
+                        {/* 4(b) 보관(abandoned) 세션 — 참가자가 "잘못 눌렀다" 고 하면 여기서 [복원] */}
+                        {Array.isArray(p.abandoned_sessions) && p.abandoned_sessions.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {p.abandoned_sessions.map((s: any) => (
+                              <li key={s.id} className="flex items-center gap-2 text-[12px] fa-muted">
+                                <span className="fa-chip off" style={{ height: 20 }}>보관</span>
+                                <span>{s.coach_name?.split('(')[0]?.trim() || '-'} · {s.message_count}턴{s.llm_provider ? ` · ${s.llm_provider}` : ''} · {s.updated_at ? new Date(s.updated_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '-'}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setRestoreTarget({ id: s.id, name: p.name, coach_name: s.coach_name, message_count: s.message_count })}
+                                  title="이 세션을 in_progress 로 복원 (현재 진행 중 세션은 보관)"
+                                  className="fa-btn sm"
+                                  style={{ height: 24, padding: '0 8px', fontSize: 11.5 }}
+                                >
+                                  <RotateCcw size={11} /> 복원
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                      {/* 진행률 막대 */}
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <div className="fa-bar flex-1">
+                            <i style={{ width: `${pct}%`, background: done || pct >= 100 ? 'var(--fa-navy)' : 'var(--fa-bright)' }} />
+                          </div>
+                          <span className="fa-num w-10 shrink-0 text-right text-xs fa-muted">{pct}%</span>
+                        </div>
+                        {p.current_topic && !done && (
+                          <span className="mt-1 block text-[12px] fa-muted">진행: {p.current_topic}</span>
+                        )}
+                      </td>
+                      {/* 행동 태그 */}
+                      <td>
+                        {p.behavior_tag ? (
+                          <span className="fa-chip">{p.behavior_tag}</span>
+                        ) : (
+                          <span className="fa-chip off">–</span>
+                        )}
+                      </td>
+                      {/* 보기: 대화 원문 / 리포트 / 재분석(마스터) */}
+                      <td>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {p.last_session_id && (
+                            <button type="button" onClick={() => setTranscriptSid(p.last_session_id)} title="전체 대화 기록 보기" className="fa-btn sm">
+                              <MessageSquare size={13} /> 대화
+                            </button>
+                          )}
+                          {p.report_id && (
+                            <button
+                              type="button"
+                              onClick={() => router.push(adminPath(`/reports/${p.report_id}`))}
+                              title="리포트 상세"
+                              className="fa-btn sm primary"
+                            >
+                              <FileText size={13} /> 리포트
+                            </button>
+                          )}
+                          {/* (2026-10-23 파일럿 전 2) super_admin · 완료 세션: 실패 마커 초기화 + 재분석 */}
+                          {isSuper && done && p.last_session_id && (
+                            <button
+                              type="button"
+                              onClick={() => handleReanalyze(p)}
+                              disabled={!!reanalyzingSid}
+                              title={p.report_missing ? '실패 마커를 초기화하고 리포트 분석을 다시 돌립니다' : '리포트를 새 분석으로 교체합니다(교정본은 보호)'}
+                              className={`fa-btn sm ${p.report_missing ? 'danger' : ''}`}
+                            >
+                              {reanalyzingSid === p.last_session_id
+                                ? <Loader2 size={13} className="animate-spin" />
+                                : <RefreshCw size={13} />}
+                              {reanalyzingSid === p.last_session_id ? '분석 중…' : '재분석'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-gray-500">행동 유형</span>
-          {BEHAVIOR_FILTERS.map((b) => (
-            <button
-              key={b}
-              onClick={() => setBehaviorFilter(behaviorFilter === b ? null : b)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                behaviorFilter === b
-                  ? 'bg-purple-600 text-white'
-                  : 'border border-gray-700 bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              {b}
-            </button>
-          ))}
-        </div>
-        {anyFilter && (
-          <button
-            onClick={() => { setStatusFilter(null); setBehaviorFilter(null); }}
-            className="text-xs text-gray-500 underline hover:text-gray-300"
-          >
-            필터 초기화
-          </button>
+
+        {/* 페이지네이션 (필터는 현재 페이지 기준이라 서버 페이지는 그대로) */}
+        {data && data.total > 0 && (
+          <div className="fa-pager">
+            <p style={{ margin: 0 }}>
+              {(data.page - 1) * data.page_size + 1}–
+              {Math.min(data.page * data.page_size, data.total)} / {data.total.toLocaleString()}
+              {anyFilter && <span className="ml-2">(필터는 현재 페이지 내 적용)</span>}
+            </p>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading} className="fa-btn sm">
+                <ChevronLeft size={16} /> 이전
+              </button>
+              <span className="fa-num px-2">{data.page} / {totalPages}</span>
+              <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages || loading} className="fa-btn sm">
+                다음 <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
-      {error && (
-        <div className="mb-4 rounded-lg border border-rose-900/50 bg-rose-950/40 p-4 text-sm text-rose-300">
-          {error}
-        </div>
-      )}
-
-      <div className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-800 shadow">
-        <table className="w-full border-collapse text-left">
-          <thead className="bg-gray-900 text-xs uppercase text-gray-400">
-            <tr>
-              <th className="border-b border-gray-700 p-4 w-12">
-                <input
-                  type="checkbox"
-                  aria-label="전체 선택"
-                  checked={allVisibleSelected}
-                  onChange={toggleAll}
-                  disabled={visibleIds.length === 0}
-                  className="h-4 w-4 cursor-pointer rounded border-gray-600 bg-gray-800 accent-red-600"
-                />
-              </th>
-              <th className="border-b border-gray-700 p-4">이름</th>
-              <th className="border-b border-gray-700 p-4">소속사</th>
-              <th className="border-b border-gray-700 p-4">진단 상태</th>
-              <th className="border-b border-gray-700 p-4 w-52">진행률</th>
-              <th className="border-b border-gray-700 p-4">행동 태그</th>
-              <th className="border-b border-gray-700 p-4 text-right">액션</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-700">
-            {loading ? (
-              <tr><td colSpan={7} className="p-8 text-center text-gray-500">
-                <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-              </td></tr>
-            ) : visibleItems.length === 0 ? (
-              <tr><td colSpan={7} className="p-8 text-center text-gray-500">
-                {anyFilter ? '이 필터에 해당하는 대상자가 현재 페이지에 없습니다.'
-                  : search ? `'${search}' 검색 결과가 없습니다.`
-                  : '등록된 대상자가 없습니다.'}
-              </td></tr>
-            ) : (
-              visibleItems.map((p: any) => {
-                const pct = p.progress_pct ?? 0;
-                const done = p.last_status === 'completed';
-                const isSelected = selectedIds.has(p.id);
-                return (
-                  <tr
-                    key={p.id}
-                    className={`text-sm text-gray-300 transition-colors ${
-                      isSelected ? 'bg-red-950/30 hover:bg-red-950/40' : 'hover:bg-gray-700/50'
-                    }`}
-                  >
-                    <td className="p-4">
-                      <input
-                        type="checkbox"
-                        aria-label={`${p.name} 선택`}
-                        checked={isSelected}
-                        onChange={() => toggleOne(p.id)}
-                        className="h-4 w-4 cursor-pointer rounded border-gray-600 bg-gray-800 accent-red-600"
-                      />
-                    </td>
-                    <td className="p-4">
-                      <div className="font-bold text-white">{p.name}</div>
-                      <div className="text-xs text-gray-500">{p.email}</div>
-                    </td>
-                    <td className="p-4 text-gray-400">
-                      <div>{p.company_name}</div>
-                      {/* (2026-10-15) 최근 세션에 고정된 LLM provider(null = 환경 기본값/구 세션) */}
-                      {p.llm_provider && (
-                        <span className={`mt-1 inline-block rounded px-1.5 py-0.5 font-mono text-[10px] ${
-                          p.llm_provider === 'claude' ? 'bg-amber-500/15 text-amber-300' : 'bg-sky-500/15 text-sky-300'
-                        }`}>{p.llm_provider}</span>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      <span className={`rounded-full px-2 py-1 text-xs ${STATUS_STYLE[p.last_status] || 'bg-gray-700/50 text-gray-400'}`}>
-                        {STATUS_LABEL[p.last_status] || p.last_status}
-                      </span>
-                      {/* (2026-10-23) 완료했지만 리포트 행이 없는 세션 — 종합 실패(degraded/failed) 또는 분석 중 */}
-                      {p.report_missing && (
-                        <span
-                          title={`분석 상태: ${p.last_analysis_status || '마커 없음'}${p.last_analysis_fail_count ? ` · 실패 ${p.last_analysis_fail_count}회` : ''}`}
-                          className="ml-1.5 inline-block rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-300"
-                        >
-                          리포트 미생성{p.last_analysis_status === 'failed' ? ' (실패 확정)' : ''}
-                        </span>
-                      )}
-                      {/* 4(b) 보관(abandoned) 세션 — 참가자가 "잘못 눌렀다" 고 하면 여기서 [복원] */}
-                      {Array.isArray(p.abandoned_sessions) && p.abandoned_sessions.length > 0 && (
-                        <ul className="mt-2 space-y-1">
-                          {p.abandoned_sessions.map((s: any) => (
-                            <li key={s.id} className="flex items-center gap-2 text-[11px] text-gray-400">
-                              <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-slate-300">보관</span>
-                              <span>{s.coach_name?.split('(')[0]?.trim() || '-'} · {s.message_count}턴{s.llm_provider ? ` · ${s.llm_provider}` : ''} · {s.updated_at ? new Date(s.updated_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '-'}</span>
-                              <button
-                                onClick={() => setRestoreTarget({ id: s.id, name: p.name, coach_name: s.coach_name, message_count: s.message_count })}
-                                title="이 세션을 in_progress 로 복원 (현재 진행 중 세션은 보관)"
-                                className="flex items-center rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-300 transition hover:bg-amber-500/20"
-                              >
-                                <RotateCcw size={11} className="mr-1" /> 복원
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </td>
-                    {/* 진행률 프로그레스 바 */}
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-700">
-                          <div
-                            className={`h-full rounded-full transition-all ${progressColor(pct, p.last_status)}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="w-9 shrink-0 text-right text-xs font-bold tabular-nums text-gray-400">
-                          {pct}%
-                        </span>
-                      </div>
-                      {p.current_topic && !done && (
-                        <span className="mt-1 block text-[11px] text-gray-500">진행: {p.current_topic}</span>
-                      )}
-                    </td>
-                    {/* 행동 태그 뱃지 */}
-                    <td className="p-4">
-                      {p.behavior_tag ? (
-                        <span className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${BEHAVIOR_STYLE[p.behavior_tag] || 'bg-gray-700/50 text-gray-300'}`}>
-                          {p.behavior_tag}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-600">—</span>
-                      )}
-                    </td>
-                    {/* 액션: 대화 원문 / 리포트 */}
-                    <td className="p-4">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {p.last_session_id && (
-                          <button
-                            onClick={() => setTranscriptSid(p.last_session_id)}
-                            title="전체 대화 기록 보기"
-                            className="flex items-center rounded-lg border border-gray-600 bg-gray-700 px-2.5 py-1.5 text-xs text-gray-200 transition hover:bg-gray-600"
-                          >
-                            <MessageSquare size={13} className="mr-1" /> 대화
-                          </button>
-                        )}
-                        {p.report_id && (
-                          <button
-                            onClick={() => router.push(`/admin/reports/${p.report_id}`)}
-                            title="리포트 상세"
-                            className="flex items-center rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500"
-                          >
-                            <FileText size={13} className="mr-1" /> 리포트
-                          </button>
-                        )}
-                        {/* (2026-10-23 파일럿 전 2) super_admin · 완료 세션: 실패 마커 초기화 + 재분석 */}
-                        {isSuper && done && p.last_session_id && (
-                          <button
-                            onClick={() => handleReanalyze(p)}
-                            disabled={!!reanalyzingSid}
-                            title={p.report_missing ? '실패 마커를 초기화하고 리포트 분석을 다시 돌립니다' : '리포트를 새 분석으로 교체합니다(교정본은 보호)'}
-                            className={`flex items-center rounded-lg border px-2.5 py-1.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                              p.report_missing
-                                ? 'border-rose-500/50 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25'
-                                : 'border-gray-600 bg-gray-700 text-gray-200 hover:bg-gray-600'
-                            }`}
-                          >
-                            {reanalyzingSid === p.last_session_id
-                              ? <Loader2 size={13} className="mr-1 animate-spin" />
-                              : <RefreshCw size={13} className="mr-1" />}
-                            {reanalyzingSid === p.last_session_id ? '분석 중…' : '재분석'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* 페이지네이션 (필터는 현재 페이지 기준이라 서버 페이지는 그대로) */}
-      {data && data.total > 0 && (
-        <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm text-gray-500">
-            {(data.page - 1) * data.page_size + 1}–
-            {Math.min(data.page * data.page_size, data.total)} / {data.total.toLocaleString()}
-            {anyFilter && <span className="ml-2 text-gray-600">(필터는 현재 페이지 내 적용)</span>}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1 || loading}
-              className="flex items-center rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-300 transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <ChevronLeft size={16} /> 이전
-            </button>
-            <span className="px-2 text-sm text-gray-400">{data.page} / {totalPages}</span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages || loading}
-              className="flex items-center rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-300 transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              다음 <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* 일괄 삭제 확인 모달 */}
       {confirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-700 bg-gray-800 p-6 shadow-2xl">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-900/40">
-                <AlertTriangle size={22} className="text-red-400" />
-              </div>
-              <h3 className="text-lg font-bold text-white">진단 데이터 영구 삭제</h3>
+        <div className="fa-modal-bg" role="dialog" aria-modal="true" aria-label="진단 데이터 영구 삭제">
+          <div className="fa-modal">
+            <div className="mh"><h3>진단 데이터 영구 삭제</h3></div>
+            <div className="mb">
+              <p className="text-sm leading-relaxed" style={{ margin: 0, color: 'var(--fa-body)' }}>
+                선택한 <b style={{ color: 'var(--fa-danger)' }}>{selectedIds.size}건</b>의 진단 데이터를 영구 삭제하시겠습니까?
+                <br />
+                관련된 대화 기록 및 리포트가 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+              </p>
             </div>
-            <p className="mb-6 text-sm leading-relaxed text-gray-300">
-              선택한 <span className="font-bold text-red-400">{selectedIds.size}건</span>의 진단 데이터를
-              영구 삭제하시겠습니까?
-              <br />
-              관련된 대화 기록 및 리포트가 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-            </p>
-            <div className="flex justify-end gap-2">
+            <div className="mf">
+              <button type="button" onClick={() => setConfirmOpen(false)} disabled={deleting} className="fa-btn">취소</button>
               <button
-                onClick={() => setConfirmOpen(false)}
-                disabled={deleting}
-                className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 transition hover:bg-gray-600 disabled:opacity-50"
-              >
-                취소
-              </button>
-              <button
+                type="button"
                 onClick={handleBulkDelete}
                 disabled={deleting}
-                className="flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:bg-gray-700"
+                className="fa-btn primary"
+                style={{ background: 'var(--fa-danger)', borderColor: 'var(--fa-danger)' }}
               >
-                {deleting && <Loader2 size={16} className="mr-2 animate-spin" />}
+                {deleting && <Loader2 className="animate-spin" />}
                 영구 삭제
               </button>
             </div>
@@ -568,35 +509,22 @@ const ParticipantsPage = () => {
 
       {/* 4(b) 복원 확인 모달 */}
       {restoreTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-700 bg-gray-800 p-6 shadow-2xl">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-900/40">
-                <RotateCcw size={20} className="text-amber-300" />
-              </div>
-              <h3 className="text-lg font-bold text-white">보관 세션 복원</h3>
+        <div className="fa-modal-bg" role="dialog" aria-modal="true" aria-label="보관 세션 복원">
+          <div className="fa-modal">
+            <div className="mh"><h3>보관 세션 복원</h3></div>
+            <div className="mb">
+              <p className="text-sm leading-relaxed break-keep" style={{ margin: 0, color: 'var(--fa-body)' }}>
+                <b style={{ color: 'var(--fa-ink)' }}>{restoreTarget.name}</b> 님의{' '}
+                <b style={{ color: 'var(--fa-navy)' }}>{restoreTarget.coach_name?.split('(')[0]?.trim()}</b> 코치 세션
+                ({restoreTarget.message_count}턴)을 복원합니다.
+                <br />
+                현재 진행 중인 세션은 보관되고, 선택한 세션이 이어집니다. 대화·원장은 그대로이며 상태만 바뀝니다.
+              </p>
             </div>
-            <p className="mb-6 text-sm leading-relaxed text-gray-300 break-keep">
-              <span className="font-bold text-white">{restoreTarget.name}</span> 님의{' '}
-              <span className="font-bold text-amber-300">{restoreTarget.coach_name?.split('(')[0]?.trim()}</span> 코치 세션
-              ({restoreTarget.message_count}턴)을 복원합니다.
-              <br />
-              현재 진행 중인 세션은 보관되고, 선택한 세션이 이어집니다. 대화·원장은 그대로이며 상태만 바뀝니다.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setRestoreTarget(null)}
-                disabled={restoring}
-                className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 transition hover:bg-gray-600 disabled:opacity-50"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleRestore}
-                disabled={restoring}
-                className="flex items-center rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-black transition hover:bg-amber-400 disabled:bg-gray-700"
-              >
-                {restoring && <Loader2 size={16} className="mr-2 animate-spin" />}
+            <div className="mf">
+              <button type="button" onClick={() => setRestoreTarget(null)} disabled={restoring} className="fa-btn">취소</button>
+              <button type="button" onClick={handleRestore} disabled={restoring} className="fa-btn primary">
+                {restoring && <Loader2 className="animate-spin" />}
                 복원
               </button>
             </div>
