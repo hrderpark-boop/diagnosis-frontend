@@ -8,29 +8,96 @@
 .fa-edu-scope .fa-select { width: auto; min-width: 200px; height: 40px; font-size: 13.5px; }
 .fa-edu-scope .lb { font-size: 13px; color: var(--fa-gray); margin-right: 4px; }
 
-/* 역량 × 트랙 격자 */
-.fa-edu-map { display: grid; gap: 6px; overflow-x: auto; }
-.fa-edu-map .hd { padding: 0 2px 12px; border-bottom: 1px solid var(--fa-ink); }
-.fa-edu-map .hd b { display: block; font-size: 15px; }
-.fa-edu-map .hd span { font-size: 12.5px; color: var(--fa-gray); }
-.fa-edu-map .hd.blank { border-bottom-color: transparent; }
-.fa-edu-map .rh { padding: 14px 2px; display: flex; flex-direction: column; justify-content: center; border-bottom: 1px solid var(--fa-line); }
-.fa-edu-map .rh b { font-size: 16px; }
-.fa-edu-map .rh span { font-size: 12px; color: var(--fa-gray); margin-top: 4px; }
-.fa-edu-map .cell { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--fa-line); }
-.fa-edu-course { border-radius: 8px; padding: 12px 14px; background: var(--fa-soft); display: flex; flex-direction: column; gap: 8px; }
-.fa-edu-course b { font-size: 13.5px; line-height: 1.45; font-weight: 600; }
-.fa-edu-course .ft { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
-.fa-edu-course .n { font: 500 22px/1 var(--fm-font-wordmark); color: var(--fa-navy); }
-.fa-edu-course .n small { font-size: 12px; color: var(--fa-gray); font-weight: 400; margin-left: 2px; }
-.fa-edu-course .sub { font-size: 12px; color: var(--fa-gray); }
-.fa-edu-course.hot { background: var(--fa-navy); color: #fff; }
-.fa-edu-course.hot .n { color: #fff; }
-.fa-edu-course.hot .n small, .fa-edu-course.hot .sub { color: rgba(255,255,255,.65); }
-.fa-edu-course.hot .fa-chip { background: var(--fa-bright); color: #fff; }
-.fa-edu-course a { color: inherit; text-decoration: none; }
-.fa-edu-course a:hover { text-decoration: underline; }
-.fa-edu-none { border: 1px dashed var(--fa-line); border-radius: 8px; padding: 12px 14px; font-size: 12.5px; color: var(--fa-gray3); }
+/* ---------- 교육 체계도 포스터: 가로 교육과정(트랙) × 세로 역량 ---------- */
+.fa-edu-poster-wrap { overflow-x: auto; margin: 0 -2px; padding: 2px; }
+.fa-edu-poster { display: grid; gap: 4px; min-width: 980px; }
+/* 머리 1단: 과정 묶음(네이비 띠) */
+.fa-edu-poster .band { background: var(--fa-navy); color: #fff; border-radius: 8px 8px 0 0; padding: 14px 16px; font-size: 16px; font-weight: 700; letter-spacing: -.01em; text-align: center; }
+.fa-edu-poster .band small { font-weight: 500; color: var(--fa-light); font-size: 13px; }
+.fa-edu-poster .band.str { background: var(--fa-mid); }
+.fa-edu-poster .band.corner { display: flex; align-items: center; justify-content: center; border-radius: 8px 0 0 0; }
+.fa-edu-poster .band.corner b { font-size: 16px; }
+/* 머리 2단: 트랙(회색) */
+.fa-edu-poster .sub { background: var(--fa-mute); padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; align-items: center; text-align: center; }
+.fa-edu-poster .sub b { font-size: 14px; font-weight: 700; color: var(--fa-ink); display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.fa-edu-poster .sub em { font-style: normal; font: 500 12px var(--fm-font-wordmark); color: var(--fa-mid); }
+.fa-edu-poster .sub > span { font-size: 11.5px; color: var(--fa-gray); line-height: 1.4; }
+.fa-edu-poster .trk, .fa-edu-detail .trk { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; background: var(--fa-navy); color: #fff; font: 600 11.5px var(--fm-font-wordmark); }
+/* 왼쪽 세로 라벨: 역량(세로 쓰기) · 하위역량 */
+.fa-edu-poster .comp { background: var(--fa-navy); color: #fff; border-radius: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px 4px; }
+.fa-edu-poster .comp.alt { background: var(--fa-mid); }
+.fa-edu-poster .comp b { writing-mode: vertical-rl; text-orientation: upright; letter-spacing: .12em; font-size: 15px; font-weight: 700; }
+.fa-edu-poster .comp span { font-size: 10.5px; line-height: 1.5; color: rgba(255,255,255,.7); text-align: center; }
+.fa-edu-poster .subname { background: var(--fa-tint); color: var(--fa-navy); font-size: 12.5px; font-weight: 600; padding: 8px 10px; display: flex; align-items: center; line-height: 1.35; word-break: keep-all; }
+.fa-edu-poster .subname.alt { background: #F4F7FC; }
+.fa-edu-poster .subname.last, .fa-edu-poster .cell.last { margin-bottom: 6px; }
+.fa-edu-poster .cell { background: var(--fa-soft); padding: 5px; display: flex; }
+.fa-edu-poster .cell.strcol { background: #F5F8FE; }
+/* 과정 알약 */
+.fa-edu-pill { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-height: 46px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--fa-line); background: #fff; color: var(--fa-gray); text-align: left; font-size: 12.5px; line-height: 1.35; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; word-break: keep-all; }
+.fa-edu-pill .nm { font-weight: 500; }
+.fa-edu-pill .ft { display: flex; align-items: center; gap: 6px; }
+.fa-edu-pill .n { font: 600 13px var(--fm-font-wordmark); color: var(--fa-navy); }
+.fa-edu-pill .tag { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--fa-bright); color: #fff; }
+.fa-edu-pill:hover { border-color: var(--fa-mid); box-shadow: 0 4px 12px -6px rgba(28,43,74,.35); }
+.fa-edu-pill:focus-visible { outline: 2px solid var(--fa-bright); outline-offset: 1px; }
+.fa-edu-pill.has { background: var(--fa-tint); border-color: var(--fa-navy); color: var(--fa-ink); }
+.fa-edu-pill.has .nm { font-weight: 600; }
+.fa-edu-pill.hot { background: var(--fa-navy); border-color: var(--fa-navy); color: #fff; }
+.fa-edu-pill.hot .nm { font-weight: 600; }
+.fa-edu-pill.hot .n { color: #fff; }
+.fa-edu-pill.on { box-shadow: 0 0 0 3px var(--fa-light); }
+
+/* 범례 */
+.fa-edu-legend .lg { width: 14px; height: 10px; border-radius: 3px; border: 1px solid var(--fa-line); }
+.fa-edu-legend .lg.hot { background: var(--fa-navy); border-color: var(--fa-navy); }
+.fa-edu-legend .lg.has { background: var(--fa-tint); border-color: var(--fa-navy); }
+.fa-edu-legend .lg.none { background: #fff; }
+
+/* 고른 과정 상세 */
+.fa-edu-detail { margin-bottom: 16px; padding: 14px 18px; border-radius: 10px; background: var(--fa-soft); border: 1px solid var(--fa-line); min-height: 52px; }
+.fa-edu-detail .hint { font-size: 13px; color: var(--fa-gray); }
+.fa-edu-detail.on { background: #fff; border-color: var(--fa-navy); }
+.fa-edu-detail .top { display: flex; align-items: center; gap: 12px; }
+.fa-edu-detail .top .tt { flex: 1; min-width: 0; }
+.fa-edu-detail .top b { display: block; font-size: 16px; }
+.fa-edu-detail .top .tt span { font-size: 12.5px; color: var(--fa-gray); }
+.fa-edu-detail dl { margin: 12px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.fa-edu-detail dt { font-size: 12px; color: var(--fa-gray); font-weight: 600; }
+.fa-edu-detail dd { margin: 4px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--fa-body); word-break: keep-all; }
+
+/* ---------- 과정 안내서(개인별 추천 과정 위) ---------- */
+.fa-edu-tracks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+.fa-edu-track { border-radius: 12px; padding: 18px 18px 16px; background: var(--fa-soft); border: 1px solid var(--fa-line); }
+.fa-edu-track .hd { display: flex; align-items: center; gap: 8px; }
+.fa-edu-track .hd .trk { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--fa-navy); color: #fff; font: 600 13px var(--fm-font-wordmark); }
+.fa-edu-track.str .hd .trk { background: var(--fa-bright); }
+.fa-edu-track .hd b { font-size: 15px; }
+.fa-edu-track .lv { margin-left: auto; font: 500 12px var(--fm-font-wordmark); color: var(--fa-mid); }
+.fa-edu-track .fmt { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--fa-ink); }
+.fa-edu-track p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.6; color: var(--fa-gray); word-break: keep-all; }
+.fa-edu-acc { border-top: 1px solid var(--fa-ink); }
+.fa-edu-acc-item { border-bottom: 1px solid var(--fa-line); }
+.fa-edu-acc-btn { width: 100%; display: flex; align-items: center; gap: 12px; padding: 16px 4px; border: 0; background: none; cursor: pointer; text-align: left; }
+.fa-edu-acc-btn b { font-size: 16px; }
+.fa-edu-acc-btn span { font-size: 13px; color: var(--fa-gray); }
+.fa-edu-acc-btn svg { margin-left: auto; width: 18px; height: 18px; color: var(--fa-gray); transition: transform .2s; }
+.fa-edu-acc-item.open .fa-edu-acc-btn svg { transform: rotate(180deg); }
+.fa-edu-acc-body { padding: 0 0 18px; }
+.fa-edu-acc-body .fa-table td { vertical-align: top; font-size: 13.5px; line-height: 1.55; }
+.fa-edu-acc-body .goal { color: var(--fa-body); word-break: keep-all; }
+.fa-edu-acc-body .fmt { color: var(--fa-gray); font-size: 12.5px; word-break: keep-all; }
+.fa-edu-guide-note { margin-top: 12px; font-size: 12.5px; color: var(--fa-gray); }
+.fa-edu-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--fa-body); cursor: pointer; user-select: none; }
+.fa-edu-toggle input { width: 16px; height: 16px; accent-color: var(--fa-navy); }
+
+@media (max-width: 1100px) {
+  .fa-edu-tracks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fa-edu-detail dl { grid-template-columns: 1fr; gap: 10px; }
+}
+@media (max-width: 640px) {
+  .fa-edu-tracks { grid-template-columns: 1fr; }
+}
 
 /* 분포 막대 */
 .fa-edu-dist { display: grid; gap: 14px; }
@@ -54,3 +121,13 @@
 .fa-edu-rec.str i { background: var(--fa-bright); }
 .fa-edu-legend { display: flex; gap: 14px; font-size: 12px; color: var(--fa-gray); flex-wrap: wrap; }
 .fa-edu-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+/* 과정 상세 팝업(누른 자리에서 열림). 위 .fa-edu-detail 규칙을 팝업 크기에 맞게 덮는다 */
+.fa-modal.fa-edu-detail { max-width: 560px; margin: 0; padding: 26px 28px 28px; border: 0; border-radius: 16px; background: #fff; min-height: 0; }
+.fa-modal.fa-edu-detail .top { align-items: flex-start; }
+.fa-modal.fa-edu-detail .top .trk { width: 28px; height: 28px; border-radius: 7px; font-size: 14px; margin-top: 2px; }
+.fa-modal.fa-edu-detail .top b { font-size: 20px; letter-spacing: -.01em; line-height: 1.35; }
+.fa-modal.fa-edu-detail .top .tt span { display: block; margin-top: 4px; font-size: 13px; }
+.fa-modal.fa-edu-detail dl { margin-top: 20px; grid-template-columns: 1fr; gap: 16px; padding-top: 18px; border-top: 1px solid var(--fa-line); }
+.fa-modal.fa-edu-detail dt { font-size: 12.5px; }
+.fa-modal.fa-edu-detail dd { font-size: 15px; line-height: 1.7; }

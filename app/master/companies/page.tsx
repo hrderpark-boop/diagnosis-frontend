@@ -3,9 +3,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import Modal from '../../../components/admin/Modal';
-import { Plus, Loader2, RefreshCw, UserPlus, Copy, Check } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, UserPlus, Copy, Check, CalendarDays } from 'lucide-react';
 import adminApi, {
-  fetchCompanies, createCompany, createAdminUser, fetchAdminUsers, IssuedAdmin,
+  fetchCompanies, createCompany, createAdminUser, fetchAdminUsers, IssuedAdmin, savePeriod,
 } from '@/lib/adminApi';
 
 /**
@@ -28,7 +28,24 @@ interface Company {
   llm_provider: 'gemini' | 'claude' | null;
   participant_count: number;
   created_at: string | null;
+  /** (2026-10-29) 진단 기간(YYYY-MM-DD). 미정이면 null */
+  diagnosis_start?: string | null;
+  diagnosis_end?: string | null;
 }
+
+/** 진단 기간 표시: 2026.11.01 ~ 11.15 (해가 다르면 종료일에도 연도) */
+const fmtPeriod = (s?: string | null, e?: string | null) => {
+  if (!s || !e) return null;
+  const [sy, sm, sd] = s.split('-');
+  const [ey, em, ed] = e.split('-');
+  return `${sy}.${sm}.${sd} ~ ${ey === sy ? '' : `${ey}.`}${em}.${ed}`;
+};
+
+/** axios 오류에서 서버 안내문(detail)을 꺼낸다 */
+const errDetail = (e: unknown, fallback: string) => {
+  const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof d === 'string' ? d : fallback;
+};
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -50,6 +67,12 @@ export default function CompaniesPage() {
   const [adminError, setAdminError] = useState('');
   const [issued, setIssued] = useState<IssuedAdmin | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // 진단 기간 설정 모달
+  const [periodModal, setPeriodModal] = useState<Company | null>(null);
+  const [periodForm, setPeriodForm] = useState({ start: '', end: '' });
+  const [periodSaving, setPeriodSaving] = useState(false);
+  const [periodError, setPeriodError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,6 +164,33 @@ export default function CompaniesPage() {
     }
   };
 
+  // ── 진단 기간 ──
+  const openPeriodModal = (company: Company) => {
+    setPeriodForm({ start: company.diagnosis_start || '', end: company.diagnosis_end || '' });
+    setPeriodError('');
+    setPeriodModal(company);
+  };
+
+  // 저장(둘 다 입력) 또는 지우기(둘 다 null). 검증 규칙은 서버와 같다.
+  const submitPeriod = async (clear: boolean) => {
+    if (!periodModal) return;
+    const start = clear ? null : periodForm.start || null;
+    const end = clear ? null : periodForm.end || null;
+    if (!clear && (!start || !end)) { setPeriodError('시작일과 종료일을 함께 정해 주세요.'); return; }
+    if (!clear && start && end && start > end) { setPeriodError('종료일이 시작일보다 빠릅니다.'); return; }
+    setPeriodSaving(true);
+    setPeriodError('');
+    try {
+      await savePeriod(periodModal.id, start, end);
+      setPeriodModal(null);
+      await load();
+    } catch (e: unknown) {
+      setPeriodError(errDetail(e, '진단 기간을 저장하지 못했습니다.'));
+    } finally {
+      setPeriodSaving(false);
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -196,7 +246,7 @@ export default function CompaniesPage() {
           </div>
         </div>
         <div className="fa-tbl">
-          <table className="fa-table" style={{ minWidth: 900 }}>
+          <table className="fa-table" style={{ minWidth: 1040 }}>
             <thead>
               <tr>
                 <th>고객사</th>
@@ -204,17 +254,18 @@ export default function CompaniesPage() {
                 <th>LLM</th>
                 <th>참여자</th>
                 <th>HR 계정</th>
+                <th>진단 기간</th>
                 <th>등록일</th>
                 <th style={{ textAlign: 'right' }}>온보딩</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="fa-empty">
+                <tr><td colSpan={8} className="fa-empty">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                 </td></tr>
               ) : companies.length === 0 ? (
-                <tr><td colSpan={7} className="fa-empty">
+                <tr><td colSpan={8} className="fa-empty">
                   등록된 고객사가 없습니다. 위의 &apos;고객사 등록&apos; 버튼으로 추가하세요.
                 </td></tr>
               ) : companies.map((c) => (
@@ -236,10 +287,18 @@ export default function CompaniesPage() {
                       <span className="fa-chip line">미발급</span>
                     )}
                   </td>
+                  <td style={{ fontSize: 13 }}>
+                    {fmtPeriod(c.diagnosis_start, c.diagnosis_end)
+                      ? <span className="fa-num">{fmtPeriod(c.diagnosis_start, c.diagnosis_end)}</span>
+                      : <span className="fa-chip off">미정</span>}
+                  </td>
                   <td className="fa-muted" style={{ fontSize: 13 }}>
                     {c.created_at ? new Date(c.created_at).toLocaleDateString('ko-KR') : '-'}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <button type="button" onClick={() => openPeriodModal(c)} className="fa-btn sm ghost" style={{ marginRight: 6 }}>
+                      <CalendarDays size={13} /> 기간 설정
+                    </button>
                     <button type="button" onClick={() => openAdminModal(c)} className="fa-btn sm">
                       <UserPlus size={13} /> HR 계정 발급
                     </button>
@@ -326,6 +385,42 @@ export default function CompaniesPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* ── 모달 3: 진단 기간 설정 ── */}
+      <Modal
+        open={periodModal !== null}
+        onClose={() => setPeriodModal(null)}
+        closable={!periodSaving}
+        title="진단 기간 설정"
+        description={`${periodModal?.name ?? ''}의 진단 기간입니다. HR 진단 현황의 '기간 내 추이' 기준이 됩니다.`}
+      >
+        <div className="flex gap-3">
+          <div className="fa-field" style={{ flex: 1 }}>
+            <label htmlFor="pd-start">시작일</label>
+            <input id="pd-start" type="date" className="fa-input" value={periodForm.start}
+              onChange={(e) => setPeriodForm({ ...periodForm, start: e.target.value })} />
+          </div>
+          <div className="fa-field" style={{ flex: 1 }}>
+            <label htmlFor="pd-end">종료일</label>
+            <input id="pd-end" type="date" className="fa-input" value={periodForm.end} min={periodForm.start || undefined}
+              onChange={(e) => setPeriodForm({ ...periodForm, end: e.target.value })} />
+          </div>
+        </div>
+        <p className="fa-muted" style={{ margin: '0 0 16px', fontSize: 12.5 }}>종료일까지 포함합니다. 최대 1년. HR 관리자도 자사 기간을 바꿀 수 있습니다.</p>
+        {periodError && <div className="fa-error" style={{ marginBottom: 16 }}>{periodError}</div>}
+        <div className="flex justify-between gap-2 pt-1">
+          <button type="button" onClick={() => submitPeriod(true)} disabled={periodSaving || !periodModal?.diagnosis_start} className="fa-btn ghost">
+            기간 지우기
+          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setPeriodModal(null)} disabled={periodSaving} className="fa-btn">취소</button>
+            <button type="button" onClick={() => submitPeriod(false)} disabled={periodSaving} className="fa-btn primary">
+              {periodSaving && <Loader2 className="animate-spin" />}
+              저장
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* ── 모달 2: HR 담당자 계정 발급 ── */}

@@ -30,3 +30,23 @@
   .fa-org-team > .reg, .fa-org-team > .p { display: none; }
   .fa-org-rule .seg .c { font-size: 40px; }
 }
+
+/* 실이 있을 때 형식(두 번째 줄): 조금 작게. 실제 실이 없으면 예시라 흐리게 */
+.fa-org-rule.sub { margin-top: -4px; }
+.fa-org-rule.sub .seg .c { font-size: 40px; }
+.fa-org-rule.sub .op { font-size: 30px; padding-bottom: 20px; }
+.fa-org-rule.sub .seg.res { padding: 14px 22px; }
+.fa-org-rule.sample .seg:not(.res) .c { color: var(--fa-gray3); }
+.fa-org-rule.sample .seg.res { background: var(--fa-mid); }
+
+/* 실 블록: 본부 안에서 들여쓴 묶음 */
+.fa-org-office { margin: 14px 0 6px 20px; padding-left: 16px; border-left: 2px solid var(--fa-light); }
+.fa-org-office .oh { display: flex; align-items: baseline; gap: 12px; padding: 4px 0 10px; border-bottom: 1px solid var(--fa-line); flex-wrap: wrap; }
+.fa-org-office .oh b { font-size: 16px; }
+.fa-org-office .oh .meta { margin-left: auto; font-size: 13px; color: var(--fa-gray); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.fa-org-office.off .oh b, .fa-org-office.off .oh .fa-code { color: var(--fa-gray3); }
+.fa-org-direct { margin-top: 14px; padding: 6px 0; font-size: 12.5px; font-weight: 600; color: var(--fa-gray); }
+@media (max-width: 860px) {
+  .fa-org-office { margin-left: 4px; padding-left: 10px; }
+  .fa-org-rule.sub .seg .c { font-size: 30px; }
+}

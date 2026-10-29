@@ -1,0 +1,36 @@
+/* ============================================================
+   HR 진단 현황 고유 스타일(fa-dash- 접두어). 공통 요소는 app/fm-admin.css.
+   ============================================================ */
+
+/* 전체 / 본부 / 실 / 팀 전환 탭 */
+.fa-dash-tabs { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--fa-mute); gap: 2px; }
+.fa-dash-tabs button { height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--fa-gray); font-size: 13px; font-weight: 600; cursor: pointer; }
+.fa-dash-tabs button:hover { color: var(--fa-ink); }
+.fa-dash-tabs button.on { background: #fff; color: var(--fa-navy); box-shadow: 0 1px 2px rgba(15,23,42,.08); }
+
+/* 조직 이름: 코드 + 경로 */
+.fa-dash-org { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.fa-dash-org .fa-code { flex-shrink: 0; }
+.fa-dash-org span { color: var(--fa-body); }
+.fa-dash-row-total td { font-weight: 700; background: var(--fa-soft); }
+.fa-dash-row-muted td { color: var(--fa-gray); }
+
+/* 진행 현황 누적 막대: 완료(네이비) · 진행 중(하늘) · 중단(회색) · 미시작(옅은 회색) */
+.fa-dash-stack { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--fa-mute); min-width: 120px; }
+.fa-dash-stack i { display: block; height: 100%; }
+.fa-dash-stack .c { background: var(--fa-navy); }
+.fa-dash-stack .p { background: var(--fa-light); }
+.fa-dash-stack .a { background: var(--fa-gray3); }
+.fa-dash-rate { display: flex; align-items: center; gap: 10px; }
+.fa-dash-rate .fa-num { width: 40px; text-align: right; font-size: 13px; color: var(--fa-body); }
+.fa-dash-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 12.5px; color: var(--fa-gray); }
+.fa-dash-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+/* 역량 평균 히트 표 */
+.fa-dash-heat td.cell { padding: 6px; text-align: center; }
+.fa-dash-heat .v { display: grid; place-items: center; height: 38px; border-radius: 6px; font: 600 14px var(--fm-font-wordmark); font-variant-numeric: tabular-nums; }
+.fa-dash-heat .v.none { color: var(--fa-gray3); background: transparent; font-weight: 400; }
+.fa-dash-heat th.c { text-align: center; }
+
+.fa-dash-period-note { margin-top: 10px; font-size: 13px; color: var(--fa-gray); }
+.fa-dash-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

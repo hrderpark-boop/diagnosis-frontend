@@ -6,13 +6,13 @@ import { Loader2 } from 'lucide-react';
 import AdminLayout, { AdminPageHead } from '@/components/layouts/AdminLayout';
 import {
   fetchCompanies, fetchOrgUnits, updateCompany, createOrgUnit, bulkCreateOrgUnits,
-  updateOrgUnit, deleteOrgUnit, OrgTree, OrgDivision, OrgTeam,
+  updateOrgUnit, deleteOrgUnit, OrgTree, OrgDivision, OrgOffice, OrgTeam,
 } from '@/lib/adminApi';
 import './org.css';
 
 /**
  * 마스터 · 조직 코드.
- * 고객사마다 접두어를 정하고 본부·팀 참여 코드(AS1 형식)를 발급한다.
+ * 고객사마다 접두어를 정하고 본부·실·팀 참여 코드(AS1 · ASM1 형식)를 발급한다. 실은 선택 단계다.
  * 참여자가 로그인 화면의 그룹 코드 칸에 이 코드를 넣으면 회사와 소속이 함께 정해진다.
  * 코드 생성·검증은 백엔드(services/org_codes.py)가 하고, 여기서는 미리보기만 보여 준다.
  */
@@ -29,12 +29,19 @@ const errDetail = (e: unknown, fallback: string) => {
 
 const pct = (done: number, total: number) => (total > 0 ? Math.round((done / total) * 100) : 0);
 
+type AnyUnit = OrgDivision | OrgOffice | OrgTeam;
+
 type ModalState =
   | { kind: 'division' }
-  | { kind: 'team'; division: OrgDivision }
-  | { kind: 'rename'; unit: OrgDivision | OrgTeam }
+  | { kind: 'office'; division: OrgDivision }
+  // office 를 주면 그 실에 바로 추가(상위 선택 고정)
+  | { kind: 'team'; division: OrgDivision; office?: OrgOffice }
+  | { kind: 'rename'; unit: AnyUnit }
   | { kind: 'bulk' }
   | null;
+
+/** 다음 팀 번호(같은 상위 아래 최댓값 + 1). 서버 규칙과 같다(빈 번호를 메우지 않음). */
+const nextTeamNo = (teams: OrgTeam[]) => teams.reduce((m, t) => Math.max(m, Number(t.short_code) || 0), 0) + 1;
 
 function Modal({ title, onClose, children, footer }: {
   title: string; onClose: () => void; children: React.ReactNode; footer: React.ReactNode;
@@ -76,6 +83,8 @@ function OrgPage() {
   const [fName, setFName] = useState('');
   const [fCode, setFCode] = useState('');
   const [fNumber, setFNumber] = useState('');
+  // 팀 추가 모달의 상위: '' = 본부 직속, 그 외 = 실 id
+  const [fParent, setFParent] = useState('');
   const [bulkText, setBulkText] = useState('');
   const [bulkResult, setBulkResult] = useState<{ created: { code: string; name: string; level: string }[]; skipped: number } | null>(null);
   const [modalError, setModalError] = useState('');
@@ -117,7 +126,7 @@ function OrgPage() {
   // 코드 규칙 예시: 실제 첫 본부·첫 팀이 있으면 그 값으로
   const example = useMemo(() => {
     const d = divisions[0];
-    const t = d?.teams[0];
+    const t = d?.teams[0] ?? d?.offices?.[0]?.teams[0];
     return {
       p: prefix || 'A',
       d: d?.short_code || 'S',
@@ -127,6 +136,22 @@ function OrgPage() {
     };
   }, [divisions, prefix]);
 
+  // 실이 있는 형식 예시: 실이 있는 첫 본부의 첫 실·첫 팀. 없으면 기본값(M)
+  const officeExample = useMemo(() => {
+    const d = divisions.find((x) => (x.offices?.length ?? 0) > 0);
+    const o = d?.offices[0];
+    const t = o?.teams[0];
+    return {
+      real: Boolean(o),
+      d: d?.short_code || example.d,
+      dName: d?.name || example.dName,
+      o: o?.short_code || 'M',
+      oName: o?.name || '실',
+      n: t?.short_code || '1',
+      tName: t?.name || '팀',
+    };
+  }, [divisions, example]);
+
   const openModal = (m: ModalState) => {
     setModal(m);
     setModalError('');
@@ -134,6 +159,7 @@ function OrgPage() {
     setFName(m && m.kind === 'rename' ? m.unit.name : '');
     setFCode('');
     setFNumber('');
+    setFParent(m?.kind === 'team' && m.office ? m.office.id : '');
     if (m?.kind === 'bulk') setBulkText('');
   };
   const closeModal = () => { if (!busy) setModal(null); };
@@ -175,25 +201,40 @@ function OrgPage() {
     run(() => createOrgUnit(companyId, { level: 'division', name: fName.trim(), short_code: fCode }), '본부를 추가했습니다.');
   };
 
+  const submitOffice = (division: OrgDivision) => {
+    if (!fName.trim()) { setModalError('실 이름을 입력해 주세요.'); return; }
+    if (!/^[A-Z]{1,2}$/.test(fCode)) { setModalError('실 코드는 영문 1~2자입니다.'); return; }
+    run(() => createOrgUnit(companyId, { level: 'office', name: fName.trim(), short_code: fCode, parent_id: division.id }), '실을 추가했습니다.');
+  };
+
+  // 팀 추가 모달의 상위(본부 직속 또는 고른 실)
+  const teamParent = (division: OrgDivision): OrgDivision | OrgOffice =>
+    (fParent && division.offices?.find((o) => o.id === fParent)) || division;
+
   const submitTeam = (division: OrgDivision) => {
     if (!fName.trim()) { setModalError('팀 이름을 입력해 주세요.'); return; }
     const n = fNumber.trim() ? Number(fNumber) : undefined;
     if (n !== undefined && (!Number.isInteger(n) || n < 1 || n > 99)) { setModalError('팀 번호는 1~99 사이입니다.'); return; }
-    run(() => createOrgUnit(companyId, { level: 'team', name: fName.trim(), parent_id: division.id, number: n }), '팀을 추가했습니다.');
+    const parent = teamParent(division);
+    run(() => createOrgUnit(companyId, { level: 'team', name: fName.trim(), parent_id: parent.id, number: n }), '팀을 추가했습니다.');
   };
 
-  const submitRename = (unit: OrgDivision | OrgTeam) => {
+  const submitRename = (unit: AnyUnit) => {
     if (!fName.trim()) { setModalError('이름을 입력해 주세요.'); return; }
     run(() => updateOrgUnit(unit.id, { name: fName.trim() }), '이름을 바꿨습니다.');
   };
 
-  // 엑셀 붙여넣기 파싱: 탭 또는 쉼표 구분, 본부 · 본부 코드 · 팀(선택). 머리글 행은 건너뛴다.
+  // 엑셀 붙여넣기 파싱: 탭 또는 쉼표 구분. 머리글 행은 건너뛴다.
+  //   3열: 본부 · 본부 코드 · 팀(선택)
+  //   5열: 본부 · 본부 코드 · 실 · 실 코드 · 팀(선택)  (4열이면 팀 없이 실까지)
   const bulkRows = useMemo(() => bulkText
     .split(/\r?\n/)
     .map((line) => line.split(line.includes('\t') ? '\t' : ',').map((c) => c.trim()))
     .filter((cols) => cols.length >= 2 && cols[0] && cols[1])
     .filter((cols) => !/본부\s*코드|division/i.test(cols[1]))
-    .map((cols) => ({ division: cols[0], division_code: cols[1].toUpperCase(), team: cols[2] || undefined })), [bulkText]);
+    .map((cols) => (cols.length >= 4 && cols[2] && cols[3]
+      ? { division: cols[0], division_code: cols[1].toUpperCase(), office: cols[2], office_code: cols[3].toUpperCase(), team: cols[4] || undefined }
+      : { division: cols[0], division_code: cols[1].toUpperCase(), team: cols[2] || undefined })), [bulkText]);
 
   const submitBulk = async () => {
     if (!bulkRows.length) { setModalError('붙여넣은 행이 없습니다.'); return; }
@@ -210,7 +251,7 @@ function OrgPage() {
     }
   };
 
-  const toggleActive = async (unit: OrgDivision | OrgTeam) => {
+  const toggleActive = async (unit: AnyUnit) => {
     try {
       await updateOrgUnit(unit.id, { is_active: !unit.is_active });
       await loadTree();
@@ -220,7 +261,7 @@ function OrgPage() {
     }
   };
 
-  const remove = async (unit: OrgDivision | OrgTeam) => {
+  const remove = async (unit: AnyUnit) => {
     if (!window.confirm(`${unit.code} ${unit.name}을(를) 삭제할까요?`)) return;
     try {
       await deleteOrgUnit(unit.id);
@@ -249,16 +290,39 @@ function OrgPage() {
       '로그인 화면의 그룹 코드 칸에 소속 팀의 코드를 입력해 주세요.',
       '',
     ];
+    // 본부 › 실 › 팀 순서. 팀이 없는 실·본부는 그 단위 코드 자체를 안내한다.
     for (const d of divisions.filter((x) => x.is_active)) {
       const teams = d.teams.filter((t) => t.is_active);
+      const offices = (d.offices ?? []).filter((o) => o.is_active);
       lines.push(`${d.name}`);
-      if (teams.length) teams.forEach((t) => lines.push(`  ${t.name}: ${t.code}`));
-      else lines.push(`  ${d.name} 전체: ${d.code}`);
+      teams.forEach((t) => lines.push(`  ${t.name}: ${t.code}`));
+      for (const o of offices) {
+        const oTeams = o.teams.filter((t) => t.is_active);
+        if (oTeams.length) oTeams.forEach((t) => lines.push(`  ${d.name} › ${o.name} › ${t.name}: ${t.code}`));
+        else lines.push(`  ${d.name} › ${o.name} 전체: ${o.code}`);
+      }
+      if (!teams.length && !offices.length) lines.push(`  ${d.name} 전체: ${d.code}`);
     }
     copy(lines.join('\n'), '참여 안내문을 복사했습니다.');
   };
 
   const selected = companies.find((c) => c.id === companyId);
+
+  // 팀 행(본부 직속·실 소속 공용)
+  const renderTeam = (t: OrgTeam) => (
+    <div key={t.id} className={`fa-org-team${t.is_active ? '' : ' off'}`}>
+      <span className="fa-code">{t.code}</span>
+      <span><b>{t.name}</b>{!t.is_active && <span className="fa-chip off" style={{ marginLeft: 8 }}>사용 중지</span>}</span>
+      <span className="reg fa-num">{t.registered}명 등록</span>
+      <div className="p"><div className="fa-bar"><i style={{ width: `${pct(t.completed, t.registered)}%` }} /></div><span className="fa-num">{pct(t.completed, t.registered)}%</span></div>
+      <div className="acts">
+        <button type="button" className="fa-btn sm" onClick={() => copy(t.code, `${t.code} 복사했습니다.`)}>코드 복사</button>
+        <button type="button" className="fa-btn sm ghost" onClick={() => openModal({ kind: 'rename', unit: t })}>이름</button>
+        <button type="button" className="fa-btn sm ghost" onClick={() => toggleActive(t)}>{t.is_active ? '사용 중지' : '다시 사용'}</button>
+        <button type="button" className="fa-btn sm ghost danger" onClick={() => remove(t)}>삭제</button>
+      </div>
+    </div>
+  );
 
   return (
     <AdminLayout>
@@ -321,7 +385,7 @@ function OrgPage() {
       {tree && prefix && (
         <>
           <div className="fa-card pad fa-section">
-            <div className="fa-cap"><div><h3>코드 규칙</h3><p>회사 접두어 + 본부 코드 + 팀 번호. 중복되면 등록할 때 바로 알려 줍니다.</p></div></div>
+            <div className="fa-cap"><div><h3>코드 규칙</h3><p>회사 접두어 + 본부 코드 + (실 코드) + 팀 번호. 실은 선택 단계이고, 중복되면 등록할 때 바로 알려 줍니다.</p></div></div>
             <div className="fa-org-rule">
               <div className="seg"><div className="c">{example.p}</div><div className="t">회사 · {tree.company.name}</div></div>
               <div className="op">+</div>
@@ -331,28 +395,44 @@ function OrgPage() {
               <div className="op">=</div>
               <div className="seg res"><div className="c">{example.p + example.d + example.n}</div><div className="t">참여 코드</div></div>
             </div>
+            {/* 실이 있을 때: 본부 코드 뒤에 실 코드가 붙는다 */}
+            <div className={`fa-org-rule sub${officeExample.real ? '' : ' sample'}`}>
+              <div className="seg"><div className="c">{example.p}</div><div className="t">회사</div></div>
+              <div className="op">+</div>
+              <div className="seg"><div className="c">{officeExample.d}</div><div className="t">본부 · {officeExample.dName}</div></div>
+              <div className="op">+</div>
+              <div className="seg"><div className="c">{officeExample.o}</div><div className="t">실 · {officeExample.oName}</div></div>
+              <div className="op">+</div>
+              <div className="seg"><div className="c">{officeExample.n}</div><div className="t">팀 · {officeExample.tName}</div></div>
+              <div className="op">=</div>
+              <div className="seg res"><div className="c">{example.p + officeExample.d + officeExample.o + officeExample.n}</div><div className="t">{officeExample.real ? '참여 코드' : '실이 있을 때'}</div></div>
+            </div>
             <p className="fa-muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.7 }}>
-              본부 단위로만 나누면 <span className="fa-code">{example.p + example.d}</span>.
+              본부 단위로만 나누면 <span className="fa-code">{example.p + example.d}</span>, 실 단위면 <span className="fa-code">{example.p + officeExample.d + officeExample.o}</span>.
               팀이 10개를 넘으면 <span className="fa-code">{example.p + example.d}10</span>처럼 이어집니다.
               코드 없이 회사 코드(<span className="fa-code">{tree.company.code}</span>)로 참여한 인원 {tree.unassigned.registered}명은 미분류입니다.
             </p>
           </div>
 
           <div className="fa-card pad">
-            <div className="fa-cap"><div><h3>본부 · 팀</h3><p>등록 인원과 완료율은 실시간으로 집계됩니다.</p></div></div>
+            <div className="fa-cap"><div><h3>본부 · 실 · 팀</h3><p>등록 인원과 완료율은 실시간으로 집계됩니다. 본부·실 숫자는 소속 단위를 모두 더한 값입니다.</p></div></div>
             {divisions.length === 0 ? (
               <div className="fa-empty">아직 본부가 없습니다. [+ 본부 추가] 또는 [엑셀로 일괄 등록]으로 시작하세요.</div>
             ) : (
               <div className="fa-org-tree">
-                {divisions.map((d) => (
+                {divisions.map((d) => {
+                  const offices = d.offices ?? [];
+                  const teamCount = d.teams.length + offices.reduce((m, o) => m + o.teams.length, 0);
+                  return (
                   <div key={d.id} className={`fa-org-div${d.is_active ? '' : ' off'}`}>
                     <div className="dh">
                       <span className="fa-code">{d.code}</span>
                       <b>{d.name}</b>
                       {!d.is_active && <span className="fa-chip off">사용 중지</span>}
                       <div className="meta">
-                        <span>{d.teams.length}팀 · {d.registered_total}명</span>
+                        <span>{offices.length ? `${offices.length}실 · ` : ''}{teamCount}팀 · {d.registered_total}명</span>
                         <span>완료 {pct(d.completed_total, d.registered_total)}%</span>
+                        <button type="button" className="fa-btn sm" onClick={() => openModal({ kind: 'office', division: d })}>+ 실</button>
                         <button type="button" className="fa-btn sm" onClick={() => openModal({ kind: 'team', division: d })}>+ 팀</button>
                         <button type="button" className="fa-btn sm ghost" onClick={() => copy(d.code, `${d.code} 복사했습니다.`)}>코드 복사</button>
                         <button type="button" className="fa-btn sm ghost" onClick={() => openModal({ kind: 'rename', unit: d })}>이름 변경</button>
@@ -360,23 +440,36 @@ function OrgPage() {
                         <button type="button" className="fa-btn sm ghost danger" onClick={() => remove(d)}>삭제</button>
                       </div>
                     </div>
-                    {d.teams.length === 0 && <div className="fa-org-noteam">팀이 없습니다. 본부 코드 <span className="fa-code">{d.code}</span>로도 참여할 수 있습니다.</div>}
-                    {d.teams.map((t) => (
-                      <div key={t.id} className={`fa-org-team${t.is_active ? '' : ' off'}`}>
-                        <span className="fa-code">{t.code}</span>
-                        <span><b>{t.name}</b>{!t.is_active && <span className="fa-chip off" style={{ marginLeft: 8 }}>사용 중지</span>}</span>
-                        <span className="reg fa-num">{t.registered}명 등록</span>
-                        <div className="p"><div className="fa-bar"><i style={{ width: `${pct(t.completed, t.registered)}%` }} /></div><span className="fa-num">{pct(t.completed, t.registered)}%</span></div>
-                        <div className="acts">
-                          <button type="button" className="fa-btn sm" onClick={() => copy(t.code, `${t.code} 복사했습니다.`)}>코드 복사</button>
-                          <button type="button" className="fa-btn sm ghost" onClick={() => openModal({ kind: 'rename', unit: t })}>이름</button>
-                          <button type="button" className="fa-btn sm ghost" onClick={() => toggleActive(t)}>{t.is_active ? '사용 중지' : '다시 사용'}</button>
-                          <button type="button" className="fa-btn sm ghost danger" onClick={() => remove(t)}>삭제</button>
+                    {teamCount === 0 && offices.length === 0 && <div className="fa-org-noteam">팀이 없습니다. 본부 코드 <span className="fa-code">{d.code}</span>로도 참여할 수 있습니다.</div>}
+
+                    {/* 실(선택 단계)과 그 아래 팀 */}
+                    {offices.map((o) => (
+                      <div key={o.id} className={`fa-org-office${o.is_active ? '' : ' off'}`}>
+                        <div className="oh">
+                          <span className="fa-code">{o.code}</span>
+                          <b>{o.name}</b>
+                          {!o.is_active && <span className="fa-chip off">사용 중지</span>}
+                          <div className="meta">
+                            <span>{o.teams.length}팀 · {o.registered_total}명</span>
+                            <span>완료 {pct(o.completed_total, o.registered_total)}%</span>
+                            <button type="button" className="fa-btn sm" onClick={() => openModal({ kind: 'team', division: d, office: o })}>+ 팀</button>
+                            <button type="button" className="fa-btn sm ghost" onClick={() => copy(o.code, `${o.code} 복사했습니다.`)}>코드 복사</button>
+                            <button type="button" className="fa-btn sm ghost" onClick={() => openModal({ kind: 'rename', unit: o })}>이름 변경</button>
+                            <button type="button" className="fa-btn sm ghost" onClick={() => toggleActive(o)}>{o.is_active ? '사용 중지' : '다시 사용'}</button>
+                            <button type="button" className="fa-btn sm ghost danger" onClick={() => remove(o)}>삭제</button>
+                          </div>
                         </div>
+                        {o.teams.length === 0 && <div className="fa-org-noteam">팀이 없습니다. 실 코드 <span className="fa-code">{o.code}</span>로도 참여할 수 있습니다.</div>}
+                        {o.teams.map((t) => renderTeam(t))}
                       </div>
                     ))}
+
+                    {/* 본부 직속 팀 */}
+                    {offices.length > 0 && d.teams.length > 0 && <div className="fa-org-direct">본부 직속 팀</div>}
+                    {d.teams.map((t) => renderTeam(t))}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -398,17 +491,39 @@ function OrgPage() {
         </Modal>
       )}
 
+      {modal?.kind === 'office' && (
+        <Modal title={`${modal.division.name}에 실 추가`} onClose={closeModal} footer={<>
+          <button type="button" className="fa-btn" onClick={closeModal} disabled={busy}>취소</button>
+          <button type="button" className="fa-btn primary" onClick={() => submitOffice(modal.division)} disabled={busy}>{busy ? '추가하는 중…' : '추가'}</button>
+        </>}>
+          <div className="fa-field"><label htmlFor="org-oname">실 이름</label>
+            <input id="org-oname" className="fa-input" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="마케팅실" autoFocus /></div>
+          <div className="fa-field"><label htmlFor="org-ocode">실 코드</label>
+            <input id="org-ocode" className="fa-input" maxLength={2} value={fCode}
+              onChange={(e) => setFCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} placeholder="M" />
+            <div className="hint">영문 1~2자. 참여 코드는 <span className="fa-code">{modal.division.code + (fCode || 'M')}</span>, 첫 팀은 <span className="fa-code">{modal.division.code + (fCode || 'M')}1</span>이 됩니다.</div></div>
+          {modalError && <div className="fa-error" role="alert">{modalError}</div>}
+        </Modal>
+      )}
+
       {modal?.kind === 'team' && (
-        <Modal title={`${modal.division.name}에 팀 추가`} onClose={closeModal} footer={<>
+        <Modal title={`${modal.office ? `${modal.division.name} › ${modal.office.name}` : modal.division.name}에 팀 추가`} onClose={closeModal} footer={<>
           <button type="button" className="fa-btn" onClick={closeModal} disabled={busy}>취소</button>
           <button type="button" className="fa-btn primary" onClick={() => submitTeam(modal.division)} disabled={busy}>{busy ? '추가하는 중…' : '추가'}</button>
         </>}>
+          {!modal.office && (modal.division.offices?.length ?? 0) > 0 && (
+            <div className="fa-field"><label htmlFor="org-tparent">상위 조직</label>
+              <select id="org-tparent" className="fa-select" value={fParent} onChange={(e) => setFParent(e.target.value)}>
+                <option value="">{modal.division.name} 직속</option>
+                {modal.division.offices.map((o) => <option key={o.id} value={o.id}>{modal.division.name} › {o.name} ({o.code})</option>)}
+              </select></div>
+          )}
           <div className="fa-field"><label htmlFor="org-tname">팀 이름</label>
             <input id="org-tname" className="fa-input" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="영업1팀" autoFocus /></div>
           <div className="fa-field"><label htmlFor="org-tnum">팀 번호 (선택)</label>
             <input id="org-tnum" className="fa-input" inputMode="numeric" value={fNumber}
               onChange={(e) => setFNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))} placeholder="비우면 다음 번호" />
-            <div className="hint">참여 코드: <span className="fa-code">{modal.division.code}{fNumber || (modal.division.teams.reduce((m, t) => Math.max(m, Number(t.short_code) || 0), 0) + 1)}</span></div></div>
+            <div className="hint">참여 코드: <span className="fa-code">{teamParent(modal.division).code}{fNumber || nextTeamNo(teamParent(modal.division).teams)}</span></div></div>
           {modalError && <div className="fa-error" role="alert">{modalError}</div>}
         </Modal>
       )}
@@ -444,11 +559,13 @@ function OrgPage() {
           ) : (
             <>
               <p className="fa-muted" style={{ marginTop: 0, fontSize: 13.5, lineHeight: 1.7 }}>
-                엑셀에서 <b>본부 · 본부 코드 · 팀</b> 세 열을 복사해 붙여 넣으세요. 팀 열을 비우면 본부만 만듭니다.
-                같은 본부의 팀 번호는 1부터 차례로 붙고, 한 행이라도 틀리면 아무것도 등록하지 않습니다.
+                엑셀에서 아래 둘 중 한 형식으로 복사해 붙여 넣으세요. 팀 열을 비우면 본부(또는 실)까지만 만듭니다.<br />
+                · 실이 없으면 3열: <b>본부 · 본부 코드 · 팀</b><br />
+                · 실이 있으면 5열: <b>본부 · 본부 코드 · 실 · 실 코드 · 팀</b><br />
+                같은 상위 아래 팀 번호는 1부터 차례로 붙고, 한 행이라도 틀리면 아무것도 등록하지 않습니다.
               </p>
               <textarea className="fa-textarea" rows={8} value={bulkText} onChange={(e) => setBulkText(e.target.value)}
-                aria-label="붙여 넣을 조직 목록" placeholder={'영업본부\tS\t영업1팀\n영업본부\tS\t영업2팀\n생산본부\tP\t생산1팀'} />
+                aria-label="붙여 넣을 조직 목록" placeholder={'영업본부\tS\t영업1팀\n영업본부\tS\t마케팅실\tM\t브랜드팀\n생산본부\tP\t생산1팀'} />
               <div className="fa-muted" style={{ marginTop: 8, fontSize: 12.5 }}>인식한 행 {bulkRows.length}개</div>
             </>
           )}

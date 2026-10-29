@@ -4,15 +4,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import AdminLayout, { AdminPageHead } from '@/components/layouts/AdminLayout';
 import {
-  fetchMe, fetchCompanies, fetchOrgUnits, fetchEducationSummary,
-  AdminProfile, OrgTree, EducationSummary, EducationCourseRow,
+  fetchMe, fetchCompanies, fetchOrgUnits, fetchEducationSummary, fetchEducationCatalog,
+  AdminProfile, OrgTree, EducationSummary, EducationCatalog, CatalogCourse,
 } from '@/lib/adminApi';
 import './education.css';
 
 /**
  * HR 콘솔 · 교육 체계도.
- * 진단 결과로 추천된 과정을 역량 × 트랙으로 모아 추천 인원을 세고, 기준 인원 이상이면 사내 차수 개설을 권한다.
- * 숫자는 모두 백엔드(/admin/education/summary)가 저장된 리포트에서 계산한 값이다(지어내지 않음).
+ * 교재 표지형 체계도 포스터처럼, 가로축은 교육과정(트랙 A~D), 세로축은 역량(5개 역량 × 하위역량 26개)이다.
+ * 칸마다 전체 과정 카탈로그(/admin/education/catalog)의 과정을 놓고, 진단 결과로 그 과정을 추천받은 인원을 붙인다.
+ * 기준 인원 이상이면 사내 차수 개설을 권한다. 숫자는 모두 저장된 리포트에서 계산한 값이다(지어내지 않음).
  * 마스터 콘솔(/master/education)도 같은 화면을 쓰며, 이때는 고객사를 골라 본다.
  */
 
@@ -24,7 +25,15 @@ interface CompanyOption { id: string; name: string }
 const errText = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || fallback;
 
-const trackSort = (a: string, b: string) => a.localeCompare(b, 'ko');
+// 트랙 열 이름(체계도 2단 머리). 레벨 전환은 카탈로그 값으로 붙인다.
+const TRACK_LABEL: Record<string, string> = { A: '기본기', B: '실습', C: '현업 적용', D: '전수·확산' };
+// 머리 1단: 개선 과정(A~C)과 강점 확산 과정(D)
+const GROWTH_TRACKS = ['A', 'B', 'C'];
+
+const levelText = (from: number | null, to: number | string | null) =>
+  typeof to === 'number' ? `Lv.${from}→${to}` : (to ? String(to) : '');
+
+interface Picked { comp: string; sub: string; track: string; c: CatalogCourse }
 
 // 엑셀이 한글을 깨뜨리지 않도록 BOM 을 붙인 CSV 를 내려받는다
 const downloadCsv = (name: string, rows: (string | number)[][]) => {
@@ -57,6 +66,8 @@ export default function EducationMapPage() {
   const [tree, setTree] = useState<OrgTree | null>(null);
   const [orgUnitId, setOrgUnitId] = useState<string>('');
   const [summary, setSummary] = useState<EducationSummary | null>(null);
+  const [catalog, setCatalog] = useState<EducationCatalog | null>(null);
+  const [picked, setPicked] = useState<Picked | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -96,11 +107,11 @@ export default function EducationMapPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetchEducationSummary({
-        company_id: isSuper ? companyId : undefined,
-        org_unit_id: orgUnitId || undefined,
-      });
+      const scope = { company_id: isSuper ? companyId : undefined, org_unit_id: orgUnitId || undefined };
+      const [res, cat] = await Promise.all([fetchEducationSummary(scope), fetchEducationCatalog(scope)]);
       setSummary(res);
+      setCatalog(cat);
+      setPicked(null);
     } catch (err) {
       setError(errText(err, '교육 데이터를 불러오지 못했습니다.'));
     } finally {
@@ -110,28 +121,16 @@ export default function EducationMapPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const tracks = useMemo(() => {
-    const set = new Map<string, string | null>();
-    (summary?.courses || []).forEach((c) => {
-      if (!set.has(c.track)) set.set(c.track, c.track_format);
-      else if (!set.get(c.track) && c.track_format) set.set(c.track, c.track_format);
-    });
-    return [...set.entries()].sort((a, b) => trackSort(a[0], b[0]));
-  }, [summary]);
-
-  const cell = (category: string, track: string) =>
-    (summary?.courses || []).filter((c) => c.category === category && c.track === track);
+  const tracks = catalog?.tracks || [];
+  const growthTracks = tracks.filter((t) => GROWTH_TRACKS.includes(t.track));
+  const strengthTracks = tracks.filter((t) => !GROWTH_TRACKS.includes(t.track));
+  const orderedTracks = [...growthTracks, ...strengthTracks];
+  const trackOf = (t: string) => tracks.find((x) => x.track === t);
 
   const cohorts = useMemo(() => (summary?.courses || []).filter((c) => c.cohort), [summary]);
   const strengthCourses = useMemo(
     () => (summary?.courses || []).filter((c) => c.strength > 0).sort((a, b) => b.strength - a.strength),
     [summary],
-  );
-  const knownCategories = useMemo(() => new Set((summary?.competencies || []).map((c) => c.name)), [summary]);
-  // 역량 이름과 맞지 않는 과정(카테고리 누락 등)도 버리지 않고 따로 보여 준다
-  const otherCourses = useMemo(
-    () => (summary?.courses || []).filter((c) => !knownCategories.has(c.category)),
-    [summary, knownCategories],
   );
 
   const companyName = isSuper
@@ -152,16 +151,28 @@ export default function EducationMapPage() {
     downloadCsv(`교육_편성안_${companyName || ''}_${d}.csv`, rows);
   };
 
-  const renderCourse = (c: EducationCourseRow) => (
-    <div key={`${c.category}-${c.track}-${c.course}`} className={`fa-edu-course${c.cohort ? ' hot' : ''}`}>
-      <b>{c.vod_url ? <a href={c.vod_url} target="_blank" rel="noopener noreferrer">{c.course}</a> : c.course}</b>
-      <div className="ft">
-        <span className="n">{c.total}<small>명</small></span>
-        {c.cohort ? <span className="fa-chip">차수 개설</span> : c.strength > 0 && c.growth === 0 ? <span className="fa-chip tint">강점</span> : null}
-      </div>
-      {c.growth > 0 && c.strength > 0 && <div className="sub">개선 {c.growth} · 강점 {c.strength}</div>}
-    </div>
-  );
+  // 체계도 칸의 과정 알약: 차수 개설(네이비) / 추천 대상 있음(연한 바탕) / 추천 없음(흰 바탕)
+  const renderPill = (comp: string, sub: string, track: string, c: CatalogCourse) => {
+    const kind = c.cohort ? 'hot' : c.total > 0 ? 'has' : 'none';
+    const on = picked !== null && picked.comp === comp && picked.sub === sub && picked.track === track;
+    return (
+      <button
+        type="button"
+        className={`fa-edu-pill ${kind}${on ? ' on' : ''}`}
+        title={`교육목표: ${c.goal}`}
+        aria-pressed={on}
+        onClick={() => setPicked(on ? null : { comp, sub, track, c })}
+      >
+        <span className="nm">{c.course}</span>
+        {c.total > 0 && (
+          <span className="ft">
+            <span className="n">{c.total}명</span>
+            {c.cohort && <span className="tag">차수 개설</span>}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   const divisions = summary?.divisions || [];
   const comps = summary?.competencies || [];
@@ -207,6 +218,12 @@ export default function EducationMapPage() {
                 {tree.divisions.map((d) => (
                   <React.Fragment key={d.id}>
                     <option value={d.id}>{d.name} ({d.code})</option>
+                    {(d.offices || []).map((o) => (
+                      <React.Fragment key={o.id}>
+                        <option value={o.id}>{'   '}{o.name} ({o.code})</option>
+                        {o.teams.map((t) => <option key={t.id} value={t.id}>{'      '}{t.name} ({t.code})</option>)}
+                      </React.Fragment>
+                    ))}
                     {d.teams.map((t) => <option key={t.id} value={t.id}>{'   '}{t.name} ({t.code})</option>)}
                   </React.Fragment>
                 ))}
@@ -220,62 +237,115 @@ export default function EducationMapPage() {
 
       {loading ? (
         <div className="fa-empty"><Loader2 className="inline h-5 w-5 animate-spin" /> 불러오는 중입니다…</div>
-      ) : !summary ? null : completed === 0 ? (
-        <div className="fa-card pad">
-          <div className="fa-empty">
-            아직 진단을 마친 사람이 없습니다.<br />
-            진단을 마친 사람이 생기면 추천 과정이 역량과 트랙별로 모입니다.
-          </div>
-        </div>
-      ) : (
+      ) : !summary || !catalog ? null : (
         <>
           <div className="fa-card pad fa-section">
             <div className="fa-cap">
               <div>
-                <h3>역량 × 교육 트랙</h3>
-                <p>네이비 칸은 추천 인원이 {summary.cohort_min}명 이상이라 사내 차수 개설을 권하는 과정입니다.</p>
+                <h3>리더십 역량 교육체계</h3>
+                <p>가로는 교육과정(트랙), 세로는 역량입니다. 숫자는 진단 결과로 그 과정을 추천받은 인원입니다.</p>
+              </div>
+              <div className="fa-edu-legend">
+                <span><i className="lg hot" />차수 개설 권장({catalog.cohort_min}명 이상)</span>
+                <span><i className="lg has" />추천 대상 있음</span>
+                <span><i className="lg none" />추천 없음</span>
               </div>
             </div>
-            {summary.courses.length === 0 ? (
-              <div className="fa-empty">
-                진단을 마친 {completed}명 중 추천 과정이 생성된 사람이 없습니다.<br />
-                추천 교육은 대화에서 근거가 확인된 하위역량이 3개 이상일 때 생성됩니다.
+
+            {completed === 0 && (
+              <div className="fa-note" style={{ marginBottom: 16 }}>
+                아직 진단을 마친 사람이 없어 추천 인원은 모두 비어 있습니다. 아래는 전체 교육과정 체계입니다.
               </div>
-            ) : (
-              <div className="fa-edu-map" style={{ gridTemplateColumns: `130px repeat(${tracks.length}, minmax(180px, 1fr))` }}>
-                <div className="hd blank" />
-                {tracks.map(([t, f]) => (
-                  <div key={t} className="hd"><b>{t}트랙</b>{f && <span>{f}</span>}</div>
+            )}
+
+            <p className="fa-muted" style={{ margin: '0 0 12px', fontSize: 13 }}>과정을 누르면 교육목표와 학습 방식이 팝업으로 열립니다.</p>
+
+            {/* 고른 과정의 교육목표·학습 방식: 위에 고정하지 않고 누른 자리에서 팝업으로(스크롤을 되돌리지 않게) */}
+            {picked && (
+              <div className="fa-modal-bg" role="presentation" onClick={() => setPicked(null)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setPicked(null); }}>
+                <div className="fa-modal fa-edu-detail on" role="dialog" aria-modal="true" aria-label={picked.c.course}
+                  onClick={(e) => e.stopPropagation()}>
+                  <div className="top">
+                    <span className="trk">{picked.track}</span>
+                    <div className="tt">
+                      <b>{picked.c.course}</b>
+                      <span>
+                        {picked.comp} · {picked.sub} · {TRACK_LABEL[picked.track] || ''}{' '}
+                        {levelText(trackOf(picked.track)?.from_level ?? null, trackOf(picked.track)?.to_level ?? null)}
+                      </span>
+                    </div>
+                    <button type="button" className="fa-btn sm ghost" autoFocus onClick={() => setPicked(null)}>닫기</button>
+                  </div>
+                  <dl>
+                    <div><dt>교육목표</dt><dd>{picked.c.goal}</dd></div>
+                    <div>
+                      <dt>학습 방식</dt>
+                      <dd>{trackOf(picked.track)?.format}{trackOf(picked.track)?.format_desc ? `. ${trackOf(picked.track)?.format_desc}` : ''}</dd>
+                    </div>
+                    <div>
+                      <dt>추천 인원</dt>
+                      <dd>{picked.c.total > 0 ? `${picked.c.total}명 (개선 ${picked.c.growth} · 강점 ${picked.c.strength})` : '아직 없음'}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            )}
+
+            <div className="fa-edu-poster-wrap">
+              <div className="fa-edu-poster" style={{ gridTemplateColumns: `52px 150px repeat(${orderedTracks.length}, minmax(168px, 1fr))` }}>
+                {/* 머리 1단: 과정 묶음 */}
+                <div className="band corner" style={{ gridColumn: 'span 2', gridRow: 'span 2' }}><b>역량</b></div>
+                {growthTracks.length > 0 && (
+                  <div className="band" style={{ gridColumn: `span ${growthTracks.length}` }}>역량 향상 과정 <small>(개선)</small></div>
+                )}
+                {strengthTracks.length > 0 && (
+                  <div className="band str" style={{ gridColumn: `span ${strengthTracks.length}` }}>강점 확산 과정</div>
+                )}
+                {/* 머리 2단: 트랙 */}
+                {orderedTracks.map((t) => (
+                  <div key={t.track} className="sub">
+                    <b><span className="trk">{t.track}</span>{TRACK_LABEL[t.track] || t.track} <em>{levelText(t.from_level, t.to_level)}</em></b>
+                    <span>{t.format}</span>
+                  </div>
                 ))}
-                {comps.map((comp) => {
+                {/* 본문: 역량(세로 묶음) × 하위역량 */}
+                {catalog.competencies.map((comp, ci) => {
                   const g = summary.growth.find((x) => x.key === comp.key)?.count ?? 0;
-                  const s = summary.strength.find((x) => x.key === comp.key)?.count ?? 0;
+                  const st = summary.strength.find((x) => x.key === comp.key)?.count ?? 0;
+                  const alt = ci % 2 ? ' alt' : '';
                   return (
                     <React.Fragment key={comp.key}>
-                      <div className="rh"><b>{comp.name}</b><span>개선 {g}명 · 강점 {s}명</span></div>
-                      {tracks.map(([t]) => {
-                        const list = cell(comp.name, t);
+                      <div className={`comp${alt}`} style={{ gridRow: `span ${comp.subs.length}` }}>
+                        <b>{comp.name}</b>
+                        {completed > 0 && <span>개선 {g}<br />강점 {st}</span>}
+                      </div>
+                      {comp.subs.map((sub, si) => {
+                        const last = si === comp.subs.length - 1 ? ' last' : '';
                         return (
-                          <div key={t} className="cell">
-                            {list.length ? list.map(renderCourse) : <div className="fa-edu-none">추천 없음</div>}
-                          </div>
+                          <React.Fragment key={sub.name}>
+                            <div className={`subname${alt}${last}`}>{sub.name}</div>
+                            {orderedTracks.map((t) => {
+                              const c = sub.courses[t.track];
+                              const strCol = GROWTH_TRACKS.includes(t.track) ? '' : ' strcol';
+                              return (
+                                <div key={t.track} className={`cell${alt}${last}${strCol}`}>
+                                  {c ? renderPill(comp.name, sub.name, t.track, c) : null}
+                                </div>
+                              );
+                            })}
+                          </React.Fragment>
                         );
                       })}
                     </React.Fragment>
                   );
                 })}
               </div>
-            )}
-            {otherCourses.length > 0 && (
-              <div style={{ marginTop: 20 }}>
-                <p className="fa-muted" style={{ fontSize: 13, marginBottom: 10 }}>역량 분류가 없는 과정</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
-                  {otherCourses.map(renderCourse)}
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
+          {completed === 0 ? null : (
+          <>
           <div className="fa-grid2 even">
             <div className="fa-card pad">
               <div className="fa-cap"><div><h3>강화 역량 분포</h3><p>진단 완료 {completed}명 중 가장 높게 나온 역량</p></div></div>
@@ -361,6 +431,8 @@ export default function EducationMapPage() {
                 ))}
               </div>
             </div>
+          )}
+          </>
           )}
         </>
       )}

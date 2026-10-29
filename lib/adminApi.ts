@@ -123,6 +123,10 @@ export const fetchParticipants = async (params: {
   page_size?: number;
   company_id?: string;
   org_unit_id?: string;
+  /** 진행 상태: completed · in_progress · abandoned · not_started · incomplete(완료 외 전부) */
+  status?: ParticipantStatusFilter;
+  /** 정렬: recent(기본) · org(조직 코드순) · name */
+  sort?: 'recent' | 'org' | 'name';
 }): Promise<Paginated> => {
   const { data } = await adminApi.get('/admin/participants', { params });
   return data;
@@ -257,6 +261,15 @@ export const fetchOverview = async (companyId?: string) => {
   return data;
 };
 
+export type ParticipantStatusFilter = 'completed' | 'in_progress' | 'abandoned' | 'not_started' | 'incomplete';
+export type ProgressStatus = 'completed' | 'in_progress' | 'abandoned' | 'not_started';
+
+/** (2026-10-29) 진단 기간 내 일별 추이(누적완료 포함). start·end 는 YYYY-MM-DD */
+export const fetchDailyStatsRange = async (start: string, end: string, companyId?: string) => {
+  const { data } = await adminApi.get('/admin/stats/daily', { params: { start, end, company_id: companyId } });
+  return data as { date: string; name: string; 진단참여: number; 진단완료: number; 누적완료: number }[];
+};
+
 export const fetchDailyStats = async (days = 7, companyId?: string) => {
   const { data } = await adminApi.get('/admin/stats/daily', {
     params: { days, ...(companyId ? { company_id: companyId } : {}) },
@@ -374,8 +387,17 @@ export interface OrgTeam {
   registered: number;
   completed: number;
 }
+export interface OrgOffice extends Omit<OrgTeam, 'level'> {
+  level: 'office';
+  teams: OrgTeam[];
+  registered_total: number;
+  completed_total: number;
+}
 export interface OrgDivision extends Omit<OrgTeam, 'level'> {
   level: 'division';
+  /** 실(선택 단계)과 그 아래 팀 */
+  offices: OrgOffice[];
+  /** 본부 직속 팀(실 없이) */
   teams: OrgTeam[];
   registered_total: number;
   completed_total: number;
@@ -399,14 +421,14 @@ export const updateCompany = async (companyId: string, payload: {
 };
 
 export const createOrgUnit = async (companyId: string, payload: {
-  level: 'division' | 'team'; name: string; short_code?: string; parent_id?: string; number?: number;
+  level: 'division' | 'office' | 'team'; name: string; short_code?: string; parent_id?: string; number?: number;
 }) => {
   const { data } = await adminApi.post(`/admin/companies/${companyId}/org-units`, payload);
   return data as { id: string; code: string; name: string; level: string; parent_id: string | null };
 };
 
-/** 엑셀 붙여넣기 일괄 등록. 행 = 본부, 본부 코드, 팀(선택). 한 행이라도 틀리면 전부 되돌린다. */
-export const bulkCreateOrgUnits = async (companyId: string, rows: { division: string; division_code: string; team?: string }[]) => {
+/** 엑셀 붙여넣기 일괄 등록. 행 = 본부, 본부 코드, 실(선택), 실 코드(선택), 팀(선택). 한 행이라도 틀리면 전부 되돌린다. */
+export const bulkCreateOrgUnits = async (companyId: string, rows: { division: string; division_code: string; office?: string; office_code?: string; team?: string }[]) => {
   const { data } = await adminApi.post(`/admin/companies/${companyId}/org-units/bulk`, { rows });
   return data as { prefix: string; created: { code: string; name: string; level: string }[]; skipped: number };
 };
@@ -469,5 +491,72 @@ export const fetchEducationPeople = async (params: {
   page?: number; page_size?: number;
 }): Promise<Paginated<EducationPerson>> => {
   const { data } = await adminApi.get('/admin/education/people', { params });
+  return data;
+};
+
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) 진단 기간 · 조직별 진행/평균 · 과정 안내서
+// ---------------------------------------------------------------------------
+export interface DiagnosisPeriod { company_id: string; diagnosis_start: string | null; diagnosis_end: string | null }
+
+export const fetchPeriod = async (companyId: string): Promise<DiagnosisPeriod> => {
+  const { data } = await adminApi.get(`/admin/companies/${companyId}/period`);
+  return data;
+};
+/** 시작·종료일을 함께 정하거나(둘 다) 함께 지운다(둘 다 null). HR 은 자사만. */
+export const savePeriod = async (companyId: string, start: string | null, end: string | null): Promise<DiagnosisPeriod> => {
+  const { data } = await adminApi.put(`/admin/companies/${companyId}/period`, { diagnosis_start: start, diagnosis_end: end });
+  return data;
+};
+
+export type OrgLevel = 'division' | 'office' | 'team';
+export interface OrgStatRow {
+  id: string | null;
+  code: string | null;
+  name: string;
+  path: string;
+  level: string;
+  is_active?: boolean;
+  registered: number;
+  completed: number;
+  in_progress: number;
+  abandoned: number;
+  not_started: number;
+  completion_rate: number;
+  n_reports: number;
+  total_average: number | null;
+  averages: Record<string, number | null>;
+}
+export interface OrgStats {
+  level: OrgLevel;
+  competencies: { key: string; name: string }[];
+  total: OrgStatRow;
+  unassigned: OrgStatRow;
+  rows: OrgStatRow[];
+}
+export const fetchOrgStats = async (companyId: string, level: OrgLevel): Promise<OrgStats> => {
+  const { data } = await adminApi.get(`/admin/companies/${companyId}/org-stats`, { params: { level } });
+  return data;
+};
+
+export interface CatalogCourse {
+  course: string;
+  goal: string;
+  vod_url: string | null;
+  growth: number;
+  strength: number;
+  total: number;
+  cohort: boolean;
+}
+export interface EducationCatalog {
+  tracks: { track: string; from_level: number | null; to_level: number | string | null; format: string; format_desc: string }[];
+  competencies: { key: string; name: string; subs: { name: string; courses: Record<string, CatalogCourse> }[] }[];
+  completed: number;
+  cohort_min: number;
+}
+/** 전체 과정 카탈로그(역량 → 하위역량 × 트랙 A~D) + 범위 안 추천 인원 */
+export const fetchEducationCatalog = async (params: { company_id?: string; org_unit_id?: string } = {}): Promise<EducationCatalog> => {
+  const { data } = await adminApi.get('/admin/education/catalog', { params });
   return data;
 };

@@ -1,0 +1,15 @@
+/* 대상자 · 참여: 진행 상태 칩(서버 필터)과 소속 칸. fa-pt- 접두어 */
+.fa-pt-status { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
+.fa-pt-stat { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; border: 1px solid var(--fa-line); border-radius: 10px; background: #fff; color: var(--fa-body); cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
+.fa-pt-stat:hover { border-color: var(--fa-gray3); }
+.fa-pt-stat .k { font-size: 12.5px; font-weight: 600; color: var(--fa-gray); }
+.fa-pt-stat .v { font-size: 22px; font-weight: 500; line-height: 1; color: var(--fa-ink); }
+.fa-pt-stat.on { background: var(--fa-navy); border-color: var(--fa-navy); }
+.fa-pt-stat.on .k { color: var(--fa-light); }
+.fa-pt-stat.on .v { color: #fff; }
+.fa-pt-company { font-size: 12px; color: var(--fa-gray); margin-bottom: 2px; }
+.fa-pt-code { margin-top: 2px; font-size: 11.5px; }
+.fa-pt-detail { display: block; margin-top: 4px; font-size: 12px; color: var(--fa-gray); }
+@media (max-width: 860px) {
+  .fa-pt-status { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

@@ -2,22 +2,28 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react';
 import AdminLayout, { AdminPageHead } from '@/components/layouts/AdminLayout';
 import {
-  fetchMe, fetchCompanies, fetchOrgUnits, fetchEducationSummary, fetchEducationPeople,
-  AdminProfile, OrgTree, EducationPerson, Paginated,
+  fetchMe, fetchCompanies, fetchOrgUnits, fetchEducationSummary, fetchEducationPeople, fetchEducationCatalog,
+  AdminProfile, OrgTree, EducationPerson, Paginated, EducationCatalog,
 } from '@/lib/adminApi';
 import { adminPath } from '@/lib/adminRoutes';
 import '../education/education.css';
 
 /**
  * HR 콘솔 · 개인별 추천 과정.
- * 한 사람당 강화 역량 · 개선 필요 역량 · 추천 과정을 한 줄로 본다. 값은 백엔드(/admin/education/people)가
- * 저장된 리포트에서 꺼낸 그대로다. 마스터 콘솔(/master/people)도 같은 화면을 쓰며 고객사를 골라 본다.
+ * 위: 과정 안내서(트랙별 학습 방식 + 역량별 과정 목록·교육목표·추천 인원, /admin/education/catalog).
+ * 아래: 한 사람당 강화 역량 · 개선 필요 역량 · 추천 과정을 한 줄로 본다(/admin/education/people).
+ * 값은 저장된 리포트·과정 카탈로그 그대로다. 마스터 콘솔(/master/people)도 같은 화면을 쓰며 고객사를 골라 본다.
  */
 
 const PAGE_SIZE = 20;
+
+// 트랙 이름(교육 체계도와 같은 말)
+const TRACK_LABEL: Record<string, string> = { A: '기본기', B: '실습', C: '현업 적용', D: '전수·확산' };
+const levelText = (from: number | null, to: number | string | null) =>
+  typeof to === 'number' ? `Lv.${from}→${to}` : (to ? String(to) : '');
 
 interface CompanyOption { id: string; name: string }
 type StatusFilter = '' | 'completed' | 'not_completed';
@@ -58,6 +64,10 @@ export default function PeopleRecommendationPage() {
   const [page, setPage] = useState(1);
 
   const [data, setData] = useState<Paginated<EducationPerson> | null>(null);
+  // 과정 안내서
+  const [catalog, setCatalog] = useState<EducationCatalog | null>(null);
+  const [openComp, setOpenComp] = useState<string | null>(null);
+  const [onlyRec, setOnlyRec] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
@@ -125,6 +135,36 @@ export default function PeopleRecommendationPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // 과정 안내서: 고객사·조직 범위가 바뀌면 다시. 진단 완료자가 있으면 '추천 대상이 있는 과정만'을 기본으로
+  useEffect(() => {
+    if (!profile || (isSuper && !companyId)) return;
+    let alive = true;
+    fetchEducationCatalog({ company_id: isSuper ? companyId : undefined, org_unit_id: orgUnitId || undefined })
+      .then((c) => {
+        if (!alive) return;
+        setCatalog(c);
+        const anyRec = c.competencies.some((comp) => comp.subs.some((sub) => Object.values(sub.courses).some((x) => x.total > 0)));
+        setOnlyRec(c.completed > 0 && anyRec);
+        setOpenComp((prev) => prev ?? c.competencies[0]?.key ?? null);
+      })
+      .catch(() => { if (alive) setCatalog(null); });
+    return () => { alive = false; };
+  }, [profile, isSuper, companyId, orgUnitId]);
+
+  // 역량별 과정 행(하위역량 × 트랙). '추천 대상이 있는 과정만'이면 추천 인원 0 은 뺀다
+  const guideRows = useMemo(() => {
+    if (!catalog) return [];
+    return catalog.competencies.map((comp) => {
+      const rows = comp.subs.flatMap((sub) => Object.entries(sub.courses)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([track, c]) => ({ sub: sub.name, track, c })))
+        .filter((r) => !onlyRec || r.c.total > 0);
+      const recCount = comp.subs.reduce((n, sub) => n + Object.values(sub.courses).filter((x) => x.total > 0).length, 0);
+      return { key: comp.key, name: comp.name, rows, recCount, all: comp.subs.length * 4 };
+    });
+  }, [catalog, onlyRec]);
+  const trackOf = (t: string) => catalog?.tracks.find((x) => x.track === t);
+
   const companyName = isSuper ? companies.find((c) => c.id === companyId)?.name : profile?.company_name;
 
   // 현재 필터 그대로 전체 페이지를 모아 CSV 로
@@ -164,7 +204,7 @@ export default function PeopleRecommendationPage() {
       <AdminPageHead
         eyebrow={isSuper ? '마스터' : (profile?.company_name || undefined)}
         title="개인별 추천 과정"
-        desc={data ? `한 사람당 강화 역량 · 개선 필요 역량 · 추천 과정을 한 줄로 봅니다. 총 ${data.total}명` : '한 사람당 강화 역량 · 개선 필요 역량 · 추천 과정을 한 줄로 봅니다.'}
+        desc={data ? `과정 안내서와 개인별 추천 명단입니다. 대상 ${data.total}명` : '과정 안내서와 개인별 추천 명단입니다.'}
         actions={
           <button type="button" className="fa-btn primary" onClick={exportCsv} disabled={exporting || !data || data.total === 0}>
             {exporting ? <Loader2 className="animate-spin" /> : <Download />} 명단 CSV
@@ -174,7 +214,94 @@ export default function PeopleRecommendationPage() {
 
       {error && <div className="fa-error" style={{ marginBottom: 20 }}>{error}</div>}
 
+      {/* 과정 안내서: 트랙별 학습 방식 → 역량별 과정 목록 */}
+      {catalog && (
+        <div className="fa-card pad fa-section">
+          <div className="fa-cap">
+            <div>
+              <h3>과정 안내서</h3>
+              <p>진단 레벨에 맞춰 A~D 트랙으로 이어지는 과정과 교육목표입니다. 추천 인원은 이 범위에서 그 과정을 추천받은 사람 수입니다.</p>
+            </div>
+            <label className="fa-edu-toggle">
+              <input type="checkbox" checked={onlyRec} onChange={(e) => setOnlyRec(e.target.checked)} />
+              추천 대상이 있는 과정만
+            </label>
+          </div>
+
+          <div className="fa-edu-tracks">
+            {catalog.tracks.map((t) => (
+              <div key={t.track} className={`fa-edu-track${t.track === 'D' ? ' str' : ''}`}>
+                <div className="hd">
+                  <span className="trk">{t.track}</span>
+                  <b>{TRACK_LABEL[t.track] || t.track}</b>
+                  <span className="lv">{levelText(t.from_level, t.to_level)}</span>
+                </div>
+                <div className="fmt">{t.format}</div>
+                <p>{t.format_desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="fa-edu-acc">
+            {guideRows.map((g) => {
+              const open = openComp === g.key;
+              return (
+                <div key={g.key} className={`fa-edu-acc-item${open ? ' open' : ''}`}>
+                  <button type="button" className="fa-edu-acc-btn" aria-expanded={open} onClick={() => setOpenComp(open ? null : g.key)}>
+                    <b>{g.name}</b>
+                    <span>과정 {g.all}개 · 추천 대상 있는 과정 {g.recCount}개</span>
+                    <ChevronDown />
+                  </button>
+                  {open && (
+                    <div className="fa-edu-acc-body">
+                      {g.rows.length === 0 ? (
+                        <div className="fa-empty" style={{ padding: '20px 0' }}>이 역량에는 추천 대상이 있는 과정이 아직 없습니다.</div>
+                      ) : (
+                        <div className="fa-tbl">
+                          <table className="fa-table" style={{ minWidth: 920 }}>
+                            <thead>
+                              <tr><th>하위역량</th><th>트랙</th><th>과정명</th><th>교육목표</th><th>학습 방식</th><th>추천 인원</th></tr>
+                            </thead>
+                            <tbody>
+                              {g.rows.map((r) => (
+                                <tr key={`${r.sub}-${r.track}`}>
+                                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{r.sub}</td>
+                                  <td style={{ whiteSpace: 'nowrap' }}>
+                                    <span className="fa-chip tint">{r.track} · {TRACK_LABEL[r.track] || r.track}</span>
+                                  </td>
+                                  <td style={{ fontWeight: 600, minWidth: 180 }}>
+                                    {r.c.vod_url ? <a href={r.c.vod_url} target="_blank" rel="noopener noreferrer">{r.c.course}</a> : r.c.course}
+                                  </td>
+                                  <td className="goal" style={{ minWidth: 240 }}>{r.c.goal}</td>
+                                  <td className="fmt" style={{ minWidth: 160 }}>{trackOf(r.track)?.format}</td>
+                                  <td style={{ whiteSpace: 'nowrap' }}>
+                                    {r.c.total > 0 ? (
+                                      <>
+                                        <span className="fa-num" style={{ fontSize: 15, fontWeight: 600 }}>{r.c.total}명</span>
+                                        {r.c.cohort && <span className="fa-chip navy" style={{ marginLeft: 6 }}>차수 개설</span>}
+                                      </>
+                                    ) : <span className="fa-muted">–</span>}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="fa-edu-guide-note">주요 내용(차시 구성)은 과정 카탈로그에 아직 없어 트랙별 학습 방식으로 안내합니다.</p>
+        </div>
+      )}
+
       <div className="fa-card pad">
+        <div className="fa-cap">
+          <div><h3>개인별 추천 과정</h3><p>한 사람당 강화 역량 · 개선 필요 역량 · 추천 과정을 한 줄로 봅니다.</p></div>
+        </div>
         <div className="fa-filters">
           {isSuper && (
             <select className="fa-select" value={companyId} onChange={(e) => { setCompanyId(e.target.value); setPage(1); }} aria-label="고객사 선택">
@@ -190,6 +317,12 @@ export default function PeopleRecommendationPage() {
               {tree.divisions.map((d) => (
                 <React.Fragment key={d.id}>
                   <option value={d.id}>{d.name} ({d.code})</option>
+                  {(d.offices || []).map((o) => (
+                    <React.Fragment key={o.id}>
+                      <option value={o.id}>{'   '}{o.name} ({o.code})</option>
+                      {o.teams.map((t) => <option key={t.id} value={t.id}>{'      '}{t.name} ({t.code})</option>)}
+                    </React.Fragment>
+                  ))}
                   {d.teams.map((t) => <option key={t.id} value={t.id}>{'   '}{t.name} ({t.code})</option>)}
                 </React.Fragment>
               ))}

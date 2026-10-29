@@ -4,8 +4,15 @@ import React, { useState, useEffect, Fragment } from 'react';
 import { usePathname } from 'next/navigation';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import { Download, Loader2, ChevronDown } from 'lucide-react';
-import { Treemap, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
-import { fetchCompetencyStats, fetchOverview, downloadExcel } from '@/lib/adminApi';
+import {
+  Treemap, ResponsiveContainer, Tooltip as RechartsTooltip,
+  RadarChart as ReRadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
+} from 'recharts';
+import {
+  fetchCompetencyStats, fetchOverview, downloadExcel, fetchMe, fetchCompanies, fetchOrgStats,
+  OrgLevel, OrgStats, OrgStatRow,
+} from '@/lib/adminApi';
+import './reports-org.css';
 import { toKoreanCompetency, sortByCompetencyOrder } from '@/lib/competencyLabels';
 import { MASTER_BASE } from '@/lib/adminRoutes';
 
@@ -616,6 +623,216 @@ const CompetencyAccordion = ({
   );
 };
 
+
+// ----------------------------------------------------------------------
+// (2026-10-29) 조직별 비교 — 전체 대비 본부·실·팀 평균
+//   /admin/companies/{id}/org-stats 의 실제 집계값만 쓴다. 측정이 없으면 '–'.
+// ----------------------------------------------------------------------
+type CompanyOption = { id: string; name: string };
+const LEVEL_TABS: { key: OrgLevel; label: string }[] = [
+  { key: 'division', label: '본부' },
+  { key: 'office', label: '실' },
+  { key: 'team', label: '팀' },
+];
+
+const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '–' : v.toFixed(1));
+
+/** 전체 대비 차이. +는 네이비, -는 밝은 파랑. 비교할 값이 없으면 표시하지 않는다. */
+const Diff = ({ v, base }: { v: number | null; base: number | null }) => {
+  if (v === null || base === null) return null;
+  const d = Math.round((v - base) * 10) / 10;
+  if (d === 0) return <span className="fa-rorg-diff zero">±0.0</span>;
+  return <span className={`fa-rorg-diff ${d > 0 ? 'up' : 'down'}`}>{d > 0 ? '+' : ''}{d.toFixed(1)}</span>;
+};
+
+const OrgCompareSection = ({ isMaster }: { isMaster: boolean }) => {
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [level, setLevel] = useState<OrgLevel>('division');
+  // 회사가 정해졌는지(자사 조회·고객사 목록 응답 뒤 true)
+  const [companyResolved, setCompanyResolved] = useState(false);
+  const [companyError, setCompanyError] = useState('');
+  // 조회 결과는 '어느 회사·단계'에 대한 것인지 key 로 묶는다. key 가 지금 선택과 다르면 로딩 중.
+  const [result, setResult] = useState<{ key: string; data: OrgStats | null; error: string } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // 회사 정하기: HR 은 자사, 마스터는 고객사 선택
+  useEffect(() => {
+    let alive = true;
+    if (isMaster) {
+      fetchCompanies()
+        .then((list: CompanyOption[]) => {
+          if (!alive) return;
+          setCompanies(list);
+          setCompanyId(list[0]?.id ?? null);
+          setCompanyResolved(true);
+        })
+        .catch((err: unknown) => {
+          if (alive) { setCompanyError(errorDetail(err) || '고객사 목록을 불러오지 못했습니다.'); setCompanyResolved(true); }
+        });
+    } else {
+      fetchMe()
+        .then((me) => { if (alive) { setCompanyId(me.company_id); setCompanyResolved(true); } })
+        .catch(() => { if (alive) setCompanyResolved(true); });
+    }
+    return () => { alive = false; };
+  }, [isMaster]);
+
+  const key = companyId ? `${companyId}:${level}` : null;
+  useEffect(() => {
+    if (!companyId || !key) return;
+    let alive = true;
+    fetchOrgStats(companyId, level)
+      .then((d) => {
+        if (!alive) return;
+        setResult({ key, data: d, error: '' });
+        // 기본 선택: 리포트가 있는 첫 단위
+        setSelectedId(d.rows.find((r) => r.n_reports > 0)?.id ?? null);
+      })
+      .catch((err: unknown) => {
+        if (alive) setResult({ key, data: null, error: errorDetail(err) || '조직별 통계를 불러오지 못했습니다.' });
+      });
+    return () => { alive = false; };
+  }, [companyId, level, key]);
+
+  const loading = !companyResolved || (key !== null && result?.key !== key);
+  const data = result?.key === key ? result.data : null;
+  const error = companyError || (result?.key === key ? result.error : '');
+
+  const comps = data?.competencies || [];
+  const total = data?.total;
+  const rows = data?.rows || [];
+  const selected: OrgStatRow | null = rows.find((r) => r.id === selectedId) || null;
+
+  const radarData = selected && total
+    ? comps.map((c) => ({ name: c.name, 전체: total.averages[c.key] ?? 0, [selected.name]: selected.averages[c.key] ?? 0 }))
+    : [];
+
+  return (
+    <div className="fa-card pad fa-section">
+      <div className="fa-cap">
+        <div>
+          <h3>조직별 비교</h3>
+          <p>회사 전체 평균과 본부·실·팀 평균을 나란히 봅니다. 숫자 옆은 전체 대비 차이입니다.</p>
+        </div>
+        <div className="fa-actions">
+          {isMaster && companies.length > 0 && (
+            <select className="fa-select" style={{ width: 'auto' }} aria-label="고객사"
+              value={companyId ?? ''} onChange={(e) => setCompanyId(e.target.value)}>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          <div className="fa-rorg-tabs" role="tablist" aria-label="조직 단계">
+            {LEVEL_TABS.map((t) => (
+              <button key={t.key} type="button" role="tab" aria-selected={level === t.key}
+                className={level === t.key ? 'on' : ''} onClick={() => setLevel(t.key)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {error && <div className="fa-error" style={{ marginBottom: 14 }}>{error}</div>}
+
+      {loading ? (
+        <div className="fa-empty flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> 조직별로 집계하는 중입니다…</div>
+      ) : !companyId ? (
+        <div className="fa-note">소속 고객사가 정해진 계정에서 조직별 비교를 볼 수 있습니다.</div>
+      ) : !data || (rows.length === 0 && level === 'division') ? (
+        <div className="fa-note">조직 코드(본부·실·팀)가 등록되면 조직별 비교가 표시됩니다. 조직 코드는 마스터 콘솔에서 등록합니다.</div>
+      ) : rows.length === 0 ? (
+        <div className="fa-note">이 회사에는 {LEVEL_TABS.find((t) => t.key === level)?.label} 단위가 없습니다. 다른 단계를 골라 보세요.</div>
+      ) : (total?.n_reports ?? 0) === 0 ? (
+        <div className="fa-note">아직 진단을 마친 사람이 없어 비교할 평균이 없습니다. 리포트가 생기면 자동으로 채워집니다.</div>
+      ) : (
+        <div className="fa-rorg-body">
+          <div className="fa-tbl">
+            <table className="fa-table fa-rorg-table">
+              <thead>
+                <tr>
+                  <th>조직</th>
+                  {comps.map((c) => <th key={c.key} className="num">{c.name}</th>)}
+                  <th className="num">종합 평균</th>
+                  <th className="num">완료 / 등록</th>
+                </tr>
+              </thead>
+              <tbody>
+                {total && (
+                  <tr className="total">
+                    <td><b>전체</b></td>
+                    {comps.map((c) => <td key={c.key} className="num"><b className="fa-num">{fmt(total.averages[c.key])}</b></td>)}
+                    <td className="num"><b className="fa-num">{fmt(total.total_average)}</b></td>
+                    <td className="num fa-num">{total.n_reports} / {total.registered}</td>
+                  </tr>
+                )}
+                {rows.map((r) => {
+                  const on = r.id === selectedId;
+                  const empty = r.n_reports === 0;
+                  return (
+                    <tr key={r.id ?? r.name} className={`click${on ? ' on' : ''}${empty ? ' empty' : ''}`}
+                      onClick={() => !empty && setSelectedId(r.id)} aria-selected={on}>
+                      <td>
+                        <div className="fa-rorg-name">
+                          <b>{r.name}</b>
+                          {r.code && <span className="fa-code">{r.code}</span>}
+                          {r.is_active === false && <span className="fa-chip off">사용 중지</span>}
+                        </div>
+                        {r.path !== r.name && <div className="fa-rorg-path">{r.path}</div>}
+                      </td>
+                      {comps.map((c) => (
+                        <td key={c.key} className="num">
+                          <span className="fa-num">{fmt(r.averages[c.key])}</span>
+                          <Diff v={r.averages[c.key]} base={total?.averages[c.key] ?? null} />
+                        </td>
+                      ))}
+                      <td className="num">
+                        <span className="fa-num">{fmt(r.total_average)}</span>
+                        <Diff v={r.total_average} base={total?.total_average ?? null} />
+                      </td>
+                      <td className="num fa-num">{r.n_reports} / {r.registered}</td>
+                    </tr>
+                  );
+                })}
+                {data.unassigned.registered > 0 && (
+                  <tr className="empty">
+                    <td><div className="fa-rorg-path">미분류(조직 코드 없이 참여)</div></td>
+                    {comps.map((c) => <td key={c.key} className="num fa-num">{fmt(data.unassigned.averages[c.key])}</td>)}
+                    <td className="num fa-num">{fmt(data.unassigned.total_average)}</td>
+                    <td className="num fa-num">{data.unassigned.n_reports} / {data.unassigned.registered}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="fa-rorg-radar">
+            {selected ? (
+              <>
+                <div className="fa-rorg-radar-cap"><b>{selected.name}</b> vs 전체</div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ReRadarChart data={radarData} outerRadius="72%">
+                    <PolarGrid stroke={GRID} />
+                    <PolarAngleAxis dataKey="name" tick={{ fill: GRAY, fontSize: 12 }} />
+                    <PolarRadiusAxis domain={[0, 5]} tickCount={6} tick={false} axisLine={false} />
+                    <Radar name="전체" dataKey="전체" stroke={LIGHT} fill={LIGHT} fillOpacity={0.25} strokeWidth={2} />
+                    <Radar name={selected.name} dataKey={selected.name} stroke={NAVY} fill={NAVY} fillOpacity={0.18} strokeWidth={2} />
+                    <Legend wrapperStyle={{ fontSize: 12, color: GRAY }} />
+                    <RechartsTooltip formatter={(v) => (typeof v === 'number' ? v.toFixed(1) : String(v))} />
+                  </ReRadarChart>
+                </ResponsiveContainer>
+                <p className="fa-rorg-hint">표에서 다른 조직을 누르면 바뀝니다. 측정이 없는 역량은 0으로 그립니다.</p>
+              </>
+            ) : (
+              <div className="fa-empty">완료자가 있는 조직을 표에서 고르면 전체와 비교한 그래프가 나옵니다.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ----------------------------------------------------------------------
 // [MAIN PAGE]
 // ----------------------------------------------------------------------
@@ -686,6 +903,9 @@ const ReportsPage = () => {
       />
 
       {error && <div className="fa-error fa-section">{error}</div>}
+
+      {/* (2026-10-29) 회사 전체와 별도로 본부·실·팀별 결과 비교. 전사 리포트 유무와 상관없이 따로 집계 */}
+      <OrgCompareSection isMaster={isMaster} />
 
       {participantsCount === 0 ? (
         <div className="fa-card pad fa-empty">

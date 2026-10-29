@@ -1,0 +1,28 @@
+/* 종합 리포트 · 조직별 비교. fa-rorg- 접두어 */
+.fa-rorg-tabs { display: inline-flex; padding: 3px; border-radius: 9px; background: var(--fa-mute); }
+.fa-rorg-tabs button { height: 34px; padding: 0 16px; border: 0; border-radius: 7px; background: transparent; color: var(--fa-gray); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.fa-rorg-tabs button.on { background: #fff; color: var(--fa-navy); box-shadow: 0 1px 2px rgba(15,23,42,.08); }
+
+.fa-rorg-body { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 24px; align-items: start; }
+.fa-rorg-table { min-width: 760px; }
+.fa-rorg-table th.num, .fa-rorg-table td.num { text-align: right; white-space: nowrap; }
+.fa-rorg-table tr.total td { background: var(--fa-soft); border-bottom: 1px solid var(--fa-ink); }
+.fa-rorg-table tr.on td { background: var(--fa-tint); }
+.fa-rorg-table tr.empty td { color: var(--fa-gray3); }
+.fa-rorg-table tr.empty { cursor: default; }
+.fa-rorg-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fa-rorg-name b { font-weight: 600; }
+.fa-rorg-path { margin-top: 2px; font-size: 12px; color: var(--fa-gray); }
+.fa-rorg-diff { display: block; margin-top: 2px; font: 600 11.5px var(--fm-font-wordmark); }
+.fa-rorg-diff.up { color: var(--fa-navy); }
+.fa-rorg-diff.down { color: var(--fa-bright); }
+.fa-rorg-diff.zero { color: var(--fa-gray3); }
+
+.fa-rorg-radar { border: 1px solid var(--fa-line); border-radius: 12px; padding: 18px 16px 12px; }
+.fa-rorg-radar-cap { font-size: 14px; color: var(--fa-gray); margin-bottom: 4px; }
+.fa-rorg-radar-cap b { color: var(--fa-ink); }
+.fa-rorg-hint { margin: 6px 0 0; font-size: 12px; color: var(--fa-gray); }
+
+@media (max-width: 1100px) {
+  .fa-rorg-body { grid-template-columns: 1fr; }
+}

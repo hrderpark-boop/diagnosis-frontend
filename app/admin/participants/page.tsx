@@ -4,13 +4,14 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import TranscriptModal from '../../../components/admin/TranscriptModal';
+import './participants.css';
 import {
   FileDown, ChevronLeft, ChevronRight, Loader2, MessageSquare, FileText,
   Trash2, RotateCcw, RefreshCw,
 } from 'lucide-react';
 import {
   fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, reanalyzeSession, Paginated,
-  getCookie, ADMIN_ROLE_KEY,
+  getCookie, ADMIN_ROLE_KEY, fetchMe, fetchOrgUnits, OrgTree, ParticipantStatusFilter, ProgressStatus,
 } from '@/lib/adminApi';
 import { adminPath } from '@/lib/adminRoutes';
 
@@ -19,47 +20,51 @@ import { adminPath } from '@/lib/adminRoutes';
  *
  * 리포트 목록(list_reports)은 '완료된 리포트'만 담아 진행 중/미시작을 표현할
  * 수 없다. 따라서 완료+진행중+미시작을 모두 가진 이 목록을 진단 현황판으로
- * 고도화한다: 행동 태그 뱃지 + 유형 필터 + 진행률 프로그레스 바 + 대화 원문.
+ * 고도화한다: 진행 상태 칩(서버 필터) + 본부·실·팀 필터·정렬 + 진행률 프로그레스 바 + 대화 원문.
+ * (2026-10-29) 행동 유형(behavior_tag) 필터·열은 뺐다(HR 요청). 상태는 백엔드 progress_status 4가지.
  *
  * [보안] 모든 데이터는 인증된 FastAPI(/admin/participants)를 통해서만 받는다.
  */
 
 const PAGE_SIZE = 20;
 
-// 백엔드 세션 상태 모델(M16): in_progress / paused / aborted_disengaged(참여 이탈
-// 중단 — 원장 보존·재개 가능) / aborted(3-Strike — 재개 불가) / completed.
-// 'incomplete' 는 V-6 에서 제거된 상태라 라벨도 삭제.
-// 상태 칩: 완료=tint, 진행=line, 보관·미시작=off, 강제 종료=danger
-const STATUS_CHIP: Record<string, string> = {
+// 진행 상태(백엔드 progress_status): 완료 · 진행 중 · 중단 · 미시작
+//   칩: 완료=tint, 진행 중=line, 중단=기본, 미시작=off
+const PROGRESS_CHIP: Record<ProgressStatus, string> = {
   completed: 'tint',
   in_progress: 'line',
-  paused: 'line',
-  aborted_disengaged: 'line',
-  aborted: 'danger',
-  abandoned: 'off',
-  미시작: 'off',
+  abandoned: '',
+  not_started: 'off',
 };
-const STATUS_LABEL: Record<string, string> = {
+const PROGRESS_LABEL: Record<ProgressStatus, string> = {
   completed: '완료',
   in_progress: '진행 중',
+  abandoned: '중단',
+  not_started: '미시작',
+};
+// 세부 세션 상태(보조 표시용): 일시중지·이탈·강제 종료는 진행 중/중단 칩 옆에 작게
+const SESSION_DETAIL: Record<string, string> = {
   paused: '일시중지',
   aborted_disengaged: '이탈 중단(재개 가능)',
   aborted: '강제 종료',
-  abandoned: '보관(새로 시작)',
-  미시작: '미시작',
 };
 
-// 필터 토글 대상 (상태 + 행동 태그)
-const STATUS_FILTERS = [
+// 상태 필터 칩(서버 필터). null = 전체
+const STATUS_TABS: { key: ParticipantStatusFilter | null; label: string }[] = [
+  { key: null, label: '전체' },
   { key: 'completed', label: '완료' },
   { key: 'in_progress', label: '진행 중' },
-  { key: 'paused', label: '일시중지' },
-  { key: 'aborted_disengaged', label: '이탈 중단' },
-  { key: 'aborted', label: '강제 종료' },
-  { key: 'abandoned', label: '보관' },
-  { key: '미시작', label: '미시작' },
+  { key: 'abandoned', label: '중단' },
+  { key: 'not_started', label: '미시작' },
+  { key: 'incomplete', label: '미완료 전체' },
 ];
-const BEHAVIOR_FILTERS = ['투머치토커', '단답형', '표준형'];
+
+type SortKey = 'recent' | 'org' | 'name';
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'recent', label: '최근 참여순' },
+  { key: 'org', label: '조직순' },
+  { key: 'name', label: '이름순' },
+];
 
 const ParticipantsPage = () => {
   const router = useRouter();
@@ -71,9 +76,15 @@ const ParticipantsPage = () => {
   const [page, setPage] = useState(1);
   const [downloading, setDownloading] = useState(false);
 
-  // 필터 (클라이언트 사이드: behavior_tag 는 런타임 휴리스틱이라 서버 정렬 불가)
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [behaviorFilter, setBehaviorFilter] = useState<string | null>(null);
+  // 서버 필터: 진행 상태 · 조직(본부 → 실 → 팀) · 정렬
+  const [statusFilter, setStatusFilter] = useState<ParticipantStatusFilter | null>(null);
+  const [sort, setSort] = useState<SortKey>('recent');
+  const [orgTree, setOrgTree] = useState<OrgTree | null>(null);
+  const [divId, setDivId] = useState('');
+  const [officeId, setOfficeId] = useState('');
+  const [teamId, setTeamId] = useState('');
+  // 상태별 인원(같은 검색·조직 조건으로 page_size=1 조회의 total). null = 아직 모름
+  const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
 
   // 대화 원문 모달
   const [transcriptSid, setTranscriptSid] = useState<string | null>(null);
@@ -89,6 +100,28 @@ const ParticipantsPage = () => {
   // (2026-10-23 파일럿 전 2) 관리자 재분석 — super_admin 에게만 버튼. 실패 마커 초기화 + analyze(수 분).
   const [isSuper, setIsSuper] = useState(false);
   useEffect(() => { setIsSuper(getCookie(ADMIN_ROLE_KEY) === 'super_admin'); }, []);
+
+  // 조직 트리: HR 은 자사(fetchMe 의 company_id). 마스터는 고객사가 섞여 있어 조직 필터를 숨긴다.
+  useEffect(() => {
+    let alive = true;
+    fetchMe()
+      .then((me) => (me.role === 'client_admin' && me.company_id ? fetchOrgUnits(me.company_id) : null))
+      .then((tree) => { if (alive) setOrgTree(tree); })
+      .catch(() => { if (alive) setOrgTree(null); });
+    return () => { alive = false; };
+  }, []);
+
+  // 선택한 가장 깊은 단계가 조직 필터
+  const orgUnitId = teamId || officeId || divId || undefined;
+  const selectedDivision = useMemo(() => orgTree?.divisions.find((d) => d.id === divId) || null, [orgTree, divId]);
+  const selectedOffice = useMemo(() => selectedDivision?.offices.find((o) => o.id === officeId) || null, [selectedDivision, officeId]);
+  // 팀 목록: 실을 골랐으면 그 실의 팀, 아니면 본부 직속 팀 + 모든 실의 팀
+  const teamOptions = useMemo(() => {
+    if (selectedOffice) return selectedOffice.teams;
+    if (selectedDivision) return [...selectedDivision.teams, ...selectedDivision.offices.flatMap((o) => o.teams)];
+    return [];
+  }, [selectedDivision, selectedOffice]);
+  const hasOrg = !!orgTree && orgTree.divisions.length > 0;
   const [reanalyzingSid, setReanalyzingSid] = useState<string | null>(null);
   const handleReanalyze = async (p: any) => {
     if (!p.last_session_id || reanalyzingSid) return;
@@ -103,7 +136,7 @@ const ParticipantsPage = () => {
       alert(a.skipped === 'human_edited'
         ? '관리자 교정본이 있어 재분석하지 않았습니다. 기존 리포트를 유지합니다.'
         : `재분석이 끝났습니다. (리포트 ${a.report_id || '-'})`);
-      await load();
+      await Promise.all([load(), loadCounts()]);
     } catch (e: any) {
       const d = e?.response?.data?.detail;
       alert(`재분석 실패: ${typeof d === 'string' ? d : d?.message || e?.message || '알 수 없는 오류'}` +
@@ -120,7 +153,7 @@ const ParticipantsPage = () => {
       alert(`복원했습니다. ${restoreTarget.name} 님은 ${r.coach_name} 코치와의 세션을 이어갑니다.` +
         (r.abandoned_others ? ` (진행 중이던 세션 ${r.abandoned_others}건은 보관)` : ''));
       setRestoreTarget(null);
-      await load();
+      await Promise.all([load(), loadCounts()]);
     } catch (err: any) {
       alert(err?.response?.data?.detail || '복원에 실패했습니다.');
     } finally {
@@ -132,16 +165,36 @@ const ParticipantsPage = () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetchParticipants({ search, page, page_size: PAGE_SIZE });
+      const res = await fetchParticipants({
+        search, page, page_size: PAGE_SIZE, sort,
+        status: statusFilter || undefined, org_unit_id: orgUnitId,
+      });
       setData(res);
     } catch (err: any) {
       setError(err?.response?.data?.detail || '데이터를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
-  }, [search, page]);
+  }, [search, page, sort, statusFilter, orgUnitId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 상태별 인원: 같은 검색·조직 조건으로 상태마다 1건만 조회해 total 을 읽는다(지어낸 숫자 없음)
+  const loadCounts = useCallback(async () => {
+    try {
+      const keys = STATUS_TABS.map((t) => t.key);
+      const totals = await Promise.all(keys.map((k) =>
+        fetchParticipants({ search, page: 1, page_size: 1, status: k || undefined, org_unit_id: orgUnitId })
+          .then((r) => r.total)));
+      const out: Record<string, number> = {};
+      keys.forEach((k, i) => { out[k || 'all'] = totals[i]; });
+      setStatusCounts(out);
+    } catch {
+      setStatusCounts(null);
+    }
+  }, [search, orgUnitId]);
+
+  useEffect(() => { loadCounts(); }, [loadCounts]);
 
   useEffect(() => {
     const timer = setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 350);
@@ -159,16 +212,11 @@ const ParticipantsPage = () => {
     }
   };
 
-  // 현재 페이지 항목에 클라이언트 필터 적용
-  const visibleItems = useMemo(() => {
-    let items = data?.items || [];
-    if (statusFilter) items = items.filter((p: any) => p.last_status === statusFilter);
-    if (behaviorFilter) items = items.filter((p: any) => p.behavior_tag === behaviorFilter);
-    return items;
-  }, [data, statusFilter, behaviorFilter]);
+  // 필터는 모두 서버에서 적용된다(상태·조직·정렬). 화면은 받은 페이지를 그대로 보여 준다.
+  const visibleItems = useMemo(() => data?.items || [], [data]);
 
   // 페이지/검색/필터가 바뀌면 선택을 초기화 (다른 페이지의 stale id 삭제 방지)
-  useEffect(() => { setSelectedIds(new Set()); }, [page, search, statusFilter, behaviorFilter]);
+  useEffect(() => { setSelectedIds(new Set()); }, [page, search, statusFilter, orgUnitId, sort]);
 
   const toggleOne = (id: string) => {
     setSelectedIds((prev) => {
@@ -208,7 +256,7 @@ const ParticipantsPage = () => {
       alert(parts.join(' '));
       setSelectedIds(new Set());
       setConfirmOpen(false);
-      await load(); // 상태 동기화: 삭제된 데이터가 즉시 화면에서 사라지도록 refetch
+      await Promise.all([load(), loadCounts()]); // 상태 동기화: 삭제된 데이터가 즉시 화면에서 사라지도록 refetch
     } catch (err: any) {
       alert(err?.response?.data?.detail || '삭제에 실패했습니다.');
     } finally {
@@ -217,7 +265,8 @@ const ParticipantsPage = () => {
   };
 
   const totalPages = data?.total_pages ?? 1;
-  const anyFilter = statusFilter || behaviorFilter;
+  const anyFilter = !!(statusFilter || orgUnitId);
+  const resetFilters = () => { setStatusFilter(null); setDivId(''); setOfficeId(''); setTeamId(''); setPage(1); };
 
   // 마스터 주소(/master)면 전체 고객사, HR(/admin)이면 자사 대상자
   const onMaster = isSuper;
@@ -228,8 +277,8 @@ const ParticipantsPage = () => {
         eyebrow={onMaster ? '마스터' : '진단'}
         title={onMaster ? '전체 참여자' : '대상자 · 참여'}
         desc={<>
-          {data ? `총 ${data.total.toLocaleString()}명` : '불러오는 중…'}
-          {anyFilter && data && ` · 현재 페이지 ${visibleItems.length}명 표시`}
+          {statusCounts ? `총 ${statusCounts.all.toLocaleString()}명` : data ? `총 ${data.total.toLocaleString()}명` : '불러오는 중…'}
+          {anyFilter && data && ` · 조건에 맞는 ${data.total.toLocaleString()}명`}
         </>}
         actions={<>
           <button
@@ -249,49 +298,87 @@ const ParticipantsPage = () => {
       />
 
       <div className="fa-card pad">
-        {/* 검색 + 필터 토글 (상태 + 행동 유형) */}
+        {/* 진행 상태 칩(서버 필터). 숫자는 같은 검색·조직 조건의 실제 인원 */}
+        <div className="fa-pt-status" role="tablist" aria-label="진행 상태">
+          {STATUS_TABS.map((t) => {
+            const on = statusFilter === t.key;
+            const n = statusCounts ? statusCounts[t.key || 'all'] : null;
+            return (
+              <button
+                key={t.label}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => { setStatusFilter(t.key); setPage(1); }}
+                className={`fa-pt-stat${on ? ' on' : ''}${t.key === 'incomplete' ? ' wide' : ''}`}
+              >
+                <span className="k">{t.label}</span>
+                <span className="v fa-num">{n === null ? '–' : n.toLocaleString()}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 검색 · 조직(본부 → 실 → 팀) · 정렬 */}
         <div className="fa-filters">
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="이름, 이메일, 부서로 검색"
+            placeholder="이름, 이메일로 검색"
             className="fa-input"
             aria-label="대상자 검색"
           />
-        </div>
-        <div className="fa-filters" style={{ rowGap: 10, columnGap: 20 }}>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs font-semibold fa-muted">진행 상태</span>
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === f.key ? null : f.key)}
-                className={`fa-btn sm ${statusFilter === f.key ? 'primary' : ''}`}
-                aria-pressed={statusFilter === f.key}
+          {hasOrg && orgTree && (
+            <>
+              <select
+                className="fa-select"
+                aria-label="본부"
+                value={divId}
+                onChange={(e) => { setDivId(e.target.value); setOfficeId(''); setTeamId(''); setPage(1); }}
               >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs font-semibold fa-muted">행동 유형</span>
-            {BEHAVIOR_FILTERS.map((b) => (
-              <button
-                key={b}
-                type="button"
-                onClick={() => setBehaviorFilter(behaviorFilter === b ? null : b)}
-                className={`fa-btn sm ${behaviorFilter === b ? 'primary' : ''}`}
-                aria-pressed={behaviorFilter === b}
-              >
-                {b}
-              </button>
-            ))}
-          </div>
+                <option value="">본부 전체</option>
+                {orgTree.divisions.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                ))}
+              </select>
+              {selectedDivision && selectedDivision.offices.length > 0 && (
+                <select
+                  className="fa-select"
+                  aria-label="실"
+                  value={officeId}
+                  onChange={(e) => { setOfficeId(e.target.value); setTeamId(''); setPage(1); }}
+                >
+                  <option value="">실 전체</option>
+                  {selectedDivision.offices.map((o) => (
+                    <option key={o.id} value={o.id}>{o.name} ({o.code})</option>
+                  ))}
+                </select>
+              )}
+              {teamOptions.length > 0 && (
+                <select
+                  className="fa-select"
+                  aria-label="팀"
+                  value={teamId}
+                  onChange={(e) => { setTeamId(e.target.value); setPage(1); }}
+                >
+                  <option value="">팀 전체</option>
+                  {teamOptions.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
+          <select
+            className="fa-select"
+            aria-label="정렬"
+            value={sort}
+            onChange={(e) => { setSort(e.target.value as SortKey); setPage(1); }}
+          >
+            {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
           {anyFilter && (
-            <button type="button" onClick={() => { setStatusFilter(null); setBehaviorFilter(null); }} className="fa-btn ghost sm">
-              필터 초기화
-            </button>
+            <button type="button" onClick={resetFilters} className="fa-btn ghost sm">필터 초기화</button>
           )}
         </div>
 
@@ -313,21 +400,22 @@ const ParticipantsPage = () => {
                   />
                 </th>
                 <th>이름</th>
-                <th>소속</th>
+                <th>본부</th>
+                <th>실</th>
+                <th>팀</th>
                 <th>진단 상태</th>
-                <th style={{ width: 200 }}>진행률</th>
-                <th>행동 태그</th>
+                <th style={{ width: 180 }}>진행률</th>
                 <th style={{ textAlign: 'right' }}>보기</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="fa-empty">
+                <tr><td colSpan={8} className="fa-empty">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                 </td></tr>
               ) : visibleItems.length === 0 ? (
-                <tr><td colSpan={7} className="fa-empty">
-                  {anyFilter ? '이 필터에 해당하는 대상자가 현재 페이지에 없습니다.'
+                <tr><td colSpan={8} className="fa-empty">
+                  {anyFilter ? '이 조건에 해당하는 대상자가 없습니다.'
                     : search ? `'${search}' 검색 결과가 없습니다.`
                     : '등록된 대상자가 없습니다.'}
                 </td></tr>
@@ -335,6 +423,8 @@ const ParticipantsPage = () => {
                 visibleItems.map((p: any) => {
                   const pct = p.progress_pct ?? 0;
                   const done = p.last_status === 'completed';
+                  const ps: ProgressStatus = p.progress_status || (done ? 'completed' : p.last_status === '미시작' ? 'not_started' : 'in_progress');
+                  const detail = SESSION_DETAIL[p.last_status];
                   const isSelected = selectedIds.has(p.id);
                   return (
                     <tr key={p.id} style={isSelected ? { background: 'var(--fa-tint)' } : undefined}>
@@ -352,17 +442,24 @@ const ParticipantsPage = () => {
                         <b>{p.name}</b>
                         <span>{p.email}</span>
                       </td>
+                      {/* 소속: 본부 / 실 / 팀(+참여 코드). 마스터는 회사명을 본부 칸 위에 */}
                       <td>
-                        <div className="fa-muted">{p.company_name}</div>
-                        {/* (2026-10-15) 최근 세션에 고정된 LLM provider(null = 환경 기본값/구 세션) */}
-                        {p.llm_provider && (
-                          <span className="fa-chip" style={{ marginTop: 4, height: 20, fontSize: 11 }}>{p.llm_provider}</span>
-                        )}
+                        {onMaster && <div className="fa-pt-company">{p.company_name}</div>}
+                        {p.division_name || <span className="fa-muted">–</span>}
+                      </td>
+                      <td>{p.office_name || <span className="fa-muted">–</span>}</td>
+                      <td>
+                        {p.team_name || (p.org_code ? null : <span className="fa-muted">–</span>)}
+                        {p.org_code && <div className="fa-code fa-pt-code">{p.org_code}</div>}
+                        {!p.org_code && <div className="fa-pt-code fa-muted">미분류</div>}
                       </td>
                       <td>
-                        <span className={`fa-chip ${STATUS_CHIP[p.last_status] || 'off'}`}>
-                          {STATUS_LABEL[p.last_status] || p.last_status}
-                        </span>
+                        <span className={`fa-chip ${PROGRESS_CHIP[ps]}`}>{PROGRESS_LABEL[ps]}</span>
+                        {detail && <span className="fa-pt-detail">{detail}</span>}
+                        {/* (2026-10-15) 최근 세션에 고정된 LLM provider(null = 환경 기본값/구 세션) — 마스터에게만 */}
+                        {onMaster && p.llm_provider && (
+                          <span className="fa-chip" style={{ marginLeft: 6, height: 20, fontSize: 11 }}>{p.llm_provider}</span>
+                        )}
                         {/* (2026-10-23) 완료했지만 리포트 행이 없는 세션 — 종합 실패(degraded/failed) 또는 분석 중 */}
                         {p.report_missing && (
                           <span
@@ -404,14 +501,6 @@ const ParticipantsPage = () => {
                         </div>
                         {p.current_topic && !done && (
                           <span className="mt-1 block text-[12px] fa-muted">진행: {p.current_topic}</span>
-                        )}
-                      </td>
-                      {/* 행동 태그 */}
-                      <td>
-                        {p.behavior_tag ? (
-                          <span className="fa-chip">{p.behavior_tag}</span>
-                        ) : (
-                          <span className="fa-chip off">–</span>
                         )}
                       </td>
                       {/* 보기: 대화 원문 / 리포트 / 재분석(마스터) */}
@@ -463,7 +552,6 @@ const ParticipantsPage = () => {
             <p style={{ margin: 0 }}>
               {(data.page - 1) * data.page_size + 1}–
               {Math.min(data.page * data.page_size, data.total)} / {data.total.toLocaleString()}
-              {anyFilter && <span className="ml-2">(필터는 현재 페이지 내 적용)</span>}
             </p>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading} className="fa-btn sm">
