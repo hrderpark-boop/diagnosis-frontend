@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { KeyRound, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle2, Loader2 } from 'lucide-react';
 import { changeMyPassword } from '@/lib/adminApi';
 
 /**
@@ -69,105 +69,97 @@ export default function PasswordChangeForm() {
     }
   };
 
-  const inputClass =
-    'w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2.5 pr-10 text-sm text-white outline-none transition-colors focus:border-blue-500';
+  // 오류 상태 입력칸: 테두리만 경고색
+  const errBorder = { borderColor: 'var(--fa-danger)' };
+  const errText = { marginTop: 6, fontSize: 12.5, color: 'var(--fa-danger)' };
 
   return (
-    <div className="rounded-xl border border-gray-700 bg-gray-800 p-6">
-      <div className="mb-5 flex items-center gap-2">
-        <KeyRound size={18} className="text-blue-400" />
-        <h3 className="text-lg font-bold text-gray-200">비밀번호 변경</h3>
+    <div className="fa-card pad">
+      <div className="fa-cap">
+        <div>
+          <h3>비밀번호 변경</h3>
+          <p>{MIN_LENGTH}자 이상, 현재 비밀번호와 다른 값으로 바꿉니다.</p>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-md space-y-4">
+      <form onSubmit={handleSubmit} style={{ maxWidth: 440 }}>
         {/* 현재 비밀번호 */}
-        <div>
-          <label className="mb-1.5 block text-xs font-bold text-gray-400">현재 비밀번호 *</label>
+        <div className="fa-field">
+          <label htmlFor="pw-current">현재 비밀번호</label>
           <div className="relative">
             <input
+              id="pw-current"
               type={show ? 'text' : 'password'}
               required
               autoComplete="current-password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
               placeholder="발급받은 임시 비밀번호 또는 현재 비밀번호"
-              className={inputClass}
+              className="fa-input"
+              style={{ paddingRight: 44 }}
             />
             <button
               type="button"
               onClick={() => setShow((v) => !v)}
               aria-label={show ? '비밀번호 숨기기' : '비밀번호 표시'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-300"
+              className="fa-btn ghost sm"
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: '0 8px', color: 'var(--fa-gray)' }}
             >
-              {show ? <EyeOff size={16} /> : <Eye size={16} />}
+              {show ? <EyeOff /> : <Eye />}
             </button>
           </div>
         </div>
 
         {/* 새 비밀번호 */}
-        <div>
-          <label className="mb-1.5 block text-xs font-bold text-gray-400">새 비밀번호 *</label>
+        <div className="fa-field">
+          <label htmlFor="pw-next">새 비밀번호</label>
           <input
+            id="pw-next"
             type={show ? 'text' : 'password'}
             required
             autoComplete="new-password"
             value={next}
             onChange={(e) => setNext(e.target.value)}
             placeholder={`${MIN_LENGTH}자 이상`}
-            className={`${inputClass} ${tooShort || sameAsCurrent ? 'border-rose-600' : ''}`}
+            className="fa-input"
+            style={tooShort || sameAsCurrent ? errBorder : undefined}
           />
           {tooShort && (
-            <p className="mt-1.5 text-xs text-rose-400">
-              {MIN_LENGTH}자 이상 입력해주세요. (현재 {next.length}자)
-            </p>
+            <p style={errText}>{MIN_LENGTH}자 이상 입력해 주세요. (현재 {next.length}자)</p>
           )}
           {sameAsCurrent && (
-            <p className="mt-1.5 text-xs text-rose-400">현재 비밀번호와 다른 값을 사용하세요.</p>
+            <p style={errText}>현재 비밀번호와 다른 값을 사용하세요.</p>
           )}
         </div>
 
         {/* 새 비밀번호 확인 */}
-        <div>
-          <label className="mb-1.5 block text-xs font-bold text-gray-400">새 비밀번호 확인 *</label>
+        <div className="fa-field">
+          <label htmlFor="pw-confirm">새 비밀번호 확인</label>
           <input
+            id="pw-confirm"
             type={show ? 'text' : 'password'}
             required
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="새 비밀번호를 한 번 더 입력"
-            className={`${inputClass} ${mismatch ? 'border-rose-600' : ''}`}
+            className="fa-input"
+            style={mismatch ? errBorder : undefined}
           />
-          {mismatch && (
-            <p className="mt-1.5 text-xs text-rose-400">새 비밀번호와 일치하지 않습니다.</p>
-          )}
+          {mismatch && <p style={errText}>새 비밀번호와 일치하지 않습니다.</p>}
           {!mismatch && confirm.length > 0 && next.length >= MIN_LENGTH && (
-            <p className="mt-1.5 flex items-center gap-1 text-xs text-green-400">
+            <p className="flex items-center gap-1" style={{ marginTop: 6, fontSize: 12.5, color: 'var(--fa-mid)' }}>
               <CheckCircle2 size={12} /> 일치합니다.
             </p>
           )}
         </div>
 
         {/* 서버 응답 알림 */}
-        {error && (
-          <div className="flex items-start gap-2 rounded-lg border border-rose-900/50 bg-rose-950/40 p-3">
-            <AlertCircle size={16} className="mt-0.5 shrink-0 text-rose-400" />
-            <p className="text-sm text-rose-300">{error}</p>
-          </div>
-        )}
-        {success && (
-          <div className="flex items-start gap-2 rounded-lg border border-green-900/50 bg-green-950/40 p-3">
-            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-400" />
-            <p className="text-sm text-green-300">{success}</p>
-          </div>
-        )}
+        {error && <div className="fa-error" role="alert" style={{ marginBottom: 16 }}>{error}</div>}
+        {success && <div className="fa-note" role="status" style={{ marginBottom: 16 }}>{success}</div>}
 
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="flex items-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-500"
-        >
-          {submitting && <Loader2 size={14} className="mr-2 animate-spin" />}
+        <button type="submit" disabled={!canSubmit} className="fa-btn primary">
+          {submitting && <Loader2 className="animate-spin" />}
           비밀번호 변경
         </button>
       </form>

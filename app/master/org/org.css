@@ -1,0 +1,58 @@
+/* 마스터 · 조직 코드 화면 고유 스타일(fa-org- 접두어). 공통은 app/fm-admin.css. */
+.fa-org-rule { display: flex; align-items: center; gap: 14px; margin: 4px 0 18px; flex-wrap: wrap; }
+.fa-org-rule .seg { min-width: 110px; }
+.fa-org-rule .seg .c { font: 500 56px/1 var(--fm-font-wordmark); color: var(--fa-navy); letter-spacing: -.02em; }
+.fa-org-rule .seg .t { margin-top: 8px; font-size: 13px; color: var(--fa-gray); }
+.fa-org-rule .op { color: var(--fa-gray3); font: 200 40px var(--fm-font-wordmark); padding-bottom: 22px; }
+.fa-org-rule .seg.res { background: var(--fa-navy); border-radius: 12px; padding: 18px 26px; }
+.fa-org-rule .seg.res .c { color: #fff; }
+.fa-org-rule .seg.res .t { color: var(--fa-light); }
+
+.fa-org-tree { display: grid; gap: 28px; }
+.fa-org-div .dh { display: flex; align-items: baseline; gap: 14px; padding: 0 0 12px; border-bottom: 1px solid var(--fa-ink); flex-wrap: wrap; }
+.fa-org-div .dh .fa-code { font-size: 15px; }
+.fa-org-div .dh b { font-size: 18px; }
+.fa-org-div .dh .meta { margin-left: auto; font-size: 13px; color: var(--fa-gray); display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.fa-org-div.off .dh b, .fa-org-team.off b, .fa-org-team.off .fa-code { color: var(--fa-gray3); }
+.fa-org-team { display: grid; grid-template-columns: 80px minmax(0, 1fr) 100px 200px auto; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--fa-line); font-size: 14px; }
+.fa-org-team b { font-weight: 600; }
+.fa-org-team .p { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fa-gray); }
+.fa-org-team .p .fa-bar { flex: 1; }
+.fa-org-team .acts { display: flex; gap: 6px; justify-content: flex-end; }
+.fa-org-noteam { padding: 14px 0; font-size: 13.5px; color: var(--fa-gray); border-bottom: 1px solid var(--fa-line); }
+.fa-org-prefix { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.fa-org-prefix .fa-input { width: 160px; font: 600 20px var(--fm-font-wordmark); letter-spacing: .08em; height: 52px; }
+.fa-org-preview { margin-top: 8px; font-size: 13px; color: var(--fa-gray); }
+.fa-org-preview .fa-code { font-size: 15px; }
+
+@media (max-width: 860px) {
+  .fa-org-team { grid-template-columns: 60px minmax(0, 1fr) auto; }
+  .fa-org-team > .reg, .fa-org-team > .p { display: none; }
+  .fa-org-rule .seg .c { font-size: 40px; }
+}
+
+/* 실이 있을 때 형식(두 번째 줄): 조금 작게. 실제 실이 없으면 예시라 흐리게 */
+.fa-org-rule.sub { margin-top: -4px; }
+.fa-org-rule.sub .seg .c { font-size: 40px; }
+.fa-org-rule.sub .op { font-size: 30px; padding-bottom: 20px; }
+.fa-org-rule.sub .seg.res { padding: 14px 22px; }
+.fa-org-rule.sample .seg:not(.res) .c { color: var(--fa-gray3); }
+.fa-org-rule.sample .seg.res { background: var(--fa-mid); }
+
+/* 실 블록: 본부 안에서 들여쓴 묶음 */
+.fa-org-office { margin: 14px 0 6px 20px; padding-left: 16px; border-left: 2px solid var(--fa-light); }
+.fa-org-office .oh { display: flex; align-items: baseline; gap: 12px; padding: 4px 0 10px; border-bottom: 1px solid var(--fa-line); flex-wrap: wrap; }
+.fa-org-office .oh b { font-size: 16px; }
+.fa-org-office .oh .meta { margin-left: auto; font-size: 13px; color: var(--fa-gray); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.fa-org-office.off .oh b, .fa-org-office.off .oh .fa-code { color: var(--fa-gray3); }
+.fa-org-direct { margin-top: 14px; padding: 6px 0; font-size: 12.5px; font-weight: 600; color: var(--fa-gray); }
+@media (max-width: 860px) {
+  .fa-org-office { margin-left: 4px; padding-left: 10px; }
+  .fa-org-rule.sub .seg .c { font-size: 30px; }
+}
+
+/* 접두어 한 줄(선택 입력): 비우면 첫 조직을 만들 때 자동 */
+.fa-org-prefixline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; padding: 10px 14px; border-radius: 10px; background: var(--fa-soft); border: 1px solid var(--fa-line); font-size: 13.5px; }
+.fa-org-prefixline > span:first-child { font-weight: 600; color: var(--fa-body); }
+.fa-org-prefixline .fa-code { font-size: 15px; }
+.fa-org-prefixline .fa-input { width: 90px; height: 32px; font-size: 13.5px; text-transform: uppercase; }

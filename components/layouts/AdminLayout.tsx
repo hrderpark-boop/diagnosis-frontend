@@ -4,46 +4,120 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  LayoutDashboard, Users, FileText, Settings, LogOut, Menu,
-  Building2, ShieldCheck, Loader2,
-} from 'lucide-react';
-import { fetchMe, clearAdminSession, AdminProfile, fetchAlerts, AdminAlerts } from '@/lib/adminApi';
+import { Loader2 } from 'lucide-react';
+import { fetchMe, clearAdminSession, stopActing, AdminProfile, fetchAlerts, AdminAlerts } from '@/lib/adminApi';
+import { baseForRole, MASTER_BASE } from '@/lib/adminRoutes';
 
 /**
- * 어드민 공통 레이아웃.
+ * 관리자 콘솔 공통 레이아웃(라이트 리디자인).
  *
- * 기존의 하드코딩된 관리자 코드("1234" + sessionStorage) 방식은 완전히 폐기했다.
- * 실제 인증은 백엔드 JWT 로 이루어지며, 이 컴포넌트는 /admin/auth/me 응답으로
- * 권한을 확인해 메뉴 구성과 접근 가능 범위를 결정한다.
+ * 두 콘솔은 주소부터 분리한다: 고객사 HR → /admin/*, 마스터 → /master/*.
+ * 권한은 /admin/auth/me 응답으로 확인하고, 메뉴·조회 범위 표시는 그에 따른다.
+ * 실제 권한 집행은 백엔드가 매 요청마다 JWT 로 한다.
  */
 
-interface MenuItem {
-  name: string;
-  icon: React.ElementType;
-  href: string;
+interface MenuItem { name: string; href: string }
+interface MenuGroup { group: string; items: MenuItem[] }
+
+// 고객사 HR 메뉴 — 자사 데이터 범위
+const HR_MENU: MenuGroup[] = [
+  { group: '진단', items: [
+    { name: '진단 현황', href: '/admin/dashboard' },
+    { name: '대상자 · 참여', href: '/admin/participants' },
+    { name: '종합 리포트', href: '/admin/reports' },
+  ] },
+  { group: '교육', items: [
+    { name: '교육 체계도', href: '/admin/education' },
+    { name: '개인별 추천 과정', href: '/admin/people' },
+  ] },
+  { group: '관리', items: [
+    { name: '설정', href: '/admin/settings' },
+  ] },
+];
+
+// 마스터 메뉴 — 전 고객사 + 시스템
+const MASTER_MENU: MenuGroup[] = [
+  { group: '운영', items: [
+    { name: '새 고객사 시작하기', href: '/master/onboarding' },
+    { name: '대시보드', href: '/master/dashboard' },
+    { name: '고객사 관리', href: '/master/companies' },
+    { name: '조직 코드', href: '/master/org' },
+  ] },
+  { group: '데이터', items: [
+    { name: '전체 참여자', href: '/master/participants' },
+    { name: '전체 리포트', href: '/master/reports' },
+    { name: '교육 체계도', href: '/master/education' },
+    { name: '개인별 추천 과정', href: '/master/people' },
+  ] },
+  { group: '계정', items: [
+    { name: '설정', href: '/master/settings' },
+  ] },
+];
+
+/** 페이지 머리: 네이비 면 + 큰 제목. kpis 를 주면 같은 면에 숫자 띠가 이어진다. */
+export function AdminPageHead({
+  eyebrow, title, desc, actions, kpis,
+}: {
+  eyebrow?: React.ReactNode;
+  title: React.ReactNode;
+  desc?: React.ReactNode;
+  actions?: React.ReactNode;
+  kpis?: Array<{ label: React.ReactNode; value: React.ReactNode; unit?: React.ReactNode; detail?: React.ReactNode }>;
+}) {
+  return (
+    <section className={`fa-hero${kpis?.length ? ' has-kpis' : ''}`}>
+      <HeroArt />
+      <div className={`fa-head${kpis?.length ? ' has-kpis' : ''}`}>
+        <div>
+          {eyebrow && <div className="eyebrow">{eyebrow}</div>}
+          <h1>{title}</h1>
+          {desc && <p>{desc}</p>}
+        </div>
+        {actions && <div className="fa-actions">{actions}</div>}
+      </div>
+      {kpis?.length ? (
+        <div className="fa-kpis">
+          {kpis.map((k, i) => (
+            <div key={i} className="fa-kpi">
+              <div className="k">{k.label}</div>
+              <div className="v">{k.value}{k.unit && <small>{k.unit}</small>}</div>
+              {k.detail && <div className="d">{k.detail}</div>}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
-// 고객사 담당자(Client Admin) 메뉴 — 자사 데이터 범위
-const CLIENT_MENU: MenuItem[] = [
-  { name: '대시보드', icon: LayoutDashboard, href: '/admin/dashboard' },
-  { name: '참여자 관리', icon: Users, href: '/admin/participants' },
-  { name: '종합 리포트', icon: FileText, href: '/admin/reports' },
-  { name: '설정', icon: Settings, href: '/admin/settings' },
-];
-
-// 운영자(Super Admin) 메뉴 — 전 고객사 + 시스템 전체
-const SUPER_MENU: MenuItem[] = [
-  { name: '통합 대시보드', icon: ShieldCheck, href: '/super-admin/dashboard' },
-  { name: '고객사 관리', icon: Building2, href: '/super-admin/companies' },
-  { name: '전체 참여자', icon: Users, href: '/admin/participants' },
-  { name: '전체 리포트', icon: FileText, href: '/admin/reports' },
-  // 비밀번호 변경 등 개인 계정 설정은 두 권한 모두 필요하다
-  { name: '설정', icon: Settings, href: '/admin/settings' },
-];
+/** 남색 머리 면 오른쪽 장식: 겹친 곡면 두 장 + 가는 선 세 줄(로그인 화면의 곡면 구성과 같은 언어, 흐림 없음) */
+function HeroArt() {
+  return (
+    <svg className="fa-hero-art" viewBox="0 0 640 320" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="faHeroA" x1="1" y1="0" x2="0.2" y2="1">
+          <stop offset="0" stopColor="#2E4A85" />
+          <stop offset="1" stopColor="#22365E" />
+        </linearGradient>
+        <linearGradient id="faHeroB" x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#4F86F7" stopOpacity=".55" />
+          <stop offset="1" stopColor="#2E4A85" stopOpacity=".2" />
+        </linearGradient>
+      </defs>
+      <path d="M640 0 V320 H210 C330 285 372 190 452 112 C518 48 580 14 640 0 Z" fill="url(#faHeroA)" />
+      <path d="M640 92 V320 H392 C470 286 512 220 556 162 C586 124 612 104 640 92 Z" fill="url(#faHeroB)" />
+      <g fill="none" stroke="#8FB2FB" strokeLinecap="round">
+        <path d="M120 320 C262 268 318 150 446 70 C520 24 584 6 640 0" strokeOpacity=".38" strokeWidth="1.4" />
+        <path d="M168 320 C300 276 360 172 478 102 C546 62 600 46 640 40" strokeOpacity=".22" strokeWidth="1.2" />
+        <path d="M70 320 C214 262 270 126 408 48 C470 14 546 -2 640 -12" strokeOpacity=".14" strokeWidth="1" />
+      </g>
+      <circle cx="446" cy="70" r="4" fill="#8FB2FB" />
+      <circle cx="478" cy="102" r="2.5" fill="#8FB2FB" fillOpacity=".7" />
+    </svg>
+  );
+}
 
 const AdminLayout = ({ children }: { children: React.ReactNode }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
@@ -60,128 +134,113 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     return () => { alive = false; };
   }, []);
 
-  // (2026-09-22) 운영 알림 배너 — Gemini 크레딧 소진(402) 등. 60초마다 갱신.
+  // 운영 알림(크레딧 소진·5xx 등)은 마스터에게만. 60초마다 갱신.
+  const isMasterPath = pathname?.startsWith(MASTER_BASE);
   const [alerts, setAlerts] = useState<AdminAlerts | null>(null);
   useEffect(() => {
+    if (!isMasterPath) return;
     let alive = true;
     const load = () => fetchAlerts().then(a => { if (alive) setAlerts(a); }).catch(() => {});
     load();
     const t = setInterval(load, 60000);
     return () => { alive = false; clearInterval(t); };
-  }, []);
+  }, [isMasterPath]);
+
+  // 마스터가 고객사로 들어간 상태 → 마스터로 돌아가기
+  const exitActing = () => {
+    stopActing();
+    router.replace('/master/companies');
+  };
 
   const handleLogout = () => {
+    const login = `${baseForRole(profile?.role)}/login`;   // 대리 중인 마스터도 마스터 로그인으로
     clearAdminSession();
-    router.replace('/admin/login');
+    router.replace(login);
   };
 
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-900 text-gray-400">
-        <Loader2 className="mr-3 h-5 w-5 animate-spin" />
-        관리자 정보를 확인하는 중입니다...
+      <div className="fa-root fa-loading">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        관리자 정보를 확인하는 중입니다…
       </div>
     );
   }
 
   const isSuper = profile?.role === 'super_admin';
-  const menuItems = isSuper ? SUPER_MENU : CLIENT_MENU;
-  const scopeLabel = isSuper ? '전체 고객사' : (profile?.company_name || '소속 미지정');
+  // 고객사로 들어간 마스터는 /admin 에서 HR 메뉴로 그 고객사를 본다(유지보수 기능은 권한대로 그대로 보임)
+  const actingHere = !!profile?.acting && !isMasterPath;
+  const menu = isSuper && !actingHere ? MASTER_MENU : HR_MENU;
+  const scopeLabel = actingHere ? `${profile?.company_name || '고객사'} (마스터 대리)`
+    : isSuper ? '마스터 · 전체 고객사' : (profile?.company_name || '소속 미지정');
 
   return (
-    <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
-      {/* Sidebar */}
-      <div className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-gray-800 border-r border-gray-700 transition-all duration-300 flex flex-col z-20`}>
-        <div className="p-4 flex items-center justify-between border-b border-gray-700 h-16">
-          {isSidebarOpen && (
-            <h1 className="font-bold text-xl text-blue-500 tracking-wider">
-              {isSuper ? 'Super Admin' : 'Diag Admin'}
-            </h1>
-          )}
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-gray-700 rounded-lg text-gray-400">
-            <Menu size={20} />
-          </button>
+    <div className="fa-root fa-app">
+      <aside className="fa-nav">
+        <Link href={`${baseForRole(profile?.role)}/dashboard`} className="fa-wm" style={{ padding: 0 }}>
+          <span className="f">Find</span><span className="m fm-me-wave">Me</span>
+        </Link>
+        <div className="org">{scopeLabel}</div>
+        {menu.map((g) => (
+          <React.Fragment key={g.group}>
+            <div className="grp">{g.group}</div>
+            {g.items.map((item) => {
+              const on = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+              return (
+                <Link key={item.href} href={item.href} className={on ? 'on' : ''} aria-current={on ? 'page' : undefined}>
+                  {item.name}
+                </Link>
+              );
+            })}
+          </React.Fragment>
+        ))}
+        <div className="me">
+          <b>{profile?.name || '관리자'}</b>
+          <span>{profile?.email}</span>
+          <div><button type="button" onClick={handleLogout}>로그아웃</button></div>
         </div>
+      </aside>
 
-        {/* 권한/소속 배지 — 지금 어떤 범위의 데이터를 보고 있는지 항상 명시 */}
-        {isSidebarOpen && (
-          <div className="px-4 py-3 border-b border-gray-700">
-            <div className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-bold ${isSuper ? 'bg-violet-600/20 text-violet-300' : 'bg-blue-600/20 text-blue-300'}`}>
-              {isSuper ? <ShieldCheck size={12} /> : <Building2 size={12} />}
-              {isSuper ? 'SUPER ADMIN' : 'CLIENT ADMIN'}
-            </div>
-            <p className="mt-2 truncate text-xs text-gray-400">조회 범위: {scopeLabel}</p>
+      <main className="fa-main">
+        {actingHere && (
+          <div className="fa-alert warn fa-acting">
+            <b>마스터로 {profile?.company_name} HR 화면을 보는 중</b>
+            여기서 고친 내용은 이 고객사 HR 화면에 바로 반영됩니다.
+            <button type="button" className="fa-btn sm" onClick={exitActing} style={{ marginLeft: 12 }}>마스터로 돌아가기</button>
           </div>
         )}
-
-        <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link key={item.href} href={item.href} className={`w-full flex items-center p-3 rounded-lg transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
-                <item.icon size={20} />
-                {isSidebarOpen && <span className="ml-3 font-medium">{item.name}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-gray-700">
-          <button onClick={handleLogout} className="w-full flex items-center p-3 text-red-400 hover:bg-gray-700 rounded-lg">
-            <LogOut size={20} />
-            {isSidebarOpen && <span className="ml-3">로그아웃</span>}
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-900">
-        <header className="h-16 bg-gray-800/50 backdrop-blur-md border-b border-gray-700 flex items-center justify-between px-8 z-10">
-          <h2 className="text-lg font-bold text-gray-200">
-            {isSuper ? '시스템 통합 관리' : `${scopeLabel} 리더십 진단 관리`}
-          </h2>
-          <div className="flex items-center space-x-3">
-            <div className="text-right">
-              <p className="text-sm font-semibold text-gray-200">{profile?.name || profile?.email}</p>
-              <p className="text-xs text-gray-500">{profile?.email}</p>
-            </div>
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-white ${isSuper ? 'bg-violet-600' : 'bg-blue-600'}`}>
-              {(profile?.name || profile?.email || 'A').charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </header>
-
         {alerts?.gemini_credit_depleted && (
-          <div className="shrink-0 border-b border-rose-800 bg-rose-950/80 px-8 py-3 text-sm text-rose-200">
-            <span className="font-bold">Gemini 선불 크레딧 소진(402)</span> — 코치 대화 턴이 전부 실패하고 있습니다. AI Studio에서 충전해야 합니다.
-            {alerts.credit_depleted_at && <span className="ml-2 text-rose-300/80">감지 {alerts.credit_depleted_at} UTC</span>}
+          <div className="fa-alert">
+            <b>Gemini 선불 크레딧 소진(402)</b>코치 대화 턴이 전부 실패하고 있습니다. AI Studio에서 충전해야 합니다.
+            {alerts.credit_depleted_at && <span> · 감지 {alerts.credit_depleted_at} UTC</span>}
           </div>
         )}
         {alerts?.errors_5xx_alert && (
-          <div className="shrink-0 border-b border-rose-800 bg-rose-950/80 px-8 py-3 text-sm text-rose-200">
-            <span className="font-bold">서버 오류(5xx) 최근 1시간 {alerts.errors_5xx_last_hour}건</span> — 참가자 대화가 실패하고 있을 수 있습니다.
+          <div className="fa-alert">
+            <b>서버 오류(5xx) 최근 1시간 {alerts.errors_5xx_last_hour}건</b>참가자 대화가 실패하고 있을 수 있습니다.
             {alerts.recent_5xx && alerts.recent_5xx.length > 0 && (
-              <span className="ml-2 text-rose-300/80">
-                최근: {alerts.recent_5xx[alerts.recent_5xx.length - 1].path} {alerts.recent_5xx[alerts.recent_5xx.length - 1].status}
+              <span>
+                {' · '}최근: {alerts.recent_5xx[alerts.recent_5xx.length - 1].path} {alerts.recent_5xx[alerts.recent_5xx.length - 1].status}
                 {alerts.recent_5xx[alerts.recent_5xx.length - 1].error_id ? ` (error_id ${alerts.recent_5xx[alerts.recent_5xx.length - 1].error_id})` : ''}
               </span>
             )}
           </div>
         )}
-        {/* (2026-10-16) Claude API 키 미설정 — 키가 '없을 때만'(false). undefined(구 백엔드)는 표시하지 않는다. */}
+        {/* Claude API 키 미설정 — 키가 '없을 때만'(false). undefined(구 백엔드)는 표시하지 않는다. */}
         {alerts?.anthropic_key_configured === false && (
-          <div className="shrink-0 border-b border-amber-800 bg-amber-950/70 px-8 py-3 text-sm text-amber-200">
-            <span className="font-bold">Claude API 키 미설정</span> — 서버에 ANTHROPIC_API_KEY 가 없습니다. provider 가 claude 인 고객사(CNC-CLAUDE 등)의 세션 시작이 실패합니다. Render Environment 에 키를 등록하세요.
-            {alerts.llm_provider_default && <span className="ml-2 text-amber-300/80">서버 기본 provider: {alerts.llm_provider_default}</span>}
+          <div className="fa-alert warn">
+            <b>Claude API 키 미설정</b>서버에 ANTHROPIC_API_KEY 가 없습니다. provider 가 claude 인 고객사의 세션 시작이 실패합니다.
+            {alerts.llm_provider_default && <span> · 서버 기본 provider: {alerts.llm_provider_default}</span>}
           </div>
         )}
         {alerts?.synthetic_check?.ok === false && (
-          <div className="shrink-0 border-b border-rose-800 bg-rose-950/80 px-8 py-3 text-sm text-rose-200">
-            <span className="font-bold">쓰기 경로 합성 점검 실패</span> — 새 메시지를 저장하지 못하는 상태입니다.
-            <span className="ml-2 text-rose-300/80">{alerts.synthetic_check.last_run_at} UTC · {alerts.synthetic_check.error}</span>
+          <div className="fa-alert">
+            <b>쓰기 경로 합성 점검 실패</b>새 메시지를 저장하지 못하는 상태입니다.
+            <span> · {alerts.synthetic_check.last_run_at} UTC · {alerts.synthetic_check.error}</span>
           </div>
         )}
-        <main className="flex-1 overflow-auto p-8">{children}</main>
-      </div>
+        {children}
+      </main>
     </div>
   );
 };

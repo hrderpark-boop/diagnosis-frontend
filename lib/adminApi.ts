@@ -14,6 +14,9 @@ const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1
 
 export const ADMIN_TOKEN_KEY = 'admin_token';
 export const ADMIN_ROLE_KEY = 'admin_role';
+/** (2026-10-29) 마스터 '고객사로 들어가기': 대리 중인 고객사 id·이름(쿠키). /admin 화면에서만 헤더로 보낸다 */
+export const ACT_COMPANY_KEY = 'fm_act_company';
+export const ACT_COMPANY_NAME_KEY = 'fm_act_company_name';
 
 export type AdminRole = 'super_admin' | 'client_admin';
 
@@ -24,6 +27,8 @@ export interface AdminProfile {
   role: AdminRole;
   company_id: string | null;
   company_name: string | null;
+  /** (2026-10-29) 마스터가 고객사로 들어간 상태. company_* 는 그 고객사 */
+  acting?: boolean;
 }
 
 export interface Paginated<T = any> {
@@ -66,6 +71,11 @@ const adminApi = axios.create({
 adminApi.interceptors.request.use((config) => {
   const token = getCookie(ADMIN_TOKEN_KEY);
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // 마스터가 고객사로 들어간 상태: /admin(HR) 화면에서 보내는 요청만 그 고객사 범위로(백엔드는 super_admin 일 때만 따름)
+  const act = getCookie(ACT_COMPANY_KEY);
+  if (act && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+    config.headers['X-Act-As-Company'] = act;
+  }
   return config;
 });
 
@@ -75,8 +85,10 @@ adminApi.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401 && typeof window !== 'undefined') {
       clearAdminSession();
-      if (!window.location.pathname.startsWith('/admin/login')) {
-        window.location.href = '/admin/login';
+      // 지금 보고 있는 콘솔(/admin 또는 /master)의 로그인 화면으로
+      const login = window.location.pathname.startsWith('/master') ? '/master/login' : '/admin/login';
+      if (window.location.pathname !== login) {
+        window.location.href = login;
       }
     }
     return Promise.reject(error);
@@ -86,6 +98,18 @@ adminApi.interceptors.response.use(
 export const clearAdminSession = () => {
   deleteCookie(ADMIN_TOKEN_KEY);
   deleteCookie(ADMIN_ROLE_KEY);
+  deleteCookie(ACT_COMPANY_KEY);
+  deleteCookie(ACT_COMPANY_NAME_KEY);
+};
+
+/** 마스터 → 고객사 HR 화면으로 들어가기(그 고객사 범위로 보고 고친다). 이동은 호출한 쪽에서 /admin/dashboard 로 */
+export const startActing = (companyId: string, companyName: string) => {
+  setCookie(ACT_COMPANY_KEY, companyId);
+  setCookie(ACT_COMPANY_NAME_KEY, companyName);
+};
+export const stopActing = () => {
+  deleteCookie(ACT_COMPANY_KEY);
+  deleteCookie(ACT_COMPANY_NAME_KEY);
 };
 
 // ---------------------------------------------------------------------------
@@ -120,6 +144,11 @@ export const fetchParticipants = async (params: {
   page?: number;
   page_size?: number;
   company_id?: string;
+  org_unit_id?: string;
+  /** 진행 상태: completed · in_progress · abandoned · not_started · incomplete(완료 외 전부) */
+  status?: ParticipantStatusFilter;
+  /** 정렬: recent(기본) · org(조직 코드순) · name */
+  sort?: 'recent' | 'org' | 'name';
 }): Promise<Paginated> => {
   const { data } = await adminApi.get('/admin/participants', { params });
   return data;
@@ -254,6 +283,15 @@ export const fetchOverview = async (companyId?: string) => {
   return data;
 };
 
+export type ParticipantStatusFilter = 'completed' | 'in_progress' | 'abandoned' | 'not_started' | 'incomplete';
+export type ProgressStatus = 'completed' | 'in_progress' | 'abandoned' | 'not_started';
+
+/** (2026-10-29) 진단 기간 내 일별 추이(누적완료 포함). start·end 는 YYYY-MM-DD */
+export const fetchDailyStatsRange = async (start: string, end: string, companyId?: string) => {
+  const { data } = await adminApi.get('/admin/stats/daily', { params: { start, end, company_id: companyId } });
+  return data as { date: string; name: string; 진단참여: number; 진단완료: number; 누적완료: number }[];
+};
+
 export const fetchDailyStats = async (days = 7, companyId?: string) => {
   const { data } = await adminApi.get('/admin/stats/daily', {
     params: { days, ...(companyId ? { company_id: companyId } : {}) },
@@ -354,4 +392,319 @@ export interface AdminAlerts {
 export const fetchAlerts = async (): Promise<AdminAlerts> => {
   const res = await adminApi.get('/admin/alerts');
   return res.data;
+};
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) 조직 참여 코드(AS1) — 마스터가 등록, HR 은 자사 조회만
+// ---------------------------------------------------------------------------
+export interface OrgTeam {
+  id: string;
+  parent_id: string | null;
+  level: 'team';
+  name: string;
+  short_code: string;
+  code: string;
+  sort_order: number;
+  is_active: boolean;
+  registered: number;
+  completed: number;
+}
+export interface OrgOffice extends Omit<OrgTeam, 'level'> {
+  level: 'office';
+  teams: OrgTeam[];
+  registered_total: number;
+  completed_total: number;
+}
+export interface OrgDivision extends Omit<OrgTeam, 'level'> {
+  level: 'division';
+  /** 실(선택 단계)과 그 아래 팀 */
+  offices: OrgOffice[];
+  /** 본부 직속 팀(실 없이) */
+  teams: OrgTeam[];
+  registered_total: number;
+  completed_total: number;
+}
+export interface OrgTree {
+  company: { id: string; name: string; code: string; org_prefix: string | null };
+  divisions: OrgDivision[];
+  unassigned: { registered: number; completed: number };
+}
+
+export const fetchOrgUnits = async (companyId: string): Promise<OrgTree> => {
+  const { data } = await adminApi.get(`/admin/companies/${companyId}/org-units`);
+  return data;
+};
+
+export const updateCompany = async (companyId: string, payload: {
+  name?: string; contact_email?: string; is_active?: boolean; org_prefix?: string;
+}) => {
+  const { data } = await adminApi.patch(`/admin/companies/${companyId}`, payload);
+  return data;
+};
+
+export const createOrgUnit = async (companyId: string, payload: {
+  level: 'division' | 'office' | 'team'; name: string; short_code?: string; parent_id?: string; number?: number;
+}) => {
+  const { data } = await adminApi.post(`/admin/companies/${companyId}/org-units`, payload);
+  return data as { id: string; code: string; name: string; level: string; parent_id: string | null };
+};
+
+/** 엑셀 붙여넣기 일괄 등록. 행 = 본부, 본부 코드, 실(선택), 실 코드(선택), 팀(선택). 한 행이라도 틀리면 전부 되돌린다. */
+export const bulkCreateOrgUnits = async (companyId: string, rows: { division: string; division_code: string; office?: string; office_code?: string; team?: string }[]) => {
+  const { data } = await adminApi.post(`/admin/companies/${companyId}/org-units/bulk`, { rows });
+  return data as { prefix: string; created: { code: string; name: string; level: string }[]; skipped: number };
+};
+
+export const updateOrgUnit = async (unitId: string, payload: { name?: string; is_active?: boolean; sort_order?: number }) => {
+  const { data } = await adminApi.patch(`/admin/org-units/${unitId}`, payload);
+  return data;
+};
+
+export const deleteOrgUnit = async (unitId: string) => {
+  const { data } = await adminApi.delete(`/admin/org-units/${unitId}`);
+  return data;
+};
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) HR 결과 → 교육: 교육 체계도·개인별 추천 과정
+// ---------------------------------------------------------------------------
+export interface EducationCourseRow {
+  category: string;
+  track: string;
+  course: string;
+  track_format: string | null;
+  vod_url: string | null;
+  growth: number;
+  strength: number;
+  total: number;
+  cohort: boolean;
+}
+export interface EducationSummary {
+  competencies: { key: string; name: string }[];
+  participants: number;
+  completed: number;
+  strength: { key: string; name: string; count: number }[];
+  growth: { key: string; name: string; count: number }[];
+  courses: EducationCourseRow[];
+  cohort_min: number;
+  divisions: { id: string | null; name: string; code: string | null; n: number; averages: Record<string, number | null> }[];
+}
+export const fetchEducationSummary = async (params: { company_id?: string; org_unit_id?: string } = {}): Promise<EducationSummary> => {
+  const { data } = await adminApi.get('/admin/education/summary', { params });
+  return data;
+};
+
+export interface EducationPerson {
+  id: string;
+  name: string;
+  email: string;
+  org_code: string | null;
+  org_name: string | null;
+  division_name: string | null;
+  completed: boolean;
+  report_id: string | null;
+  total_score: number | null;
+  strength: string | null;
+  growth: string | null;
+  courses: { track: string | null; course: string; category: string | null; kind: 'growth' | 'strength'; vod_url: string | null }[];
+}
+export const fetchEducationPeople = async (params: {
+  company_id?: string; org_unit_id?: string; search?: string; status?: 'completed' | 'not_completed'; course?: string;
+  page?: number; page_size?: number;
+}): Promise<Paginated<EducationPerson>> => {
+  const { data } = await adminApi.get('/admin/education/people', { params });
+  return data;
+};
+
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) 진단 기간 · 조직별 진행/평균 · 과정 안내서
+// ---------------------------------------------------------------------------
+export interface DiagnosisPeriod { company_id: string; diagnosis_start: string | null; diagnosis_end: string | null }
+
+export const fetchPeriod = async (companyId: string): Promise<DiagnosisPeriod> => {
+  const { data } = await adminApi.get(`/admin/companies/${companyId}/period`);
+  return data;
+};
+/** 시작·종료일을 함께 정하거나(둘 다) 함께 지운다(둘 다 null). HR 은 자사만. */
+export const savePeriod = async (companyId: string, start: string | null, end: string | null): Promise<DiagnosisPeriod> => {
+  const { data } = await adminApi.put(`/admin/companies/${companyId}/period`, { diagnosis_start: start, diagnosis_end: end });
+  return data;
+};
+
+export type OrgLevel = 'division' | 'office' | 'team';
+export interface OrgStatRow {
+  id: string | null;
+  code: string | null;
+  name: string;
+  path: string;
+  level: string;
+  is_active?: boolean;
+  registered: number;
+  completed: number;
+  in_progress: number;
+  abandoned: number;
+  not_started: number;
+  completion_rate: number;
+  n_reports: number;
+  total_average: number | null;
+  averages: Record<string, number | null>;
+}
+export interface OrgStats {
+  level: OrgLevel;
+  competencies: { key: string; name: string }[];
+  total: OrgStatRow;
+  unassigned: OrgStatRow;
+  rows: OrgStatRow[];
+}
+export const fetchOrgStats = async (companyId: string, level: OrgLevel): Promise<OrgStats> => {
+  const { data } = await adminApi.get(`/admin/companies/${companyId}/org-stats`, { params: { level } });
+  return data;
+};
+
+export interface CatalogCourse {
+  course: string;
+  goal: string;
+  vod_url: string | null;
+  growth: number;
+  strength: number;
+  total: number;
+  cohort: boolean;
+}
+export interface EducationCatalog {
+  tracks: { track: string; from_level: number | null; to_level: number | string | null; format: string; format_desc: string }[];
+  competencies: { key: string; name: string; subs: { name: string; courses: Record<string, CatalogCourse> }[] }[];
+  completed: number;
+  cohort_min: number;
+}
+/** 전체 과정 카탈로그(역량 → 하위역량 × 트랙 A~D) + 범위 안 추천 인원 */
+export const fetchEducationCatalog = async (params: { company_id?: string; org_unit_id?: string } = {}): Promise<EducationCatalog> => {
+  const { data } = await adminApi.get('/admin/education/catalog', { params });
+  return data;
+};
+
+/** (2026-10-29) 고객사 전달용 참여 코드 엑셀(배포용 시트 + 전체 코드 시트). 마스터는 모든 고객사, HR 은 자사만 */
+export const downloadOrgCodesExcel = async (companyId: string) => {
+  const res = await adminApi.get(`/admin/companies/${companyId}/org-codes/export`, { responseType: 'blob' });
+  const cd: string = res.headers['content-disposition'] || '';
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  const filename = m ? decodeURIComponent(m[1]) : `참여코드_${new Date().toISOString().split('T')[0]}.xlsx`;
+  const url = URL.createObjectURL(new Blob([res.data]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) 마스터 고객사별 현황 · 참여자 명단 업로드 · 개인 참여 코드
+// ---------------------------------------------------------------------------
+export interface CompanyOverviewRow {
+  id: string; name: string; code: string; org_prefix: string | null; is_active: boolean;
+  diagnosis_start: string | null; diagnosis_end: string | null;
+  registered: number; roster: number;
+  completed: number; in_progress: number; abandoned: number; not_started: number;
+  completion_rate: number; report_missing: number; last_activity: string | null;
+  hr_accounts: number; org_unit_count: number;
+}
+export const fetchCompaniesOverview = async (): Promise<CompanyOverviewRow[]> => {
+  const { data } = await adminApi.get('/admin/companies/overview');
+  return data.companies;
+};
+
+export interface RosterResult {
+  dry_run: boolean;
+  saved: boolean;
+  rows: number;
+  new: number;
+  updated: number;
+  org_units_created: { code: string; name: string; level: string }[];
+  errors: { row: number; reason: string }[];
+  preview: { row: number; name: string; email: string; action: string; org_code: string | null; org_path: string }[];
+}
+/** 명단 엑셀(이름·이메일·본부·실·팀) 업로드. dryRun=true 면 저장 없이 미리보기 */
+export const importRoster = async (companyId: string, file: File, dryRun: boolean): Promise<RosterResult> => {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await adminApi.post(`/admin/companies/${companyId}/roster`, form, {
+    params: { dry_run: dryRun },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
+const saveBlob = (data: BlobPart, cd: string, fallback: string) => {
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  const filename = m ? decodeURIComponent(m[1]) : fallback;
+  const url = URL.createObjectURL(new Blob([data]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+/** 참여자별 개인 참여 코드 엑셀(고객사 전달용) */
+export const downloadRosterExcel = async (companyId: string) => {
+  const res = await adminApi.get(`/admin/companies/${companyId}/roster/export`, { responseType: 'blob' });
+  saveBlob(res.data, res.headers['content-disposition'] || '', '개인참여코드.xlsx');
+};
+/** 명단 양식 */
+export const downloadRosterTemplate = async () => {
+  const res = await adminApi.get('/admin/roster/template', { responseType: 'blob' });
+  saveBlob(res.data, res.headers['content-disposition'] || '', '참여자_명단_양식.xlsx');
+};
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) 맞춤 교육체계도: 고른 범위(회사·본부·실·팀)의 진단 결과로 과정 Pool 에서 구성
+// ---------------------------------------------------------------------------
+export type CurriculumTier = 'required' | 'elective' | 'strength';
+export interface CurriculumItem {
+  tier: CurriculumTier;
+  track: string;
+  course: string;
+  goal: string;
+  format: string | null;
+  people: number;
+  reason: string;
+}
+export interface CurriculumRow {
+  sub: string;
+  measured: number;
+  dist: Record<string, number>;
+  avg_level: number;
+  items: CurriculumItem[];
+}
+export interface CurriculumCompetency {
+  key: string;
+  name: string;
+  avg: number | null;
+  baseline_avg: number | null;
+  priority: 'focus' | 'develop';
+  rows: CurriculumRow[];
+}
+export interface Curriculum {
+  status: 'ok' | 'insufficient';
+  n_reports: number;
+  min_reports: number;
+  tracks: { track: string; from_level: number | null; to_level: number | string | null; format: string | null }[];
+  rules: Record<string, number>;
+  competencies: CurriculumCompetency[];
+  summary: string | null;
+  counts?: { required: number; elective: number; strength: number };
+}
+export const fetchCurriculum = async (params: { company_id?: string; org_unit_id?: string } = {}): Promise<Curriculum> => {
+  const { data } = await adminApi.get('/admin/education/curriculum', { params });
+  return data;
+};
+
+/** 맞춤 교육체계도 엑셀(화면 포스터와 같은 디자인). 고른 회사·조직 기준 */
+export const downloadCurriculumExcel = async (params: { company_id?: string; org_unit_id?: string } = {}) => {
+  const res = await adminApi.get('/admin/education/curriculum/export', { params, responseType: 'blob' });
+  saveBlob(res.data, res.headers['content-disposition'] || '', '맞춤교육체계도.xlsx');
 };

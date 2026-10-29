@@ -2,51 +2,58 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * 어드민 라우트 보호 (Route Protection)
+ * 관리자 라우트 보호 (Route Protection)
  *
- * 동작
- *  - /admin/**       : 로그인 필수 (admin_token 쿠키)
- *  - /super-admin/** : 로그인 + super_admin 권한 필수
- *  - /admin/login    : 공개. 이미 로그인 상태면 대시보드로 되돌림
+ * 두 콘솔은 주소부터 분리한다. 고객사에는 /admin 만 배포하고 /master 는 운영사만 쓴다.
+ *  - /admin/**  : 고객사 HR(client_admin) 전용. 로그인은 /admin/login
+ *  - /master/** : 마스터(super_admin) 전용. 로그인은 /master/login
+ *  - /super-admin/** : 예전 주소. 같은 화면의 /master 주소로 넘긴다
+ *  - 마스터가 '고객사로 들어가기'를 한 상태(fm_act_company 쿠키)면 /admin/** 도 연다(유지보수·대리 수정).
+ *    데이터 범위는 백엔드가 X-Act-As-Company 헤더와 super_admin 권한을 함께 확인해 그 고객사로 고정한다.
  *
  * ⚠️ 보안 경계에 대한 주의
  *  미들웨어는 Edge 에서 쿠키의 '존재와 role 값'만 확인하는 1차 차단선이다.
  *  쿠키는 클라이언트가 위조할 수 있으므로 이것만으로는 충분하지 않다.
  *  실제 권한 집행은 백엔드가 매 요청마다 JWT 서명을 검증하고 회사 격리를
  *  질의에 강제하는 것으로 이루어진다(services/auth.py).
- *  즉 위조 쿠키로 화면 껍데기는 열 수 있어도 데이터는 단 한 건도 못 가져간다.
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('admin_token')?.value;
   const role = request.cookies.get('admin_role')?.value;
+  const isSuper = role === 'super_admin';
+  const acting = isSuper && !!request.cookies.get('fm_act_company')?.value;
+  const to = (path: string) => NextResponse.redirect(new URL(path, request.url));
 
-  const isLoginPage = pathname.startsWith('/admin/login');
+  // 예전 운영자 주소 → /master
+  if (pathname.startsWith('/super-admin')) {
+    return to(pathname.replace(/^\/super-admin/, '/master') || '/master');
+  }
 
-  // 로그인 페이지: 이미 인증된 사용자는 각자의 홈으로
+  const isMaster = pathname.startsWith('/master');
+  const base = isMaster ? '/master' : '/admin';
+  const isLoginPage = pathname === `${base}/login`;
+
   if (isLoginPage) {
-    if (token) {
-      const home = role === 'super_admin' ? '/super-admin/dashboard' : '/admin/dashboard';
-      return NextResponse.redirect(new URL(home, request.url));
-    }
+    // 이미 이 콘솔 권한으로 로그인했으면 홈으로. 다른 콘솔 권한이면 로그인 화면을 그대로 보여 준다.
+    if (token && (isSuper === isMaster || (!isMaster && acting))) return to(`${base}/dashboard`);
     return NextResponse.next();
   }
 
-  // 미인증 → 로그인 화면으로 (원래 목적지를 next 파라미터로 보존)
+  // 미인증 → 이 콘솔의 로그인 화면(원래 목적지는 next 로 보존)
   if (!token) {
-    const loginUrl = new URL('/admin/login', request.url);
+    const loginUrl = new URL(`${base}/login`, request.url);
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // 운영자 전용 구역: client_admin 접근 차단
-  if (pathname.startsWith('/super-admin') && role !== 'super_admin') {
-    return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-  }
+  // 다른 콘솔 권한의 토큰: 자기 콘솔 로그인 화면으로
+  if (isMaster && !isSuper) return to('/master/login');
+  if (!isMaster && isSuper && !acting) return to('/admin/login');
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/super-admin/:path*'],
+  matcher: ['/admin/:path*', '/master/:path*', '/super-admin/:path*'],
 };
