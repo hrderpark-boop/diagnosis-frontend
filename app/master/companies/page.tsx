@@ -1,5 +1,6 @@
 "use client";
 
+import { HR_URL } from '@/lib/adminRoutes';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
@@ -181,7 +182,7 @@ export default function CompaniesPage() {
 
   const copyCredentials = async () => {
     if (!issued) return;
-    const text = `접속 주소: ${window.location.origin}/admin/login\n이메일: ${issued.email}\n임시 비밀번호: ${issued.generated_password}`;
+    const text = `접속 주소: ${HR_URL}\n이메일: ${issued.email}\n임시 비밀번호: ${issued.generated_password}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);

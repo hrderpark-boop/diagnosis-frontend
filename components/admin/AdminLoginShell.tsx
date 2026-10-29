@@ -81,8 +81,8 @@ function LoginForm({ variant }: { variant: Variant }) {
         // 다른 콘솔 계정: 세션을 남기지 않고 알맞은 주소를 안내
         clearAdminSession();
         setError(variant === 'hr'
-          ? '마스터 계정입니다. 마스터 콘솔(/master/login)에서 로그인해 주세요.'
-          : '고객사 HR 계정입니다. HR 관리자 콘솔(/admin/login)에서 로그인해 주세요.');
+          ? '마스터 계정입니다. 마스터 콘솔(fm-ops.connectn.co.kr)에서 로그인해 주세요.'
+          : '고객사 HR 계정입니다. HR 관리자 콘솔(fm-hr.connectn.co.kr)에서 로그인해 주세요.');
         setLoading(false);
         return;
       }

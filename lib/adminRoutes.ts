@@ -24,3 +24,16 @@ export const currentBase = () =>
 
 /** 현재 콘솔 기준 경로. 예) adminPath('/reports/abc') → /master/reports/abc */
 export const adminPath = (path: string) => `${currentBase()}${path.startsWith('/') ? path : `/${path}`}`;
+
+/**
+ * (2026-10-29) 공식 주소. 참여자 · 고객사 HR · 마스터를 도메인으로 나눈다.
+ *  - 참여자: fm.connectn.co.kr
+ *  - 고객사 HR: fm-hr.connectn.co.kr  (들어오면 /admin 만 열림)
+ *  - 마스터: fm-ops.connectn.co.kr   (들어오면 /master 만 열림, 고객사로 들어가기 중에는 /admin 도)
+ * 안내 메일·엑셀에 들어가는 주소도 여기서 가져온다.
+ */
+export const PARTICIPANT_URL = 'https://fm.connectn.co.kr';
+export const HR_URL = 'https://fm-hr.connectn.co.kr';
+export const OPS_URL = 'https://fm-ops.connectn.co.kr';
+export const HR_HOST = 'fm-hr.connectn.co.kr';
+export const OPS_HOST = 'fm-ops.connectn.co.kr';

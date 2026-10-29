@@ -1,5 +1,6 @@
 "use client";
 
+import { PARTICIPANT_URL, HR_URL } from '@/lib/adminRoutes';
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import ScopeFilter, { useScope } from '@/components/admin/ScopeFilter';
 import { Loader2 } from 'lucide-react';
@@ -23,8 +24,8 @@ import './org.css';
  */
 
 
-const LOGIN_URL = 'https://fm.connectn.co.kr';
-const HR_LOGIN_URL = 'https://fm.connectn.co.kr/admin/login';
+const LOGIN_URL = PARTICIPANT_URL;
+const HR_LOGIN_URL = HR_URL;   // 고객사 HR 전용 주소(들어오면 HR 로그인으로)
 
 /** axios 오류에서 서버 안내문(detail)을 꺼낸다 */
 const errDetail = (e: unknown, fallback: string) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { PARTICIPANT_URL, HR_URL } from '@/lib/adminRoutes';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, Copy, Download, FileSpreadsheet, Loader2, LogIn, Mail, Upload } from 'lucide-react';
@@ -22,8 +23,8 @@ import './onboarding.css';
  * 완료 표시는 실제 데이터로만 정한다. ⑥ 은 이번 화면에서 내려받기를 한 번이라도 했을 때.
  */
 
-const PARTICIPANT_URL = 'https://fm.connectn.co.kr';
-const HR_LOGIN_URL = 'https://fm.connectn.co.kr/admin/login';
+
+const HR_LOGIN_URL = HR_URL;   // 고객사 HR 전용 주소(들어오면 HR 로그인으로)
 
 interface CompanyRow { id: string; name: string; code: string; contact_email?: string | null; participant_count?: number; org_prefix?: string | null }
 interface AdminRow { id: string; email: string; name: string | null; company_id: string | null }
