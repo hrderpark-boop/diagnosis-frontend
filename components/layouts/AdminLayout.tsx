@@ -26,6 +26,10 @@ const HR_MENU: MenuGroup[] = [
     { name: '대상자 · 참여', href: '/admin/participants' },
     { name: '종합 리포트', href: '/admin/reports' },
   ] },
+  { group: '교육', items: [
+    { name: '교육 체계도', href: '/admin/education' },
+    { name: '개인별 추천 과정', href: '/admin/people' },
+  ] },
   { group: '관리', items: [
     { name: '설정', href: '/admin/settings' },
   ] },
@@ -36,10 +40,13 @@ const MASTER_MENU: MenuGroup[] = [
   { group: '운영', items: [
     { name: '대시보드', href: '/master/dashboard' },
     { name: '고객사 관리', href: '/master/companies' },
+    { name: '조직 코드', href: '/master/org' },
   ] },
   { group: '데이터', items: [
     { name: '전체 참여자', href: '/master/participants' },
     { name: '전체 리포트', href: '/master/reports' },
+    { name: '교육 체계도', href: '/master/education' },
+    { name: '개인별 추천 과정', href: '/master/people' },
   ] },
   { group: '계정', items: [
     { name: '설정', href: '/master/settings' },

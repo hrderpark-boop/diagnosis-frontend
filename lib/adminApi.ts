@@ -122,6 +122,7 @@ export const fetchParticipants = async (params: {
   page?: number;
   page_size?: number;
   company_id?: string;
+  org_unit_id?: string;
 }): Promise<Paginated> => {
   const { data } = await adminApi.get('/admin/participants', { params });
   return data;
@@ -356,4 +357,117 @@ export interface AdminAlerts {
 export const fetchAlerts = async (): Promise<AdminAlerts> => {
   const res = await adminApi.get('/admin/alerts');
   return res.data;
+};
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) 조직 참여 코드(AS1) — 마스터가 등록, HR 은 자사 조회만
+// ---------------------------------------------------------------------------
+export interface OrgTeam {
+  id: string;
+  parent_id: string | null;
+  level: 'team';
+  name: string;
+  short_code: string;
+  code: string;
+  sort_order: number;
+  is_active: boolean;
+  registered: number;
+  completed: number;
+}
+export interface OrgDivision extends Omit<OrgTeam, 'level'> {
+  level: 'division';
+  teams: OrgTeam[];
+  registered_total: number;
+  completed_total: number;
+}
+export interface OrgTree {
+  company: { id: string; name: string; code: string; org_prefix: string | null };
+  divisions: OrgDivision[];
+  unassigned: { registered: number; completed: number };
+}
+
+export const fetchOrgUnits = async (companyId: string): Promise<OrgTree> => {
+  const { data } = await adminApi.get(`/admin/companies/${companyId}/org-units`);
+  return data;
+};
+
+export const updateCompany = async (companyId: string, payload: {
+  name?: string; contact_email?: string; is_active?: boolean; org_prefix?: string;
+}) => {
+  const { data } = await adminApi.patch(`/admin/companies/${companyId}`, payload);
+  return data;
+};
+
+export const createOrgUnit = async (companyId: string, payload: {
+  level: 'division' | 'team'; name: string; short_code?: string; parent_id?: string; number?: number;
+}) => {
+  const { data } = await adminApi.post(`/admin/companies/${companyId}/org-units`, payload);
+  return data as { id: string; code: string; name: string; level: string; parent_id: string | null };
+};
+
+/** 엑셀 붙여넣기 일괄 등록. 행 = 본부, 본부 코드, 팀(선택). 한 행이라도 틀리면 전부 되돌린다. */
+export const bulkCreateOrgUnits = async (companyId: string, rows: { division: string; division_code: string; team?: string }[]) => {
+  const { data } = await adminApi.post(`/admin/companies/${companyId}/org-units/bulk`, { rows });
+  return data as { prefix: string; created: { code: string; name: string; level: string }[]; skipped: number };
+};
+
+export const updateOrgUnit = async (unitId: string, payload: { name?: string; is_active?: boolean; sort_order?: number }) => {
+  const { data } = await adminApi.patch(`/admin/org-units/${unitId}`, payload);
+  return data;
+};
+
+export const deleteOrgUnit = async (unitId: string) => {
+  const { data } = await adminApi.delete(`/admin/org-units/${unitId}`);
+  return data;
+};
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) HR 결과 → 교육: 교육 체계도·개인별 추천 과정
+// ---------------------------------------------------------------------------
+export interface EducationCourseRow {
+  category: string;
+  track: string;
+  course: string;
+  track_format: string | null;
+  vod_url: string | null;
+  growth: number;
+  strength: number;
+  total: number;
+  cohort: boolean;
+}
+export interface EducationSummary {
+  competencies: { key: string; name: string }[];
+  participants: number;
+  completed: number;
+  strength: { key: string; name: string; count: number }[];
+  growth: { key: string; name: string; count: number }[];
+  courses: EducationCourseRow[];
+  cohort_min: number;
+  divisions: { id: string | null; name: string; code: string | null; n: number; averages: Record<string, number | null> }[];
+}
+export const fetchEducationSummary = async (params: { company_id?: string; org_unit_id?: string } = {}): Promise<EducationSummary> => {
+  const { data } = await adminApi.get('/admin/education/summary', { params });
+  return data;
+};
+
+export interface EducationPerson {
+  id: string;
+  name: string;
+  email: string;
+  org_code: string | null;
+  org_name: string | null;
+  division_name: string | null;
+  completed: boolean;
+  report_id: string | null;
+  total_score: number | null;
+  strength: string | null;
+  growth: string | null;
+  courses: { track: string | null; course: string; category: string | null; kind: 'growth' | 'strength'; vod_url: string | null }[];
+}
+export const fetchEducationPeople = async (params: {
+  company_id?: string; org_unit_id?: string; search?: string; status?: 'completed' | 'not_completed'; course?: string;
+  page?: number; page_size?: number;
+}): Promise<Paginated<EducationPerson>> => {
+  const { data } = await adminApi.get('/admin/education/people', { params });
+  return data;
 };
