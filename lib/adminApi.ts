@@ -560,3 +560,19 @@ export const fetchEducationCatalog = async (params: { company_id?: string; org_u
   const { data } = await adminApi.get('/admin/education/catalog', { params });
   return data;
 };
+
+/** (2026-10-29) 고객사 전달용 참여 코드 엑셀(배포용 시트 + 전체 코드 시트). 마스터는 모든 고객사, HR 은 자사만 */
+export const downloadOrgCodesExcel = async (companyId: string) => {
+  const res = await adminApi.get(`/admin/companies/${companyId}/org-codes/export`, { responseType: 'blob' });
+  const cd: string = res.headers['content-disposition'] || '';
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  const filename = m ? decodeURIComponent(m[1]) : `참여코드_${new Date().toISOString().split('T')[0]}.xlsx`;
+  const url = URL.createObjectURL(new Blob([res.data]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};

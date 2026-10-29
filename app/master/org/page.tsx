@@ -6,14 +6,16 @@ import { Loader2 } from 'lucide-react';
 import AdminLayout, { AdminPageHead } from '@/components/layouts/AdminLayout';
 import {
   fetchCompanies, fetchOrgUnits, updateCompany, createOrgUnit, bulkCreateOrgUnits,
-  updateOrgUnit, deleteOrgUnit, OrgTree, OrgDivision, OrgOffice, OrgTeam,
+  updateOrgUnit, deleteOrgUnit, downloadOrgCodesExcel, OrgTree, OrgDivision, OrgOffice, OrgTeam,
 } from '@/lib/adminApi';
 import './org.css';
 
 /**
  * 마스터 · 조직 코드.
- * 고객사마다 접두어를 정하고 본부·실·팀 참여 코드(AS1 · ASM1 형식)를 발급한다. 실은 선택 단계다.
+ * 본부·실·팀 이름만 넣으면 참여 코드(AS1 · ASM1 형식)가 자동으로 정해진다. 실은 선택 단계다.
+ *   접두어·본부 코드·실 코드는 비우면 서버가 비어 있는 다음 값을 고른다(직접 정해도 된다).
  * 참여자가 로그인 화면의 그룹 코드 칸에 이 코드를 넣으면 회사와 소속이 함께 정해진다.
+ * 고객사 전달은 [코드 엑셀 다운로드](배포용 시트 + 전체 코드 시트).
  * 코드 생성·검증은 백엔드(services/org_codes.py)가 하고, 여기서는 미리보기만 보여 준다.
  */
 
@@ -28,6 +30,9 @@ const errDetail = (e: unknown, fallback: string) => {
 };
 
 const pct = (done: number, total: number) => (total > 0 ? Math.round((done / total) * 100) : 0);
+
+/** 엑셀 붙여넣기 2열이 코드처럼 보이는지(영문 대문자 1~2자). 아니면 이름으로 본다 */
+const looksLikeCode = (v?: string) => !!v && /^[A-Za-z]{1,2}$/.test(v.trim());
 
 type AnyUnit = OrgDivision | OrgOffice | OrgTeam;
 
@@ -89,6 +94,7 @@ function OrgPage() {
   const [bulkResult, setBulkResult] = useState<{ created: { code: string; name: string; level: string }[]; skipped: number } | null>(null);
   const [modalError, setModalError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const flash = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(''), 2200); };
 
@@ -195,16 +201,17 @@ function OrgPage() {
     }
   };
 
+  // 코드 칸은 선택: 비우면 서버가 비어 있는 다음 영문 코드를 고른다(접두어가 없으면 접두어도 자동)
   const submitDivision = () => {
     if (!fName.trim()) { setModalError('본부 이름을 입력해 주세요.'); return; }
-    if (!/^[A-Z]{1,2}$/.test(fCode)) { setModalError('본부 코드는 영문 1~2자입니다.'); return; }
-    run(() => createOrgUnit(companyId, { level: 'division', name: fName.trim(), short_code: fCode }), '본부를 추가했습니다.');
+    if (fCode && !/^[A-Z]{1,2}$/.test(fCode)) { setModalError('본부 코드는 영문 1~2자입니다. 비우면 자동으로 정해집니다.'); return; }
+    run(() => createOrgUnit(companyId, { level: 'division', name: fName.trim(), short_code: fCode || undefined }), '본부를 추가했습니다.');
   };
 
   const submitOffice = (division: OrgDivision) => {
     if (!fName.trim()) { setModalError('실 이름을 입력해 주세요.'); return; }
-    if (!/^[A-Z]{1,2}$/.test(fCode)) { setModalError('실 코드는 영문 1~2자입니다.'); return; }
-    run(() => createOrgUnit(companyId, { level: 'office', name: fName.trim(), short_code: fCode, parent_id: division.id }), '실을 추가했습니다.');
+    if (fCode && !/^[A-Z]{1,2}$/.test(fCode)) { setModalError('실 코드는 영문 1~2자입니다. 비우면 자동으로 정해집니다.'); return; }
+    run(() => createOrgUnit(companyId, { level: 'office', name: fName.trim(), short_code: fCode || undefined, parent_id: division.id }), '실을 추가했습니다.');
   };
 
   // 팀 추가 모달의 상위(본부 직속 또는 고른 실)
@@ -224,30 +231,60 @@ function OrgPage() {
     run(() => updateOrgUnit(unit.id, { name: fName.trim() }), '이름을 바꿨습니다.');
   };
 
-  // 엑셀 붙여넣기 파싱: 탭 또는 쉼표 구분. 머리글 행은 건너뛴다.
-  //   3열: 본부 · 본부 코드 · 팀(선택)
-  //   5열: 본부 · 본부 코드 · 실 · 실 코드 · 팀(선택)  (4열이면 팀 없이 실까지)
-  const bulkRows = useMemo(() => bulkText
+  // 엑셀 붙여넣기 파싱: 탭 또는 쉼표 구분. 머리글 행은 건너뛴다. 행마다 형식을 알아본다.
+  //   이름만(코드 자동): 본부 · 팀  /  본부 · 실 · 팀
+  //   코드 포함(예전 형식): 본부 · 본부 코드 · 팀  /  본부 · 본부 코드 · 실 · 실 코드 · 팀
+  //   2열이 영문 1~2자면 코드로 본다. 코드는 있을 때만 보낸다.
+  type BulkRow = { division: string; division_code?: string; office?: string; office_code?: string; team?: string };
+  const bulkRows = useMemo<BulkRow[]>(() => bulkText
     .split(/\r?\n/)
     .map((line) => line.split(line.includes('\t') ? '\t' : ',').map((c) => c.trim()))
-    .filter((cols) => cols.length >= 2 && cols[0] && cols[1])
-    .filter((cols) => !/본부\s*코드|division/i.test(cols[1]))
-    .map((cols) => (cols.length >= 4 && cols[2] && cols[3]
-      ? { division: cols[0], division_code: cols[1].toUpperCase(), office: cols[2], office_code: cols[3].toUpperCase(), team: cols[4] || undefined }
-      : { division: cols[0], division_code: cols[1].toUpperCase(), team: cols[2] || undefined })), [bulkText]);
+    .filter((cols) => cols.length >= 1 && cols[0])
+    .filter((cols) => !/^본부$|division/i.test(cols[0]) && !/본부\s*코드/.test(cols[1] || ''))
+    .map((cols): BulkRow => {
+      if (looksLikeCode(cols[1])) {
+        // 코드 포함 형식
+        if (cols.length >= 4 && cols[2] && looksLikeCode(cols[3])) {
+          return { division: cols[0], division_code: cols[1].toUpperCase(), office: cols[2], office_code: cols[3].toUpperCase(), team: cols[4] || undefined };
+        }
+        return { division: cols[0], division_code: cols[1].toUpperCase(), team: cols[2] || undefined };
+      }
+      // 이름만 형식: 2열이면 본부·팀, 3열이면 본부·실·팀
+      if (cols.length >= 3 && cols[2]) return { division: cols[0], office: cols[1] || undefined, team: cols[2] };
+      return { division: cols[0], team: cols[1] || undefined };
+    }), [bulkText]);
 
   const submitBulk = async () => {
     if (!bulkRows.length) { setModalError('붙여넣은 행이 없습니다.'); return; }
     setBusy(true);
     setModalError('');
     try {
-      const res = await bulkCreateOrgUnits(companyId, bulkRows);
+      // 코드를 비운 행은 빈 문자열로 보낸다(서버가 같은 이름을 찾거나 자동 코드로 만든다)
+      const res = await bulkCreateOrgUnits(companyId, bulkRows.map((r) => ({ ...r, division_code: r.division_code ?? '' })));
       setBulkResult({ created: res.created, skipped: res.skipped });
       await loadTree();
     } catch (e: unknown) {
       setModalError(errDetail(e, '일괄 등록하지 못했습니다.'));
     } finally {
       setBusy(false);
+    }
+  };
+
+  // 고객사 전달용 참여 코드 엑셀. blob 응답이라 오류 본문도 blob → 글자로 풀어 서버 안내문을 보여 준다
+  const exportExcel = async () => {
+    setExporting(true);
+    setPageError('');
+    try {
+      await downloadOrgCodesExcel(companyId);
+    } catch (e: unknown) {
+      let msg = errDetail(e, '');
+      const data = (e as { response?: { data?: unknown } })?.response?.data;
+      if (!msg && data instanceof Blob) {
+        try { msg = (JSON.parse(await data.text()) as { detail?: string }).detail || ''; } catch { /* 무시 */ }
+      }
+      setPageError(msg || '참여 코드 엑셀을 내려받지 못했습니다.');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -306,7 +343,6 @@ function OrgPage() {
     copy(lines.join('\n'), '참여 안내문을 복사했습니다.');
   };
 
-  const selected = companies.find((c) => c.id === companyId);
 
   // 팀 행(본부 직속·실 소속 공용)
   const renderTeam = (t: OrgTeam) => (
@@ -329,7 +365,7 @@ function OrgPage() {
       <AdminPageHead
         eyebrow="마스터"
         title="조직 코드"
-        desc="본부·팀마다 고유 코드를 발급합니다. 참여자가 이 코드로 접속하면 회사와 소속이 자동 분류됩니다."
+        desc="본부·실·팀 이름만 넣으면 참여 코드가 자동으로 발급됩니다. 참여자가 이 코드로 접속하면 회사와 소속이 자동 분류됩니다."
         actions={
           <>
             <select
@@ -341,11 +377,15 @@ function OrgPage() {
               {!companyId && <option value="">고객사 선택</option>}
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
             </select>
-            {prefix && (
+            {tree && (
               <>
                 <button type="button" className="fa-btn" onClick={() => openModal({ kind: 'bulk' })}>엑셀로 일괄 등록</button>
+                <button type="button" className="fa-btn" onClick={() => openModal({ kind: 'division' })}>+ 본부 추가</button>
                 <button type="button" className="fa-btn" onClick={copyGuide} disabled={!divisions.length}>참여 안내문 복사</button>
-                <button type="button" className="fa-btn primary" onClick={() => openModal({ kind: 'division' })}>+ 본부 추가</button>
+                <button type="button" className="fa-btn primary" onClick={exportExcel} disabled={!divisions.length || exporting}
+                  title={divisions.length ? '고객사 전달용 참여 코드 엑셀' : '참여 코드를 먼저 발급하세요'}>
+                  {exporting ? '내려받는 중…' : '코드 엑셀 다운로드'}
+                </button>
               </>
             )}
           </>
@@ -361,33 +401,40 @@ function OrgPage() {
         <div className="fa-empty"><Loader2 className="inline h-5 w-5 animate-spin" /> 불러오는 중…</div>
       )}
 
-      {tree && !prefix && (
-        <div className="fa-card pad fa-section">
-          <div className="fa-cap"><div><h3>회사 접두어 정하기</h3><p>{selected?.name}의 모든 조직 코드 맨 앞에 붙는 영문 1~3자입니다. 조직 코드를 만든 뒤에는 바꿀 수 없습니다.</p></div></div>
-          <div className="fa-org-prefix">
-            <input
-              className="fa-input"
-              aria-label="회사 접두어"
-              maxLength={3}
-              value={prefixInput}
-              onChange={(e) => setPrefixInput(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
-              placeholder="A"
-            />
-            <button type="button" className="fa-btn primary" style={{ height: 52 }} onClick={savePrefix} disabled={prefixSaving || !prefixInput}>
-              {prefixSaving ? '저장하는 중…' : '접두어 저장'}
-            </button>
-          </div>
-          <div className="fa-org-preview">예) 영업본부 S, 영업1팀 → <span className="fa-code">{(prefixInput || 'A') + 'S1'}</span></div>
-          {prefixError && <div className="fa-error" role="alert" style={{ marginTop: 12 }}>{prefixError}</div>}
-        </div>
-      )}
-
-      {tree && prefix && (
+      {tree && (
         <>
           <div className="fa-card pad fa-section">
-            <div className="fa-cap"><div><h3>코드 규칙</h3><p>회사 접두어 + 본부 코드 + (실 코드) + 팀 번호. 실은 선택 단계이고, 중복되면 등록할 때 바로 알려 줍니다.</p></div></div>
+            <div className="fa-cap"><div><h3>코드 규칙</h3><p>회사 접두어 + 본부 코드 + (실 코드) + 팀 번호. 모두 자동으로 정해지고, 직접 정해도 됩니다. 중복되면 등록할 때 바로 알려 줍니다.</p></div></div>
+            {/* 접두어: 비워 두면 첫 조직을 만들 때 자동으로 정해진다. 조직이 생긴 뒤에는 바꿀 수 없다 */}
+            <div className="fa-org-prefixline">
+              <span>접두어</span>
+              {prefix ? (
+                <>
+                  <b className="fa-code">{prefix}</b>
+                  <span className="fa-muted">{divisions.length ? '조직 코드가 있어 바꿀 수 없습니다.' : ''}</span>
+                </>
+              ) : (
+                <span className="fa-muted">자동으로 정해집니다 (직접 정하려면 입력)</span>
+              )}
+              {!divisions.length && (
+                <>
+                  <input
+                    className="fa-input"
+                    aria-label="회사 접두어"
+                    maxLength={3}
+                    value={prefixInput}
+                    onChange={(e) => setPrefixInput(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
+                    placeholder={prefix || '자동'}
+                  />
+                  <button type="button" className="fa-btn sm" onClick={savePrefix} disabled={prefixSaving || !prefixInput}>
+                    {prefixSaving ? '저장하는 중…' : '저장'}
+                  </button>
+                </>
+              )}
+            </div>
+            {prefixError && <div className="fa-error" role="alert" style={{ marginBottom: 12 }}>{prefixError}</div>}
             <div className="fa-org-rule">
-              <div className="seg"><div className="c">{example.p}</div><div className="t">회사 · {tree.company.name}</div></div>
+              <div className="seg"><div className="c">{example.p}</div><div className="t">회사 · {tree.company.name}{prefix ? '' : ' (예시)'}</div></div>
               <div className="op">+</div>
               <div className="seg"><div className="c">{example.d}</div><div className="t">본부 · {example.dName}</div></div>
               <div className="op">+</div>
@@ -483,10 +530,12 @@ function OrgPage() {
         </>}>
           <div className="fa-field"><label htmlFor="org-dname">본부 이름</label>
             <input id="org-dname" className="fa-input" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="영업본부" autoFocus /></div>
-          <div className="fa-field"><label htmlFor="org-dcode">본부 코드</label>
+          <div className="fa-field"><label htmlFor="org-dcode">본부 코드 (선택)</label>
             <input id="org-dcode" className="fa-input" maxLength={2} value={fCode}
-              onChange={(e) => setFCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} placeholder="S" />
-            <div className="hint">영문 1~2자. 참여 코드는 <span className="fa-code">{prefix + (fCode || 'S')}</span>, 첫 팀은 <span className="fa-code">{prefix + (fCode || 'S')}1</span>이 됩니다.</div></div>
+              onChange={(e) => setFCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} placeholder="비우면 자동(A, B, C…)" />
+            <div className="hint">비우면 자동(A, B, C…). 직접 정하려면 영문 1~2자. 참여 코드: {fCode
+              ? <><span className="fa-code">{(prefix || '(접두어)') + fCode}</span>, 첫 팀 <span className="fa-code">{(prefix || '(접두어)') + fCode}1</span></>
+              : <span className="fa-code">자동</span>}</div></div>
           {modalError && <div className="fa-error" role="alert">{modalError}</div>}
         </Modal>
       )}
@@ -498,10 +547,12 @@ function OrgPage() {
         </>}>
           <div className="fa-field"><label htmlFor="org-oname">실 이름</label>
             <input id="org-oname" className="fa-input" value={fName} onChange={(e) => setFName(e.target.value)} placeholder="마케팅실" autoFocus /></div>
-          <div className="fa-field"><label htmlFor="org-ocode">실 코드</label>
+          <div className="fa-field"><label htmlFor="org-ocode">실 코드 (선택)</label>
             <input id="org-ocode" className="fa-input" maxLength={2} value={fCode}
-              onChange={(e) => setFCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} placeholder="M" />
-            <div className="hint">영문 1~2자. 참여 코드는 <span className="fa-code">{modal.division.code + (fCode || 'M')}</span>, 첫 팀은 <span className="fa-code">{modal.division.code + (fCode || 'M')}1</span>이 됩니다.</div></div>
+              onChange={(e) => setFCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} placeholder="비우면 자동(A, B, C…)" />
+            <div className="hint">비우면 자동. 직접 정하려면 영문 1~2자. 참여 코드: {fCode
+              ? <><span className="fa-code">{modal.division.code + fCode}</span>, 첫 팀 <span className="fa-code">{modal.division.code + fCode}1</span></>
+              : <><span className="fa-code">{modal.division.code}</span> + <span className="fa-code">자동</span></>}</div></div>
           {modalError && <div className="fa-error" role="alert">{modalError}</div>}
         </Modal>
       )}
@@ -559,13 +610,14 @@ function OrgPage() {
           ) : (
             <>
               <p className="fa-muted" style={{ marginTop: 0, fontSize: 13.5, lineHeight: 1.7 }}>
-                엑셀에서 아래 둘 중 한 형식으로 복사해 붙여 넣으세요. 팀 열을 비우면 본부(또는 실)까지만 만듭니다.<br />
-                · 실이 없으면 3열: <b>본부 · 본부 코드 · 팀</b><br />
-                · 실이 있으면 5열: <b>본부 · 본부 코드 · 실 · 실 코드 · 팀</b><br />
-                같은 상위 아래 팀 번호는 1부터 차례로 붙고, 한 행이라도 틀리면 아무것도 등록하지 않습니다.
+                엑셀에서 조직 이름만 복사해 붙여 넣으면 코드는 자동으로 정해집니다.<br />
+                · 실이 없으면: <b>본부 ⇥ 팀</b><br />
+                · 실이 있으면: <b>본부 ⇥ 실 ⇥ 팀</b><br />
+                코드를 직접 정하려면 예전 형식도 됩니다: 본부 · 본부 코드 · 팀 / 본부 · 본부 코드 · 실 · 실 코드 · 팀.<br />
+                같은 이름의 본부·실은 하나로 묶이고, 팀 번호는 1부터 차례로 붙습니다. 한 행이라도 틀리면 아무것도 등록하지 않습니다.
               </p>
               <textarea className="fa-textarea" rows={8} value={bulkText} onChange={(e) => setBulkText(e.target.value)}
-                aria-label="붙여 넣을 조직 목록" placeholder={'영업본부\tS\t영업1팀\n영업본부\tS\t마케팅실\tM\t브랜드팀\n생산본부\tP\t생산1팀'} />
+                aria-label="붙여 넣을 조직 목록" placeholder={'영업본부\t영업1팀\n영업본부\t영업2팀\n영업본부\t마케팅실\t브랜드팀\n생산본부\t생산1팀'} />
               <div className="fa-muted" style={{ marginTop: 8, fontSize: 12.5 }}>인식한 행 {bulkRows.length}개</div>
             </>
           )}

@@ -50,3 +50,9 @@
   .fa-org-office { margin-left: 4px; padding-left: 10px; }
   .fa-org-rule.sub .seg .c { font-size: 30px; }
 }
+
+/* 접두어 한 줄(선택 입력): 비우면 첫 조직을 만들 때 자동 */
+.fa-org-prefixline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; padding: 10px 14px; border-radius: 10px; background: var(--fa-soft); border: 1px solid var(--fa-line); font-size: 13.5px; }
+.fa-org-prefixline > span:first-child { font-weight: 600; color: var(--fa-body); }
+.fa-org-prefixline .fa-code { font-size: 15px; }
+.fa-org-prefixline .fa-input { width: 90px; height: 32px; font-size: 13.5px; text-transform: uppercase; }

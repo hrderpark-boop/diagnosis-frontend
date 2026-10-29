@@ -12,6 +12,7 @@ import {
 import {
   fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, reanalyzeSession, Paginated,
   getCookie, ADMIN_ROLE_KEY, fetchMe, fetchOrgUnits, OrgTree, ParticipantStatusFilter, ProgressStatus,
+  downloadOrgCodesExcel,
 } from '@/lib/adminApi';
 import { adminPath } from '@/lib/adminRoutes';
 
@@ -201,6 +202,26 @@ const ParticipantsPage = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
+  // (2026-10-29) 참여 코드 엑셀(HR 자사). 조직 코드가 있을 때만 버튼이 보인다
+  const [codesDownloading, setCodesDownloading] = useState(false);
+  const handleCodesDownload = async () => {
+    if (!orgTree) return;
+    setCodesDownloading(true);
+    try {
+      await downloadOrgCodesExcel(orgTree.company.id);
+    } catch (e: unknown) {
+      // blob 응답이라 오류 본문도 blob → 글자로 풀어 서버 안내문을 보여 준다
+      let msg = '';
+      const data = (e as { response?: { data?: unknown } })?.response?.data;
+      if (data instanceof Blob) {
+        try { msg = (JSON.parse(await data.text()) as { detail?: string }).detail || ''; } catch { /* 무시 */ }
+      }
+      alert(msg || '참여 코드 엑셀을 내려받지 못했습니다.');
+    } finally {
+      setCodesDownloading(false);
+    }
+  };
+
   const handleExcelDownload = async () => {
     setDownloading(true);
     try {
@@ -290,6 +311,13 @@ const ParticipantsPage = () => {
             <Trash2 />
             선택 삭제{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
           </button>
+          {!isSuper && orgTree && orgTree.divisions.length > 0 && (
+            <button type="button" onClick={handleCodesDownload} disabled={codesDownloading} className="fa-btn"
+              title="본부·실·팀별 참여 코드(배포용) 엑셀">
+              {codesDownloading ? <Loader2 className="animate-spin" /> : <FileDown />}
+              참여 코드 엑셀
+            </button>
+          )}
           <button type="button" onClick={handleExcelDownload} disabled={downloading} className="fa-btn primary">
             {downloading ? <Loader2 className="animate-spin" /> : <FileDown />}
             엑셀 다운로드

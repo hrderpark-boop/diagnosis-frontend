@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import Modal from '../../../components/admin/Modal';
-import { Plus, Loader2, RefreshCw, UserPlus, Copy, Check, CalendarDays } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, UserPlus, Copy, Check, CalendarDays, Network, Download } from 'lucide-react';
 import adminApi, {
   fetchCompanies, createCompany, createAdminUser, fetchAdminUsers, IssuedAdmin, savePeriod,
+  downloadOrgCodesExcel,
 } from '@/lib/adminApi';
 
 /**
@@ -16,7 +18,20 @@ import adminApi, {
  *      매칭되어 소속이 자동 연결된다.
  *   ② HR 담당자 계정 발급 — 서버가 임시 비밀번호를 생성하고, 그 평문은
  *      발급 직후 이 화면에서 단 한 번만 확인할 수 있다(DB 에는 해시만 저장).
+ *   ③ 참여 코드 발급 — 조직 코드 화면(/master/org)에서 본부·실·팀 이름만 넣으면 코드가 자동으로 정해진다.
+ *   ④ 코드 엑셀 — 고객사에 전달할 배포용 엑셀을 내려받는다.
+ *   ⑤ 진단 기간 설정.
+ * 표의 '준비 상태'는 ②③⑤가 됐는지 한눈에 보여 준다.
  */
+
+/** 고객사 준비 순서(화면 위 안내 카드) */
+const STEPS: { title: string; desc: string }[] = [
+  { title: '고객사 등록', desc: '회사명과 회사 코드를 등록합니다.' },
+  { title: 'HR 계정 발급', desc: '담당자 이메일로 계정과 임시 비밀번호를 만듭니다.' },
+  { title: '참여 코드 발급', desc: '본부·실·팀 이름만 넣으면 코드가 자동으로 정해집니다.' },
+  { title: '코드 엑셀 전달', desc: '배포용 엑셀을 내려받아 고객사에 전달합니다.' },
+  { title: '진단 기간 설정', desc: '시작일과 종료일을 정합니다. HR도 바꿀 수 있습니다.' },
+];
 
 interface Company {
   id: string;
@@ -27,6 +42,8 @@ interface Company {
   /** 고객사별 LLM provider. null = 환경 기본값 */
   llm_provider: 'gemini' | 'claude' | null;
   participant_count: number;
+  /** (2026-10-29) 사용 중인 조직 참여 코드 수 */
+  org_unit_count?: number;
   created_at: string | null;
   /** (2026-10-29) 진단 기간(YYYY-MM-DD). 미정이면 null */
   diagnosis_start?: string | null;
@@ -48,7 +65,10 @@ const errDetail = (e: unknown, fallback: string) => {
 };
 
 export default function CompaniesPage() {
+  const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
+  // 코드 엑셀 내려받는 중인 고객사 id
+  const [exporting, setExporting] = useState<string | null>(null);
   const [adminCounts, setAdminCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -191,6 +211,25 @@ export default function CompaniesPage() {
     }
   };
 
+  // ── 참여 코드 엑셀(고객사 전달용) ──
+  const handleExport = async (company: Company) => {
+    setExporting(company.id);
+    setError('');
+    try {
+      await downloadOrgCodesExcel(company.id);
+    } catch (e: unknown) {
+      // blob 응답이라 오류 본문도 blob 으로 온다 → 글자로 풀어 서버 안내문을 보여 준다
+      let msg = errDetail(e, '');
+      const data = (e as { response?: { data?: unknown } })?.response?.data;
+      if (!msg && data instanceof Blob) {
+        try { msg = (JSON.parse(await data.text()) as { detail?: string }).detail || ''; } catch { /* 무시 */ }
+      }
+      setError(msg || '참여 코드 엑셀을 내려받지 못했습니다.');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -238,6 +277,20 @@ export default function CompaniesPage() {
 
       {error && <div className="fa-error" style={{ marginBottom: 16 }}>{error}</div>}
 
+      {/* 고객사 준비 순서: 어디서 무엇을 하면 되는지 */}
+      <div className="fa-card pad fa-section">
+        <div className="fa-cap"><div><h3>고객사 준비 순서</h3><p>아래 순서대로 하면 고객사가 바로 진단을 시작할 수 있습니다. 각 단계는 표의 버튼에서 합니다.</p></div></div>
+        <ol style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 0, margin: 0, padding: 0, listStyle: 'none' }}>
+          {STEPS.map((st, i) => (
+            <li key={st.title} style={{ padding: '4px 18px 4px 0', borderLeft: i ? '1px solid var(--fa-line)' : 'none', paddingLeft: i ? 18 : 0 }}>
+              <div className="fa-num" style={{ font: '500 28px/1 var(--fm-font-wordmark)', color: 'var(--fa-navy)' }}>{String(i + 1).padStart(2, '0')}</div>
+              <b style={{ display: 'block', marginTop: 10, fontSize: 15 }}>{st.title}</b>
+              <p className="fa-muted" style={{ margin: '4px 0 0', fontSize: 13, lineHeight: 1.6, wordBreak: 'keep-all' }}>{st.desc}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+
       <div className="fa-card pad">
         <div className="fa-cap">
           <div>
@@ -246,14 +299,14 @@ export default function CompaniesPage() {
           </div>
         </div>
         <div className="fa-tbl">
-          <table className="fa-table" style={{ minWidth: 1040 }}>
+          <table className="fa-table" style={{ minWidth: 1180 }}>
             <thead>
               <tr>
                 <th>고객사</th>
                 <th>회사 코드</th>
                 <th>LLM</th>
                 <th>참여자</th>
-                <th>HR 계정</th>
+                <th>준비 상태</th>
                 <th>진단 기간</th>
                 <th>등록일</th>
                 <th style={{ textAlign: 'right' }}>온보딩</th>
@@ -281,11 +334,18 @@ export default function CompaniesPage() {
                   </td>
                   <td className="fa-num">{c.participant_count.toLocaleString()}명</td>
                   <td>
-                    {adminCounts[c.id] ? (
-                      <span className="fa-chip tint">{adminCounts[c.id]}개 발급</span>
-                    ) : (
-                      <span className="fa-chip line">미발급</span>
-                    )}
+                    {/* 준비 상태: 완료는 tint, 남은 일은 line */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      <span className={`fa-chip ${adminCounts[c.id] ? 'tint' : 'line'}`}>
+                        HR 계정 {adminCounts[c.id] ? `${adminCounts[c.id]}개` : '미발급'}
+                      </span>
+                      <span className={`fa-chip ${c.org_unit_count ? 'tint' : 'line'}`}>
+                        참여 코드 {c.org_unit_count ? `${c.org_unit_count}개` : '미등록'}
+                      </span>
+                      <span className={`fa-chip ${c.diagnosis_start ? 'tint' : 'line'}`}>
+                        진단 기간 {c.diagnosis_start ? '설정' : '미정'}
+                      </span>
+                    </div>
                   </td>
                   <td style={{ fontSize: 13 }}>
                     {fmtPeriod(c.diagnosis_start, c.diagnosis_end)
@@ -296,12 +356,26 @@ export default function CompaniesPage() {
                     {c.created_at ? new Date(c.created_at).toLocaleDateString('ko-KR') : '-'}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button type="button" onClick={() => openPeriodModal(c)} className="fa-btn sm ghost" style={{ marginRight: 6 }}>
-                      <CalendarDays size={13} /> 기간 설정
-                    </button>
-                    <button type="button" onClick={() => openAdminModal(c)} className="fa-btn sm">
-                      <UserPlus size={13} /> HR 계정 발급
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: 6 }}>
+                      <button type="button" onClick={() => openAdminModal(c)} className="fa-btn sm">
+                        <UserPlus size={13} /> HR 계정 발급
+                      </button>
+                      <button type="button" onClick={() => router.push(`/master/org?company=${c.id}`)} className="fa-btn sm">
+                        <Network size={13} /> 참여 코드
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExport(c)}
+                        disabled={!c.org_unit_count || exporting === c.id}
+                        title={c.org_unit_count ? '고객사 전달용 참여 코드 엑셀' : '참여 코드를 먼저 발급하세요'}
+                        className="fa-btn sm"
+                      >
+                        {exporting === c.id ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} 코드 엑셀
+                      </button>
+                      <button type="button" onClick={() => openPeriodModal(c)} className="fa-btn sm ghost">
+                        <CalendarDays size={13} /> 기간 설정
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
