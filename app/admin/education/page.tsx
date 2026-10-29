@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import AdminLayout, { AdminPageHead } from '@/components/layouts/AdminLayout';
+import ScopeFilter, { useScope } from '@/components/admin/ScopeFilter';
 import {
-  fetchMe, fetchCompanies, fetchOrgUnits, fetchEducationSummary, fetchEducationCatalog,
-  AdminProfile, OrgTree, EducationSummary, EducationCatalog, CatalogCourse,
+  fetchEducationSummary, fetchEducationCatalog,
+  EducationSummary, EducationCatalog, CatalogCourse,
 } from '@/lib/adminApi';
 import './education.css';
 
@@ -14,13 +15,11 @@ import './education.css';
  * 교재 표지형 체계도 포스터처럼, 가로축은 교육과정(트랙 A~D), 세로축은 역량(5개 역량 × 하위역량 26개)이다.
  * 칸마다 전체 과정 카탈로그(/admin/education/catalog)의 과정을 놓고, 진단 결과로 그 과정을 추천받은 인원을 붙인다.
  * 기준 인원 이상이면 사내 차수 개설을 권한다. 숫자는 모두 저장된 리포트에서 계산한 값이다(지어내지 않음).
- * 마스터 콘솔(/master/education)도 같은 화면을 쓰며, 이때는 고객사를 골라 본다.
+ * 마스터 콘솔(/master/education)도 같은 화면을 쓰며, 이때는 맨 위 선택 줄에서 고객사 › 본부 › 실 › 팀을 골라 본다.
  */
 
 // 한 반 권장 인원(권장 편성의 반 수 계산)
 const CLASS_SIZE = 20;
-
-interface CompanyOption { id: string; name: string; code?: string }
 
 const errText = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || fallback;
@@ -60,76 +59,24 @@ const heatStyle = (v: number | null): React.CSSProperties => {
 };
 
 
-// (2026-10-29) 마스터: 고객사 하나를 골라 그 회사만 본다. 고른 회사는 주소(?company=)와 브라우저에 기억(다른 마스터 화면과 공유)
-const MASTER_COMPANY_KEY = 'fm_master_company';
-const readMasterCompany = (): string => {
-  try {
-    const q = new URLSearchParams(window.location.search).get('company');
-    if (q !== null) return q;
-    return localStorage.getItem(MASTER_COMPANY_KEY) || '';
-  } catch { return ''; }
-};
-const rememberMasterCompany = (id: string) => {
-  try {
-    localStorage.setItem(MASTER_COMPANY_KEY, id);
-    const url = new URL(window.location.href);
-    if (id) url.searchParams.set('company', id); else url.searchParams.delete('company');
-    window.history.replaceState(null, '', url.toString());
-  } catch { /* 저장 못 해도 화면은 동작 */ }
-};
-
-export default function EducationMapPage() {
-  const [profile, setProfile] = useState<AdminProfile | null>(null);
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState<string>('');
-  const [tree, setTree] = useState<OrgTree | null>(null);
-  const [orgUnitId, setOrgUnitId] = useState<string>('');
+function EducationMap() {
+  // 조회 범위: 마스터는 고객사 › 본부 › 실 › 팀, HR(대리 포함)은 자기 회사의 본부 › 실 › 팀
+  const scope = useScope({ allowAllCompanies: false });
+  const { companyId, orgUnitId } = scope;
   const [summary, setSummary] = useState<EducationSummary | null>(null);
   const [catalog, setCatalog] = useState<EducationCatalog | null>(null);
   const [picked, setPicked] = useState<Picked | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // 마스터라도 고객사로 들어간 상태(acting)면 그 고객사 HR 화면으로 본다(고객사 선택 없음, 범위는 백엔드가 고정)
-  const isSuper = profile?.role === 'super_admin' && !profile?.acting;
-
-  // 1) 내 권한 확인 → HR 은 자사, 마스터는 고객사 목록에서 고른다
-  useEffect(() => {
-    let alive = true;
-    fetchMe().then(async (me) => {
-      if (!alive) return;
-      setProfile(me);
-      if (me.role === 'super_admin' && !me.acting) {
-        const list = [...(((await fetchCompanies()) as CompanyOption[]) || [])].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
-        if (!alive) return;
-        setCompanies(list);
-        const saved = readMasterCompany();
-        setCompanyId(list.find((c) => c.id === saved)?.id || list[0]?.id || '');
-      } else {
-        setCompanyId(me.company_id || '');
-      }
-    }).catch((err) => { if (alive) setError(errText(err, '관리자 정보를 불러오지 못했습니다.')); });
-    return () => { alive = false; };
-  }, []);
-
-  // 2) 고객사가 정해지면 조직 트리(필터용)
-  useEffect(() => {
-    if (!companyId) return;
-    let alive = true;
-    setOrgUnitId('');
-    fetchOrgUnits(companyId).then((t) => { if (alive) setTree(t); }).catch(() => { if (alive) setTree(null); });
-    return () => { alive = false; };
-  }, [companyId]);
-
-  // 3) 요약
+  // 요약·카탈로그: 고른 범위(회사·조직)로
   const load = useCallback(async () => {
-    if (!profile) return;
-    if (isSuper && !companyId) { setLoading(false); return; }
+    if (!companyId) { setLoading(scope.loading); return; }
     setLoading(true);
     setError('');
     try {
-      const scope = { company_id: isSuper ? companyId : undefined, org_unit_id: orgUnitId || undefined };
-      const [res, cat] = await Promise.all([fetchEducationSummary(scope), fetchEducationCatalog(scope)]);
+      const q = { company_id: companyId, org_unit_id: orgUnitId || undefined };
+      const [res, cat] = await Promise.all([fetchEducationSummary(q), fetchEducationCatalog(q)]);
       setSummary(res);
       setCatalog(cat);
       setPicked(null);
@@ -138,12 +85,11 @@ export default function EducationMapPage() {
     } finally {
       setLoading(false);
     }
-  }, [profile, isSuper, companyId, orgUnitId]);
+  }, [companyId, orgUnitId, scope.loading]);
 
   useEffect(() => { load(); }, [load]);
 
   const tracks = catalog?.tracks || [];
-  const chooseCompany = (id: string) => { setCompanyId(id); rememberMasterCompany(id); };
   const growthTracks = tracks.filter((t) => GROWTH_TRACKS.includes(t.track));
   const strengthTracks = tracks.filter((t) => !GROWTH_TRACKS.includes(t.track));
   const orderedTracks = [...growthTracks, ...strengthTracks];
@@ -155,9 +101,7 @@ export default function EducationMapPage() {
     [summary],
   );
 
-  const companyName = isSuper
-    ? companies.find((c) => c.id === companyId)?.name
-    : profile?.company_name;
+  const companyName = scope.companyName;
 
   const completed = summary?.completed ?? 0;
   const participants = summary?.participants ?? 0;
@@ -202,23 +146,16 @@ export default function EducationMapPage() {
   return (
     <AdminLayout>
       <AdminPageHead
-        eyebrow={isSuper ? `마스터 · ${companyName || '고객사 선택'}` : (profile?.company_name || undefined)}
+        eyebrow={scope.isMaster ? `마스터 · ${scope.label || '고객사 선택'}` : (scope.label || undefined)}
         title="교육 체계도"
         desc="진단 결과로 추천된 과정을 역량 × 트랙으로 모았습니다. 숫자는 그 과정을 추천받은 인원입니다."
         actions={<>
-          {isSuper && (
-            <select className="fa-select" style={{ minWidth: 220, fontWeight: 600 }} value={companyId}
-              onChange={(e) => chooseCompany(e.target.value)} aria-label="고객사 선택">
-              {companies.length === 0 && <option value="">고객사 없음</option>}
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>)}
-            </select>
-          )}
           <button type="button" className="fa-btn primary" onClick={exportPlan} disabled={!summary || summary.courses.length === 0}>
             <Download /> 편성안 CSV 내려받기
           </button>
         </>}
         kpis={summary ? [
-          { label: '대상자', value: participants, unit: '명', detail: orgUnitId ? '선택한 조직' : (companyName || '') },
+          { label: '대상자', value: participants, unit: '명', detail: scope.label || '' },
           {
             label: '진단 완료', value: completed, unit: '명',
             detail: <div className="fa-bar"><i style={{ width: `${participants ? Math.round((completed / participants) * 100) : 0}%` }} /></div>,
@@ -228,31 +165,8 @@ export default function EducationMapPage() {
         ] : undefined}
       />
 
-      {tree && tree.divisions.length > 0 && (
-        <div className="fa-edu-scope">
-          {(
-
-            <>
-              <span className="lb">조직</span>
-              <select className="fa-select" value={orgUnitId} onChange={(e) => setOrgUnitId(e.target.value)} aria-label="조직 선택">
-                <option value="">전사</option>
-                {tree.divisions.map((d) => (
-                  <React.Fragment key={d.id}>
-                    <option value={d.id}>{d.name} ({d.code})</option>
-                    {(d.offices || []).map((o) => (
-                      <React.Fragment key={o.id}>
-                        <option value={o.id}>{'   '}{o.name} ({o.code})</option>
-                        {o.teams.map((t) => <option key={t.id} value={t.id}>{'      '}{t.name} ({t.code})</option>)}
-                      </React.Fragment>
-                    ))}
-                    {d.teams.map((t) => <option key={t.id} value={t.id}>{'   '}{t.name} ({t.code})</option>)}
-                  </React.Fragment>
-                ))}
-              </select>
-            </>
-          )}
-        </div>
-      )}
+      {/* 조회 범위: [고객사] › [본부] › [실] › [팀] */}
+      <ScopeFilter scope={scope} />
 
       {error && <div className="fa-error" style={{ marginBottom: 20 }}>{error}</div>}
 
@@ -458,5 +372,14 @@ export default function EducationMapPage() {
         </>
       )}
     </AdminLayout>
+  );
+}
+
+// useScope 가 주소(?company=)를 읽으므로 Suspense 로 감싼다
+export default function EducationMapPage() {
+  return (
+    <Suspense fallback={null}>
+      <EducationMap />
+    </Suspense>
   );
 }

@@ -225,3 +225,19 @@
   .fa-hero { margin: 0 -16px 28px; }
   .fa-hero-art { width: 100%; opacity: .55; }
 }
+
+/* ---------- 조회 범위 선택 줄: [고객사] › [본부] › [실] › [팀] (components/admin/ScopeFilter.tsx) ---------- */
+.fa-scope { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; padding: 16px 18px; margin-bottom: 20px; background: #fff; border: 1px solid var(--fa-line); border-radius: var(--fa-r); }
+.fa-scope-item { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fa-scope-item > span { font-size: 12px; font-weight: 600; color: var(--fa-gray); }
+.fa-scope-item .fa-select { height: 42px; width: auto; min-width: 180px; max-width: 280px; font-size: 14px; }
+.fa-scope-item:first-child .fa-select { min-width: 220px; font-weight: 600; color: var(--fa-navy); }
+.fa-scope-item .fa-select:disabled { background: var(--fa-soft); color: var(--fa-gray3); }
+.fa-scope-sep { width: 18px; height: 18px; color: var(--fa-gray3); margin-bottom: 12px; flex-shrink: 0; }
+.fa-scope-extra { margin-left: auto; display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+@media (max-width: 860px) {
+  .fa-scope-item { flex: 1 1 100%; }
+  .fa-scope-item .fa-select { width: 100%; max-width: none; }
+  .fa-scope-sep { display: none; }
+  .fa-scope-extra { margin-left: 0; width: 100%; }
+}

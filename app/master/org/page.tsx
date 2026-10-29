@@ -1,11 +1,11 @@
 "use client";
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import ScopeFilter, { useScope } from '@/components/admin/ScopeFilter';
 import { Loader2 } from 'lucide-react';
 import AdminLayout, { AdminPageHead } from '@/components/layouts/AdminLayout';
 import {
-  fetchCompanies, fetchOrgUnits, updateCompany, createOrgUnit, bulkCreateOrgUnits,
+  fetchOrgUnits, updateCompany, createOrgUnit, bulkCreateOrgUnits,
   updateOrgUnit, deleteOrgUnit, downloadOrgCodesExcel, OrgTree, OrgDivision, OrgOffice, OrgTeam,
   fetchAdminUsers, fetchPeriod, fetchMe, fetchParticipants,
 } from '@/lib/adminApi';
@@ -22,7 +22,6 @@ import './org.css';
  * 코드 생성·검증은 백엔드(services/org_codes.py)가 하고, 여기서는 미리보기만 보여 준다.
  */
 
-interface CompanyRow { id: string; name: string; code: string; org_prefix: string | null }
 
 const LOGIN_URL = 'https://fm.connectn.co.kr';
 const HR_LOGIN_URL = 'https://fm.connectn.co.kr/admin/login';
@@ -72,11 +71,10 @@ function Modal({ title, onClose, children, footer }: {
 }
 
 function OrgPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const companyId = searchParams.get('company') || '';
+  // 조회 범위: [고객사] › [본부] › [실] › [팀]. 고른 본부·실·팀으로 아래 트리를 좁혀 본다
+  const scope = useScope({ allowAllCompanies: false });
+  const companyId = scope.companyId || '';
 
-  const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [tree, setTree] = useState<OrgTree | null>(null);
   const [loading, setLoading] = useState(false);
   const [pageError, setPageError] = useState('');
@@ -102,18 +100,6 @@ function OrgPage() {
 
   const flash = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(''), 2200); };
 
-  // 고객사 목록. 선택이 없으면 첫 고객사로
-  useEffect(() => {
-    fetchCompanies()
-      .then((rows: CompanyRow[]) => {
-        setCompanies(rows);
-        if (!companyId && rows.length) router.replace(`/master/org?company=${rows[0].id}`);
-      })
-      .catch((e: unknown) => setPageError(errDetail(e, '고객사 목록을 불러오지 못했습니다.')));
-    // 최초 1회만
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const loadTree = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
@@ -129,9 +115,27 @@ function OrgPage() {
   }, [companyId]);
 
   useEffect(() => { loadTree(); }, [loadTree]);
+  // 조직을 만들거나 지운 뒤: 이 화면 트리 + 선택 줄의 본부·실·팀 목록을 함께 다시
+  const reloadAll = useCallback(async () => {
+    scope.reloadTree();
+    await loadTree();
+  }, [scope, loadTree]);
 
   const prefix = tree?.company.org_prefix || '';
   const divisions = useMemo(() => tree?.divisions ?? [], [tree]);
+  // 선택 줄에서 고른 본부·실·팀만 보이도록 트리를 좁힌다(버튼 활성 판단은 전체 divisions 기준 그대로)
+  const shownDivisions = useMemo(() => {
+    const { divisionId, officeId, teamId } = scope;
+    if (!divisionId) return divisions;
+    return divisions.filter((d) => d.id === divisionId).map((d) => {
+      const offices = (d.offices ?? [])
+        .filter((o) => !officeId || o.id === officeId)
+        .map((o) => ({ ...o, teams: o.teams.filter((t) => !teamId || t.id === teamId) }))
+        .filter((o) => !teamId || o.teams.length > 0);
+      const teams = officeId ? [] : d.teams.filter((t) => !teamId || t.id === teamId);
+      return { ...d, offices, teams };
+    });
+  }, [divisions, scope]);
 
   // 코드 규칙 예시: 실제 첫 본부·첫 팀이 있으면 그 값으로
   const example = useMemo(() => {
@@ -181,7 +185,7 @@ function OrgPage() {
     try {
       await updateCompany(companyId, { org_prefix: prefixInput });
       setPrefixInput('');
-      await loadTree();
+      await reloadAll();
       flash('접두어를 정했습니다.');
     } catch (e: unknown) {
       setPrefixError(errDetail(e, '접두어를 저장하지 못했습니다.'));
@@ -196,7 +200,7 @@ function OrgPage() {
     try {
       await fn();
       setModal(null);
-      await loadTree();
+      await reloadAll();
       flash(done);
     } catch (e: unknown) {
       setModalError(errDetail(e, '처리하지 못했습니다.'));
@@ -266,7 +270,7 @@ function OrgPage() {
       // 코드를 비운 행은 빈 문자열로 보낸다(서버가 같은 이름을 찾거나 자동 코드로 만든다)
       const res = await bulkCreateOrgUnits(companyId, bulkRows.map((r) => ({ ...r, division_code: r.division_code ?? '' })));
       setBulkResult({ created: res.created, skipped: res.skipped });
-      await loadTree();
+      await reloadAll();
     } catch (e: unknown) {
       setModalError(errDetail(e, '일괄 등록하지 못했습니다.'));
     } finally {
@@ -295,7 +299,7 @@ function OrgPage() {
   const toggleActive = async (unit: AnyUnit) => {
     try {
       await updateOrgUnit(unit.id, { is_active: !unit.is_active });
-      await loadTree();
+      await reloadAll();
       flash(unit.is_active ? `${unit.code} 사용을 멈췄습니다.` : `${unit.code}를 다시 씁니다.`);
     } catch (e: unknown) {
       setPageError(errDetail(e, '상태를 바꾸지 못했습니다.'));
@@ -306,7 +310,7 @@ function OrgPage() {
     if (!window.confirm(`${unit.code} ${unit.name}을(를) 삭제할까요?`)) return;
     try {
       await deleteOrgUnit(unit.id);
-      await loadTree();
+      await reloadAll();
       flash(`${unit.code}를 삭제했습니다.`);
     } catch (e: unknown) {
       setPageError(errDetail(e, '삭제하지 못했습니다.'));
@@ -376,20 +380,11 @@ function OrgPage() {
   return (
     <AdminLayout>
       <AdminPageHead
-        eyebrow="마스터"
+        eyebrow={`마스터 · ${scope.label || '고객사 선택'}`}
         title="조직 코드"
         desc="본부·실·팀 이름만 넣으면 참여 코드가 자동으로 발급됩니다. 참여자가 이 코드로 접속하면 회사와 소속이 자동 분류됩니다."
         actions={
           <>
-            <select
-              className="fa-select"
-              aria-label="고객사 선택"
-              value={companyId}
-              onChange={(e) => router.replace(`/master/org?company=${e.target.value}`)}
-            >
-              {!companyId && <option value="">고객사 선택</option>}
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
-            </select>
             {tree && (
               <>
                 <button type="button" className="fa-btn" onClick={() => openModal({ kind: 'bulk' })}>엑셀로 일괄 등록</button>
@@ -407,10 +402,13 @@ function OrgPage() {
         }
       />
 
+      {/* 조회 범위: [고객사] › [본부] › [실] › [팀] */}
+      <ScopeFilter scope={scope} />
+
       {pageError && <div className="fa-error" role="alert" style={{ marginBottom: 20 }}>{pageError}</div>}
       {toast && <div className="fa-note" role="status" style={{ marginBottom: 20 }}>{toast}</div>}
 
-      {!companies.length && !pageError && <div className="fa-card pad fa-empty">등록된 고객사가 없습니다. 고객사 관리에서 먼저 등록해 주세요.</div>}
+      {!scope.loading && !scope.companies.length && !pageError && <div className="fa-card pad fa-empty">등록된 고객사가 없습니다. 고객사 관리에서 먼저 등록해 주세요.</div>}
 
       {loading && !tree && (
         <div className="fa-empty"><Loader2 className="inline h-5 w-5 animate-spin" /> 불러오는 중…</div>
@@ -482,7 +480,7 @@ function OrgPage() {
               <div className="fa-empty">아직 본부가 없습니다. [+ 본부 추가] 또는 [엑셀로 일괄 등록]으로 시작하세요.</div>
             ) : (
               <div className="fa-org-tree">
-                {divisions.map((d) => {
+                {shownDivisions.map((d) => {
                   const offices = d.offices ?? [];
                   const teamCount = d.teams.length + offices.reduce((m, o) => m + o.teams.length, 0);
                   return (

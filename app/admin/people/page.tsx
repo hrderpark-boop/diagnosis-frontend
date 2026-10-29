@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react';
 import AdminLayout, { AdminPageHead } from '@/components/layouts/AdminLayout';
+import ScopeFilter, { useScope } from '@/components/admin/ScopeFilter';
 import {
-  fetchMe, fetchCompanies, fetchOrgUnits, fetchEducationSummary, fetchEducationPeople, fetchEducationCatalog,
-  AdminProfile, OrgTree, EducationPerson, Paginated, EducationCatalog,
+  fetchEducationSummary, fetchEducationPeople, fetchEducationCatalog,
+  EducationPerson, Paginated, EducationCatalog,
 } from '@/lib/adminApi';
 import { adminPath } from '@/lib/adminRoutes';
 import '../education/education.css';
@@ -15,7 +16,8 @@ import '../education/education.css';
  * HR 콘솔 · 개인별 추천 과정.
  * 위: 과정 안내서(트랙별 학습 방식 + 역량별 과정 목록·교육목표·추천 인원, /admin/education/catalog).
  * 아래: 한 사람당 강화 역량 · 개선 필요 역량 · 추천 과정을 한 줄로 본다(/admin/education/people).
- * 값은 저장된 리포트·과정 카탈로그 그대로다. 마스터 콘솔(/master/people)도 같은 화면을 쓰며 고객사를 골라 본다.
+ * 값은 저장된 리포트·과정 카탈로그 그대로다. 마스터 콘솔(/master/people)도 같은 화면을 쓰며,
+ * 맨 위 선택 줄에서 고객사 › 본부 › 실 › 팀을 골라 본다(HR 은 자기 회사의 본부 › 실 › 팀).
  */
 
 const PAGE_SIZE = 20;
@@ -25,7 +27,6 @@ const TRACK_LABEL: Record<string, string> = { A: '기본기', B: '실습', C: '�
 const levelText = (from: number | null, to: number | string | null) =>
   typeof to === 'number' ? `Lv.${from}→${to}` : (to ? String(to) : '');
 
-interface CompanyOption { id: string; name: string; code?: string }
 type StatusFilter = '' | 'completed' | 'not_completed';
 
 const errText = (err: unknown, fallback: string) =>
@@ -49,35 +50,16 @@ const downloadCsv = (name: string, rows: (string | number)[][]) => {
 };
 
 
-// (2026-10-29) 마스터: 고객사 하나를 골라 그 회사만 본다. 고른 회사는 주소(?company=)와 브라우저에 기억(다른 마스터 화면과 공유)
-const MASTER_COMPANY_KEY = 'fm_master_company';
-const readMasterCompany = (): string => {
-  try {
-    const q = new URLSearchParams(window.location.search).get('company');
-    if (q !== null) return q;
-    return localStorage.getItem(MASTER_COMPANY_KEY) || '';
-  } catch { return ''; }
-};
-const rememberMasterCompany = (id: string) => {
-  try {
-    localStorage.setItem(MASTER_COMPANY_KEY, id);
-    const url = new URL(window.location.href);
-    if (id) url.searchParams.set('company', id); else url.searchParams.delete('company');
-    window.history.replaceState(null, '', url.toString());
-  } catch { /* 저장 못 해도 화면은 동작 */ }
-};
-
-export default function PeopleRecommendationPage() {
+function PeopleRecommendation() {
   const router = useRouter();
-  const [profile, setProfile] = useState<AdminProfile | null>(null);
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState('');
-  const [tree, setTree] = useState<OrgTree | null>(null);
+  // 조회 범위: 마스터는 고객사 › 본부 › 실 › 팀, HR(대리 포함)은 자기 회사의 본부 › 실 › 팀
+  const scope = useScope({ allowAllCompanies: false });
+  const { companyId } = scope;
+  const orgUnitId = scope.orgUnitId || '';
   const [courseOptions, setCourseOptions] = useState<string[]>([]);
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [orgUnitId, setOrgUnitId] = useState('');
   const [status, setStatus] = useState<StatusFilter>('');
   const [course, setCourse] = useState('');
   const [page, setPage] = useState(1);
@@ -91,40 +73,22 @@ export default function PeopleRecommendationPage() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
 
-  // 마스터라도 고객사로 들어간 상태(acting)면 그 고객사 HR 화면으로 본다(고객사 선택 없음, 범위는 백엔드가 고정)
-  const isSuper = profile?.role === 'super_admin' && !profile?.acting;
+  // 범위가 바뀌면 첫 페이지로, 회사가 바뀌면 과정 필터도 비운다
+  const scopeKey = `${companyId || ''}|${orgUnitId}`;
+  const [prevScopeKey, setPrevScopeKey] = useState(scopeKey);
+  const [prevCompany, setPrevCompany] = useState(companyId);
+  if (prevScopeKey !== scopeKey) { setPrevScopeKey(scopeKey); setPage(1); }
+  if (prevCompany !== companyId) { setPrevCompany(companyId); setCourse(''); }
 
-  // 내 권한 → HR 은 자사, 마스터는 고객사 목록
+  // 고객사가 바뀌면 과정 목록(필터용)을 다시
   useEffect(() => {
+    if (!companyId) return;
     let alive = true;
-    fetchMe().then(async (me) => {
-      if (!alive) return;
-      setProfile(me);
-      if (me.role === 'super_admin' && !me.acting) {
-        const list = [...(((await fetchCompanies()) as CompanyOption[]) || [])].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
-        if (!alive) return;
-        setCompanies(list);
-        const saved = readMasterCompany();
-        setCompanyId(list.find((c) => c.id === saved)?.id || list[0]?.id || '');
-      } else {
-        setCompanyId(me.company_id || '');
-      }
-    }).catch((err) => { if (alive) setError(errText(err, '관리자 정보를 불러오지 못했습니다.')); });
-    return () => { alive = false; };
-  }, []);
-
-  // 고객사가 바뀌면 조직 트리·과정 목록(필터용)을 다시
-  useEffect(() => {
-    if (!companyId || !profile) return;
-    let alive = true;
-    setOrgUnitId('');
-    setCourse('');
-    fetchOrgUnits(companyId).then((t) => { if (alive) setTree(t); }).catch(() => { if (alive) setTree(null); });
-    fetchEducationSummary({ company_id: profile.role === 'super_admin' && !profile.acting ? companyId : undefined })
+    fetchEducationSummary({ company_id: companyId })
       .then((s) => { if (alive) setCourseOptions([...new Set(s.courses.map((c) => c.course))].sort((a, b) => a.localeCompare(b, 'ko'))); })
       .catch(() => { if (alive) setCourseOptions([]); });
     return () => { alive = false; };
-  }, [companyId, profile]);
+  }, [companyId]);
 
   // 검색어 입력은 350ms 뒤에 반영
   useEffect(() => {
@@ -133,16 +97,15 @@ export default function PeopleRecommendationPage() {
   }, [searchInput]);
 
   const params = useMemo(() => ({
-    company_id: isSuper ? companyId : undefined,
+    company_id: companyId || undefined,
     org_unit_id: orgUnitId || undefined,
     search: search || undefined,
     status: status || undefined,
     course: course || undefined,
-  }), [isSuper, companyId, orgUnitId, search, status, course]);
+  }), [companyId, orgUnitId, search, status, course]);
 
   const load = useCallback(async () => {
-    if (!profile) return;
-    if (isSuper && !companyId) { setLoading(false); return; }
+    if (!companyId) { setLoading(scope.loading); return; }
     setLoading(true);
     setError('');
     try {
@@ -152,15 +115,15 @@ export default function PeopleRecommendationPage() {
     } finally {
       setLoading(false);
     }
-  }, [profile, isSuper, companyId, params, page]);
+  }, [companyId, params, page, scope.loading]);
 
   useEffect(() => { load(); }, [load]);
 
   // 과정 안내서: 고객사·조직 범위가 바뀌면 다시. 진단 완료자가 있으면 '추천 대상이 있는 과정만'을 기본으로
   useEffect(() => {
-    if (!profile || (isSuper && !companyId)) return;
+    if (!companyId) return;
     let alive = true;
-    fetchEducationCatalog({ company_id: isSuper ? companyId : undefined, org_unit_id: orgUnitId || undefined })
+    fetchEducationCatalog({ company_id: companyId, org_unit_id: orgUnitId || undefined })
       .then((c) => {
         if (!alive) return;
         setCatalog(c);
@@ -170,7 +133,7 @@ export default function PeopleRecommendationPage() {
       })
       .catch(() => { if (alive) setCatalog(null); });
     return () => { alive = false; };
-  }, [profile, isSuper, companyId, orgUnitId]);
+  }, [companyId, orgUnitId]);
 
   // 역량별 과정 행(하위역량 × 트랙). '추천 대상이 있는 과정만'이면 추천 인원 0 은 뺀다
   const guideRows = useMemo(() => {
@@ -186,7 +149,7 @@ export default function PeopleRecommendationPage() {
   }, [catalog, onlyRec]);
   const trackOf = (t: string) => catalog?.tracks.find((x) => x.track === t);
 
-  const companyName = isSuper ? companies.find((c) => c.id === companyId)?.name : profile?.company_name;
+  const companyName = scope.companyName;
 
   // 현재 필터 그대로 전체 페이지를 모아 CSV 로
   const exportCsv = async () => {
@@ -219,27 +182,22 @@ export default function PeopleRecommendationPage() {
 
   const items = data?.items || [];
   const totalPages = data?.total_pages ?? 1;
-  const chooseCompany = (id: string) => { setCompanyId(id); rememberMasterCompany(id); setPage(1); };
 
   return (
     <AdminLayout>
       <AdminPageHead
-        eyebrow={isSuper ? `마스터 · ${companyName || '고객사 선택'}` : (profile?.company_name || undefined)}
+        eyebrow={scope.isMaster ? `마스터 · ${scope.label || '고객사 선택'}` : (scope.label || undefined)}
         title="개인별 추천 과정"
         desc={data ? `과정 안내서와 개인별 추천 명단입니다. 대상 ${data.total}명` : '과정 안내서와 개인별 추천 명단입니다.'}
         actions={<>
-          {isSuper && (
-            <select className="fa-select" style={{ minWidth: 220, fontWeight: 600 }} value={companyId}
-              onChange={(e) => chooseCompany(e.target.value)} aria-label="고객사 선택">
-              {companies.length === 0 && <option value="">고객사 없음</option>}
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>)}
-            </select>
-          )}
           <button type="button" className="fa-btn primary" onClick={exportCsv} disabled={exporting || !data || data.total === 0}>
             {exporting ? <Loader2 className="animate-spin" /> : <Download />} 명단 CSV
           </button>
         </>}
       />
+
+      {/* 조회 범위: [고객사] › [본부] › [실] › [팀] */}
+      <ScopeFilter scope={scope} />
 
       {error && <div className="fa-error" style={{ marginBottom: 20 }}>{error}</div>}
 
@@ -334,23 +292,6 @@ export default function PeopleRecommendationPage() {
         <div className="fa-filters">
           <input className="fa-input" placeholder="이름·이메일 검색" value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)} aria-label="이름·이메일 검색" />
-          {tree && tree.divisions.length > 0 && (
-            <select className="fa-select" value={orgUnitId} onChange={(e) => { setOrgUnitId(e.target.value); setPage(1); }} aria-label="조직 선택">
-              <option value="">모든 조직</option>
-              {tree.divisions.map((d) => (
-                <React.Fragment key={d.id}>
-                  <option value={d.id}>{d.name} ({d.code})</option>
-                  {(d.offices || []).map((o) => (
-                    <React.Fragment key={o.id}>
-                      <option value={o.id}>{'   '}{o.name} ({o.code})</option>
-                      {o.teams.map((t) => <option key={t.id} value={t.id}>{'      '}{t.name} ({t.code})</option>)}
-                    </React.Fragment>
-                  ))}
-                  {d.teams.map((t) => <option key={t.id} value={t.id}>{'   '}{t.name} ({t.code})</option>)}
-                </React.Fragment>
-              ))}
-            </select>
-          )}
           <select className="fa-select" value={status} onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }} aria-label="상태 선택">
             <option value="">모든 상태</option>
             <option value="completed">완료</option>
@@ -443,5 +384,14 @@ export default function PeopleRecommendationPage() {
         )}
       </div>
     </AdminLayout>
+  );
+}
+
+// useScope 가 주소(?company=)를 읽으므로 Suspense 로 감싼다
+export default function PeopleRecommendationPage() {
+  return (
+    <Suspense fallback={null}>
+      <PeopleRecommendation />
+    </Suspense>
   );
 }

@@ -1,20 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, Fragment } from 'react';
-import { usePathname } from 'next/navigation';
+import React, { Suspense, useState, useEffect, Fragment } from 'react';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
+import ScopeFilter, { useScope } from '../../../components/admin/ScopeFilter';
 import { Download, Loader2, ChevronDown } from 'lucide-react';
 import {
   Treemap, ResponsiveContainer, Tooltip as RechartsTooltip,
   RadarChart as ReRadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
 } from 'recharts';
 import {
-  fetchCompetencyStats, fetchOverview, downloadExcel, fetchMe, fetchCompanies, fetchOrgStats,
+  fetchCompetencyStats, fetchOverview, downloadExcel, fetchOrgStats,
   OrgLevel, OrgStats, OrgStatRow,
 } from '@/lib/adminApi';
 import './reports-org.css';
 import { toKoreanCompetency, sortByCompetencyOrder } from '@/lib/competencyLabels';
-import { MASTER_BASE } from '@/lib/adminRoutes';
 
 /**
  * 종합 리포트 (조직 단위 집계).
@@ -628,25 +627,6 @@ const CompetencyAccordion = ({
 // (2026-10-29) 조직별 비교 — 전체 대비 본부·실·팀 평균
 //   /admin/companies/{id}/org-stats 의 실제 집계값만 쓴다. 측정이 없으면 '–'.
 // ----------------------------------------------------------------------
-type CompanyOption = { id: string; name: string; code?: string };
-
-// (2026-10-29) 마스터: 고객사 하나를 골라 그 회사 리포트만 본다. 고른 회사는 주소(?company=)와 브라우저에 기억
-const MASTER_COMPANY_KEY = 'fm_master_company';
-const readMasterCompany = (): string => {
-  try {
-    const q = new URLSearchParams(window.location.search).get('company');
-    if (q !== null) return q;
-    return localStorage.getItem(MASTER_COMPANY_KEY) || '';
-  } catch { return ''; }
-};
-const rememberMasterCompany = (id: string) => {
-  try {
-    localStorage.setItem(MASTER_COMPANY_KEY, id);
-    const url = new URL(window.location.href);
-    if (id) url.searchParams.set('company', id); else url.searchParams.delete('company');
-    window.history.replaceState(null, '', url.toString());
-  } catch { /* 저장 못 해도 화면은 동작 */ }
-};
 const LEVEL_TABS: { key: OrgLevel; label: string }[] = [
   { key: 'division', label: '본부' },
   { key: 'office', label: '실' },
@@ -663,29 +643,28 @@ const Diff = ({ v, base }: { v: number | null; base: number | null }) => {
   return <span className={`fa-rorg-diff ${d > 0 ? 'up' : 'down'}`}>{d > 0 ? '+' : ''}{d.toFixed(1)}</span>;
 };
 
-const OrgCompareSection = ({ isMaster, masterCompanyId }: { isMaster: boolean; masterCompanyId?: string | null }) => {
-  const [ownCompanyId, setCompanyId] = useState<string | null>(null);
-  // 마스터는 페이지 위 '고객사 선택'을 따른다. HR 은 자사
-  const companyId = isMaster ? (masterCompanyId || null) : ownCompanyId;
-  const [level, setLevel] = useState<OrgLevel>('division');
-  // 회사가 정해졌는지(자사 조회·고객사 목록 응답 뒤 true)
-  const [companyResolved, setCompanyResolved] = useState(false);
+/**
+ * 회사·초점은 페이지 위 범위 선택 줄(ScopeFilter)을 따른다.
+ * focus: 선택 줄에서 고른 가장 깊은 조직(본부·실·팀). 고르면 그 단계 표를 열고 그 행을 강조한다.
+ */
+const OrgCompareSection = ({ companyId, resolved, focus }: {
+  companyId: string | null;
+  resolved: boolean;
+  focus: { level: OrgLevel; id: string } | null;
+}) => {
+  const [level, setLevel] = useState<OrgLevel>(focus?.level ?? 'division');
   // 조회 결과는 '어느 회사·단계'에 대한 것인지 key 로 묶는다. key 가 지금 선택과 다르면 로딩 중.
   const [result, setResult] = useState<{ key: string; data: OrgStats | null; error: string } | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focus?.id ?? null);
 
-  // 회사 정하기: HR 은 자사, 마스터는 페이지 위에서 고른 고객사
-  useEffect(() => {
-    let alive = true;
-    if (isMaster) {
-      // 마스터는 페이지가 고른 고객사를 따르므로 여기서 정할 것이 없다(아래 resolved 계산)
-    } else {
-      fetchMe()
-        .then((me) => { if (alive) { setCompanyId(me.company_id); setCompanyResolved(true); } })
-        .catch(() => { if (alive) setCompanyResolved(true); });
-    }
-    return () => { alive = false; };
-  }, [isMaster, masterCompanyId]);
+  // 선택 줄에서 조직을 고르면 그 단계로 바꾸고 그 조직을 강조한다(렌더 중 비교, 이펙트 없이)
+  const focusKey = focus ? `${focus.level}:${focus.id}` : '';
+  const [prevFocus, setPrevFocus] = useState(focusKey);
+  if (prevFocus !== focusKey) {
+    setPrevFocus(focusKey);
+    if (focus) { setLevel(focus.level); setSelectedId(focus.id); }
+  }
+  const focusId = focus?.id ?? null;
 
   const key = companyId ? `${companyId}:${level}` : null;
   useEffect(() => {
@@ -695,16 +674,15 @@ const OrgCompareSection = ({ isMaster, masterCompanyId }: { isMaster: boolean; m
       .then((d) => {
         if (!alive) return;
         setResult({ key, data: d, error: '' });
-        // 기본 선택: 리포트가 있는 첫 단위
-        setSelectedId(d.rows.find((r) => r.n_reports > 0)?.id ?? null);
+        // 기본 선택: 선택 줄에서 고른 조직(이 단계에 있으면), 아니면 리포트가 있는 첫 단위
+        setSelectedId(d.rows.some((r) => r.id === focusId) ? focusId : d.rows.find((r) => r.n_reports > 0)?.id ?? null);
       })
       .catch((err: unknown) => {
         if (alive) setResult({ key, data: null, error: errorDetail(err) || '조직별 통계를 불러오지 못했습니다.' });
       });
     return () => { alive = false; };
-  }, [companyId, level, key]);
+  }, [companyId, level, key, focusId]);
 
-  const resolved = isMaster ? (masterCompanyId !== undefined && masterCompanyId !== null) : companyResolved;
   const loading = !resolved || (key !== null && result?.key !== key);
   const data = result?.key === key ? result.data : null;
   const error = result?.key === key ? result.error : '';
@@ -773,8 +751,10 @@ const OrgCompareSection = ({ isMaster, masterCompanyId }: { isMaster: boolean; m
                 {rows.map((r) => {
                   const on = r.id === selectedId;
                   const empty = r.n_reports === 0;
+                  // 선택 줄에서 고른 조직은 리포트가 없어도 강조(어디를 보고 있는지 표시)
+                  const focused = r.id === focusId;
                   return (
-                    <tr key={r.id ?? r.name} className={`click${on ? ' on' : ''}${empty ? ' empty' : ''}`}
+                    <tr key={r.id ?? r.name} className={`click${on || focused ? ' on' : ''}${empty ? ' empty' : ''}`}
                       onClick={() => !empty && setSelectedId(r.id)} aria-selected={on}>
                       <td>
                         <div className="fa-rorg-name">
@@ -841,39 +821,22 @@ const OrgCompareSection = ({ isMaster, masterCompanyId }: { isMaster: boolean; m
 // [MAIN PAGE]
 // ----------------------------------------------------------------------
 const ReportsPage = () => {
-  const pathname = usePathname();
-  const isMaster = pathname?.startsWith(MASTER_BASE) ?? false;
+  // 범위 선택(공용): 마스터는 고객사 하나 → 본부 → 실 → 팀, HR 은 자사 본부부터
+  const scope = useScope({ allowAllCompanies: false });
+  const isMaster = scope.isMaster;
   // 응답은 '어느 고객사'에 대한 것인지 key 로 묶는다. key 가 지금 선택과 다르면 로딩 중
   const [statsResult, setStatsResult] = useState<{ key: string; stats: CompetencyStats | null; overview: Overview | null; error: string } | null>(null);
-  const [listError, setListError] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
 
-  // 마스터: 고객사 목록 + 고른 고객사(하나만). null = 아직 정하는 중
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [masterCompanyId, setMasterCompanyId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!isMaster) return;
-    let alive = true;
-    fetchCompanies()
-      .then((list: CompanyOption[]) => {
-        if (!alive) return;
-        const sorted = [...(list || [])].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
-        setCompanies(sorted);
-        const saved = readMasterCompany();
-        setMasterCompanyId(sorted.find((c) => c.id === saved)?.id ?? sorted[0]?.id ?? '');
-      })
-      .catch((err: unknown) => { if (alive) { setListError(errorDetail(err) || '고객사 목록을 불러오지 못했습니다.'); setMasterCompanyId(''); } });
-    return () => { alive = false; };
-  }, [isMaster]);
-  const masterCompany = companies.find((c) => c.id === masterCompanyId) || null;
-  const chooseCompany = (id: string) => {
-    setMasterCompanyId(id);
-    rememberMasterCompany(id);
+  // 고객사가 바뀌면 펼친 역량 상세를 닫는다
+  const [prevCompany, setPrevCompany] = useState(scope.companyId);
+  if (prevCompany !== scope.companyId) {
+    setPrevCompany(scope.companyId);
     setOpenKey(null);
-  };
+  }
 
-  // 통계: HR 은 자사(백엔드가 정함), 마스터는 고른 고객사 하나
-  const statsKey = isMaster ? masterCompanyId : 'self';
+  // 통계: HR 은 자사(백엔드가 정함), 마스터는 고른 고객사 하나. 본부·실·팀으로는 거르지 않는다(백엔드가 회사 단위 집계)
+  const statsKey = isMaster ? scope.companyId : 'self';
   useEffect(() => {
     if (statsKey === null) return;
     let alive = true;
@@ -885,27 +848,27 @@ const ReportsPage = () => {
       });
     return () => { alive = false; };
   }, [isMaster, statsKey]);
+  // 마스터인데 등록된 고객사가 하나도 없으면 기다리지 않는다
+  const noCompany = isMaster && !scope.loading && !scope.companyId;
   const current = statsKey !== null && statsResult?.key === statsKey ? statsResult : null;
-  const loading = !current && !(isMaster && masterCompanyId === '');
+  const loading = !current && !noCompany;
   const stats = current?.stats ?? null;
   const overview = current?.overview ?? null;
-  const error = listError || current?.error || '';
+  const error = current?.error || '';
 
   const title = isMaster ? '전체 리포트' : '종합 리포트';
-  const eyebrow = isMaster ? `마스터 · ${masterCompany?.name || '고객사 선택'}` : '리더십 역량 종합 분석';
-  // 마스터: 고객사 선택은 머리 면의 첫 컨트롤
-  const companySelect = isMaster ? (
-    <select className="fa-select" style={{ minWidth: 220, fontWeight: 600 }} aria-label="고객사 선택"
-      value={masterCompanyId ?? ''} onChange={(e) => chooseCompany(e.target.value)} disabled={companies.length === 0}>
-      {companies.length === 0 && <option value="">고객사 없음</option>}
-      {companies.map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>)}
-    </select>
-  ) : null;
+  const eyebrow = isMaster ? '마스터' : '리더십 역량 종합 분석';
+  // 선택 줄에서 고른 가장 깊은 조직(조직별 비교의 초점)
+  const focus: { level: OrgLevel; id: string } | null = scope.teamId ? { level: 'team', id: scope.teamId }
+    : scope.officeId ? { level: 'office', id: scope.officeId }
+    : scope.divisionId ? { level: 'division', id: scope.divisionId } : null;
+  const scopeBar = <ScopeFilter scope={scope} />;
 
   if (loading) {
     return (
       <AdminLayout>
-        <AdminPageHead eyebrow={eyebrow} title={title} actions={companySelect} />
+        <AdminPageHead eyebrow={eyebrow} title={title} desc={scope.label || undefined} />
+        {scopeBar}
         <div className="fa-empty flex items-center justify-center gap-2">
           <Loader2 className="h-5 w-5 animate-spin" /> 조직 통계를 집계하는 중입니다…
         </div>
@@ -927,16 +890,15 @@ const ReportsPage = () => {
 
   // 조직 평균 대비 편차가 큰 역량 (서술형 요약 보강용)
   const spread = best && worst ? Number((best.average - worst.average).toFixed(2)) : 0;
-  const scopeLabel = isMaster ? (masterCompany?.name || '선택한 고객사') : overview?.scope === 'all' ? '전체 고객사' : '자사';
+  const scopeLabel = isMaster ? (scope.companyName || '선택한 고객사') : overview?.scope === 'all' ? '전체 고객사' : (scope.companyName || '자사');
 
   return (
     <AdminLayout>
       <AdminPageHead
         eyebrow={eyebrow}
         title={title}
-        desc={`대상: ${scopeLabel} 리더 ${participantsCount}명${overview?.total_participants ? ` · 등록 대상자 ${overview.total_participants}명` : ''}`}
+        desc={`${scope.label ? `${scope.label} · ` : ''}리더 ${participantsCount}명${overview?.total_participants ? ` · 등록 대상자 ${overview.total_participants}명` : ''}`}
         actions={<>
-          {companySelect}
           <button type="button" className="fa-btn primary" onClick={() => downloadExcel().catch(() => alert('다운로드에 실패했습니다.'))}>
             <Download /> 데이터 내려받기
           </button>
@@ -949,10 +911,18 @@ const ReportsPage = () => {
         ] : undefined}
       />
 
+      {/* 범위 선택 줄: [고객사] › 본부 › 실 › 팀 */}
+      {scopeBar}
+
       {error && <div className="fa-error fa-section">{error}</div>}
+      {noCompany && <div className="fa-note fa-section">등록된 고객사가 없습니다. 고객사를 먼저 등록해 주세요.</div>}
+      {/* 위 통계는 회사 단위 집계다. 본부·실·팀을 골랐으면 그 사실을 알리고 아래 조직별 비교로 안내(숫자를 지어내지 않음) */}
+      {scope.orgUnitId && (
+        <div className="fa-note fa-section">회사 전체 통계입니다. 조직별 비교는 아래 표에서 확인하세요.</div>
+      )}
 
       {/* (2026-10-29) 회사 전체와 별도로 본부·실·팀별 결과 비교. 전사 리포트 유무와 상관없이 따로 집계 */}
-      <OrgCompareSection isMaster={isMaster} masterCompanyId={masterCompanyId} />
+      <OrgCompareSection companyId={scope.companyId} resolved={!scope.loading} focus={focus} />
 
       {participantsCount === 0 ? (
         <div className="fa-card pad fa-empty">
@@ -1162,4 +1132,11 @@ const ReportsPage = () => {
   );
 };
 
-export default ReportsPage;
+// useScope 가 주소(?company=)를 읽으므로 Suspense 안에서 그린다
+export default function ReportsPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <ReportsPage />
+    </Suspense>
+  );
+}
