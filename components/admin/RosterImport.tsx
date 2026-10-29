@@ -124,7 +124,7 @@ export default function RosterImport({
             </button>
             <label className="fa-btn primary sm" style={{ cursor: busy ? 'wait' : 'pointer' }}>
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-              {busy ? '명단을 읽는 중…' : '엑셀 파일 고르기'}
+              {busy ? '명단을 읽는 중…' : '엑셀 파일 업로드'}
               <input
                 ref={inputRef}
                 type="file"
