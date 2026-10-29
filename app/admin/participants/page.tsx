@@ -7,14 +7,15 @@ import TranscriptModal from '../../../components/admin/TranscriptModal';
 import './participants.css';
 import {
   FileDown, ChevronLeft, ChevronRight, Loader2, MessageSquare, FileText,
-  Trash2, RotateCcw, RefreshCw,
+  Trash2, RotateCcw, RefreshCw, Upload,
 } from 'lucide-react';
+import RosterImport from '../../../components/admin/RosterImport';
 import {
   fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, reanalyzeSession, Paginated,
   getCookie, ADMIN_ROLE_KEY, fetchMe, fetchOrgUnits, OrgTree, ParticipantStatusFilter, ProgressStatus,
-  downloadOrgCodesExcel,
+  downloadOrgCodesExcel, downloadRosterExcel,
 } from '@/lib/adminApi';
-import { adminPath } from '@/lib/adminRoutes';
+import { adminPath, MASTER_BASE } from '@/lib/adminRoutes';
 
 /**
  * 대상자 진단 현황 (구 '참여자 관리').
@@ -102,15 +103,31 @@ const ParticipantsPage = () => {
   const [isSuper, setIsSuper] = useState(false);
   useEffect(() => { setIsSuper(getCookie(ADMIN_ROLE_KEY) === 'super_admin'); }, []);
 
-  // 조직 트리: HR 은 자사(fetchMe 의 company_id). 마스터는 고객사가 섞여 있어 조직 필터를 숨긴다.
-  useEffect(() => {
+  // 마스터 주소(/master)면 전 고객사 화면. /admin 은 HR 이거나, 고객사로 들어간 마스터(그 고객사 화면)
+  const [onMaster, setOnMaster] = useState(false);
+  useEffect(() => { setOnMaster(window.location.pathname.startsWith(MASTER_BASE)); }, []);
+
+  // 지금 보고 있는 고객사(HR 자사 또는 마스터가 들어간 고객사). 명단 업로드·개인 코드 엑셀의 대상
+  const [company, setCompany] = useState<{ id: string; name: string } | null>(null);
+
+  // 조직 트리: /admin 화면이면 그 고객사(fetchMe 의 company_id). /master 는 고객사가 섞여 있어 조직 필터를 숨긴다.
+  const loadOrg = useCallback(() => {
     let alive = true;
     fetchMe()
-      .then((me) => (me.role === 'client_admin' && me.company_id ? fetchOrgUnits(me.company_id) : null))
+      .then((me) => {
+        const here = !window.location.pathname.startsWith(MASTER_BASE) && me.company_id;
+        if (alive) setCompany(here ? { id: me.company_id as string, name: me.company_name || '' } : null);
+        return here ? fetchOrgUnits(me.company_id as string) : null;
+      })
       .then((tree) => { if (alive) setOrgTree(tree); })
       .catch(() => { if (alive) setOrgTree(null); });
     return () => { alive = false; };
   }, []);
+  useEffect(() => loadOrg(), [loadOrg]);
+
+  // (2026-10-29) 참여자 명단 업로드 모달 · 개인 코드 엑셀
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const [rosterDownloading, setRosterDownloading] = useState(false);
 
   // 선택한 가장 깊은 단계가 조직 필터
   const orgUnitId = teamId || officeId || divId || undefined;
@@ -222,6 +239,23 @@ const ParticipantsPage = () => {
     }
   };
 
+  const handleRosterDownload = async () => {
+    if (!company) return;
+    setRosterDownloading(true);
+    try {
+      await downloadRosterExcel(company.id);
+    } catch (e: unknown) {
+      let msg = '';
+      const data = (e as { response?: { data?: unknown } })?.response?.data;
+      if (data instanceof Blob) {
+        try { msg = (JSON.parse(await data.text()) as { detail?: string }).detail || ''; } catch { /* 무시 */ }
+      }
+      alert(msg || '개인 코드 엑셀을 내려받지 못했습니다.');
+    } finally {
+      setRosterDownloading(false);
+    }
+  };
+
   const handleExcelDownload = async () => {
     setDownloading(true);
     try {
@@ -289,9 +323,6 @@ const ParticipantsPage = () => {
   const anyFilter = !!(statusFilter || orgUnitId);
   const resetFilters = () => { setStatusFilter(null); setDivId(''); setOfficeId(''); setTeamId(''); setPage(1); };
 
-  // 마스터 주소(/master)면 전체 고객사, HR(/admin)이면 자사 대상자
-  const onMaster = isSuper;
-
   return (
     <AdminLayout>
       <AdminPageHead
@@ -311,7 +342,21 @@ const ParticipantsPage = () => {
             <Trash2 />
             선택 삭제{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
           </button>
-          {!isSuper && orgTree && orgTree.divisions.length > 0 && (
+          {company && (
+            <>
+              <button type="button" onClick={() => setRosterOpen(true)} className="fa-btn"
+                title="엑셀 명단을 올리면 조직과 개인 참여 코드가 자동으로 만들어집니다">
+                <Upload />
+                명단 업로드
+              </button>
+              <button type="button" onClick={handleRosterDownload} disabled={rosterDownloading || (statusCounts?.all ?? 1) === 0}
+                className="fa-btn" title="참여자별 개인 참여 코드 엑셀(고객사 전달용)">
+                {rosterDownloading ? <Loader2 className="animate-spin" /> : <FileDown />}
+                개인 코드 엑셀
+              </button>
+            </>
+          )}
+          {company && orgTree && orgTree.divisions.length > 0 && (
             <button type="button" onClick={handleCodesDownload} disabled={codesDownloading} className="fa-btn"
               title="본부·실·팀별 참여 코드(배포용) 엑셀">
               {codesDownloading ? <Loader2 className="animate-spin" /> : <FileDown />}
@@ -431,6 +476,7 @@ const ParticipantsPage = () => {
                 <th>본부</th>
                 <th>실</th>
                 <th>팀</th>
+                <th>개인 코드</th>
                 <th>진단 상태</th>
                 <th style={{ width: 180 }}>진행률</th>
                 <th style={{ textAlign: 'right' }}>보기</th>
@@ -438,11 +484,11 @@ const ParticipantsPage = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="fa-empty">
+                <tr><td colSpan={9} className="fa-empty">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                 </td></tr>
               ) : visibleItems.length === 0 ? (
-                <tr><td colSpan={8} className="fa-empty">
+                <tr><td colSpan={9} className="fa-empty">
                   {anyFilter ? '이 조건에 해당하는 대상자가 없습니다.'
                     : search ? `'${search}' 검색 결과가 없습니다.`
                     : '등록된 대상자가 없습니다.'}
@@ -481,6 +527,7 @@ const ParticipantsPage = () => {
                         {p.org_code && <div className="fa-code fa-pt-code">{p.org_code}</div>}
                         {!p.org_code && <div className="fa-pt-code fa-muted">미분류</div>}
                       </td>
+                      <td>{p.access_code ? <span className="fa-code">{p.access_code}</span> : <span className="fa-muted">–</span>}</td>
                       <td>
                         <span className={`fa-chip ${PROGRESS_CHIP[ps]}`}>{PROGRESS_LABEL[ps]}</span>
                         {detail && <span className="fa-pt-detail">{detail}</span>}
@@ -646,6 +693,17 @@ const ParticipantsPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 참여자 명단 업로드(조직·개인 코드 자동) */}
+      {company && rosterOpen && (
+        <RosterImport
+          open={rosterOpen}
+          companyId={company.id}
+          companyName={company.name}
+          onClose={() => setRosterOpen(false)}
+          onDone={() => { setRosterOpen(false); load(); loadCounts(); loadOrg(); }}
+        />
       )}
 
       {/* 대화 원문 모달 */}

@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { fetchMe, clearAdminSession, AdminProfile, fetchAlerts, AdminAlerts } from '@/lib/adminApi';
+import { fetchMe, clearAdminSession, stopActing, AdminProfile, fetchAlerts, AdminAlerts } from '@/lib/adminApi';
 import { baseForRole, MASTER_BASE } from '@/lib/adminRoutes';
 
 /**
@@ -117,8 +117,14 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     return () => { alive = false; clearInterval(t); };
   }, [isMasterPath]);
 
+  // 마스터가 고객사로 들어간 상태 → 마스터로 돌아가기
+  const exitActing = () => {
+    stopActing();
+    router.replace('/master/companies');
+  };
+
   const handleLogout = () => {
-    const login = `${baseForRole(profile?.role)}/login`;
+    const login = `${baseForRole(profile?.role)}/login`;   // 대리 중인 마스터도 마스터 로그인으로
     clearAdminSession();
     router.replace(login);
   };
@@ -133,8 +139,11 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   }
 
   const isSuper = profile?.role === 'super_admin';
-  const menu = isSuper ? MASTER_MENU : HR_MENU;
-  const scopeLabel = isSuper ? '마스터 · 전체 고객사' : (profile?.company_name || '소속 미지정');
+  // 고객사로 들어간 마스터는 /admin 에서 HR 메뉴로 그 고객사를 본다(유지보수 기능은 권한대로 그대로 보임)
+  const actingHere = !!profile?.acting && !isMasterPath;
+  const menu = isSuper && !actingHere ? MASTER_MENU : HR_MENU;
+  const scopeLabel = actingHere ? `${profile?.company_name || '고객사'} (마스터 대리)`
+    : isSuper ? '마스터 · 전체 고객사' : (profile?.company_name || '소속 미지정');
 
   return (
     <div className="fa-root fa-app">
@@ -164,6 +173,13 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
       </aside>
 
       <main className="fa-main">
+        {actingHere && (
+          <div className="fa-alert warn fa-acting">
+            <b>마스터로 {profile?.company_name} HR 화면을 보는 중</b>
+            여기서 고친 내용은 이 고객사 HR 화면에 바로 반영됩니다.
+            <button type="button" className="fa-btn sm" onClick={exitActing} style={{ marginLeft: 12 }}>마스터로 돌아가기</button>
+          </div>
+        )}
         {alerts?.gemini_credit_depleted && (
           <div className="fa-alert">
             <b>Gemini 선불 크레딧 소진(402)</b>코치 대화 턴이 전부 실패하고 있습니다. AI Studio에서 충전해야 합니다.

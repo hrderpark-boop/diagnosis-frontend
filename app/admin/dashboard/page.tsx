@@ -199,7 +199,8 @@ export default function AdminDashboard() {
     try {
       const me = await fetchMe();
       setCompanyName(me.company_name);
-      const cid = me.role === 'super_admin' ? null : me.company_id;
+      // 마스터가 고객사로 들어간 상태(acting)면 그 고객사 HR 화면과 똑같이 본다
+      const cid = me.role === 'super_admin' && !me.acting ? null : me.company_id;
       setCompanyId(cid);
       let p: DiagnosisPeriod | null = null;
       if (cid) {

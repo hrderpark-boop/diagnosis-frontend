@@ -8,6 +8,8 @@ import type { NextRequest } from 'next/server';
  *  - /admin/**  : 고객사 HR(client_admin) 전용. 로그인은 /admin/login
  *  - /master/** : 마스터(super_admin) 전용. 로그인은 /master/login
  *  - /super-admin/** : 예전 주소. 같은 화면의 /master 주소로 넘긴다
+ *  - 마스터가 '고객사로 들어가기'를 한 상태(fm_act_company 쿠키)면 /admin/** 도 연다(유지보수·대리 수정).
+ *    데이터 범위는 백엔드가 X-Act-As-Company 헤더와 super_admin 권한을 함께 확인해 그 고객사로 고정한다.
  *
  * ⚠️ 보안 경계에 대한 주의
  *  미들웨어는 Edge 에서 쿠키의 '존재와 role 값'만 확인하는 1차 차단선이다.
@@ -20,6 +22,7 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('admin_token')?.value;
   const role = request.cookies.get('admin_role')?.value;
   const isSuper = role === 'super_admin';
+  const acting = isSuper && !!request.cookies.get('fm_act_company')?.value;
   const to = (path: string) => NextResponse.redirect(new URL(path, request.url));
 
   // 예전 운영자 주소 → /master
@@ -33,7 +36,7 @@ export function middleware(request: NextRequest) {
 
   if (isLoginPage) {
     // 이미 이 콘솔 권한으로 로그인했으면 홈으로. 다른 콘솔 권한이면 로그인 화면을 그대로 보여 준다.
-    if (token && isSuper === isMaster) return to(`${base}/dashboard`);
+    if (token && (isSuper === isMaster || (!isMaster && acting))) return to(`${base}/dashboard`);
     return NextResponse.next();
   }
 
@@ -46,7 +49,7 @@ export function middleware(request: NextRequest) {
 
   // 다른 콘솔 권한의 토큰: 자기 콘솔 로그인 화면으로
   if (isMaster && !isSuper) return to('/master/login');
-  if (!isMaster && isSuper) return to('/admin/login');
+  if (!isMaster && isSuper && !acting) return to('/admin/login');
 
   return NextResponse.next();
 }

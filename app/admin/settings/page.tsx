@@ -20,11 +20,13 @@ const SettingsPage = () => {
   }, []);
 
   const isSuper = profile?.role === 'super_admin';
+  // 마스터가 고객사로 들어간 상태: 계정은 마스터 본인, 보는 범위는 그 고객사
+  const acting = !!profile?.acting;
 
   return (
     <AdminLayout>
       <AdminPageHead
-        eyebrow={isSuper ? '마스터' : (profile?.company_name || undefined)}
+        eyebrow={isSuper && !acting ? '마스터' : (profile?.company_name || undefined)}
         title="설정"
         desc="내 계정 정보를 확인하고 비밀번호를 바꿉니다."
       />
@@ -50,10 +52,10 @@ const SettingsPage = () => {
               <div className="fa-muted" style={{ fontSize: 12.5, marginBottom: 6 }}>권한 · 소속</div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`fa-chip ${isSuper ? 'navy' : 'tint'}`}>
-                  {isSuper ? '마스터' : '고객사 HR'}
+                  {isSuper ? (acting ? '마스터 (대리 중)' : '마스터') : '고객사 HR'}
                 </span>
                 <span style={{ fontWeight: 600 }}>
-                  {isSuper ? '전체 고객사' : (profile?.company_name || '소속 미지정')}
+                  {isSuper && !acting ? '전체 고객사' : (profile?.company_name || '소속 미지정')}
                 </span>
               </div>
             </div>

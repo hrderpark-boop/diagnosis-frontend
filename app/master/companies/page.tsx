@@ -4,10 +4,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import Modal from '../../../components/admin/Modal';
-import { Plus, Loader2, RefreshCw, UserPlus, Copy, Check, CalendarDays, Network, Download } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, UserPlus, Copy, Check, CalendarDays, Network, Download, Upload, LogIn } from 'lucide-react';
+import RosterImport from '../../../components/admin/RosterImport';
 import adminApi, {
   fetchCompanies, createCompany, createAdminUser, fetchAdminUsers, IssuedAdmin, savePeriod,
-  downloadOrgCodesExcel,
+  downloadOrgCodesExcel, downloadRosterExcel, startActing,
 } from '@/lib/adminApi';
 
 /**
@@ -18,9 +19,11 @@ import adminApi, {
  *      매칭되어 소속이 자동 연결된다.
  *   ② HR 담당자 계정 발급 — 서버가 임시 비밀번호를 생성하고, 그 평문은
  *      발급 직후 이 화면에서 단 한 번만 확인할 수 있다(DB 에는 해시만 저장).
- *   ③ 참여 코드 발급 — 조직 코드 화면(/master/org)에서 본부·실·팀 이름만 넣으면 코드가 자동으로 정해진다.
- *   ④ 코드 엑셀 — 고객사에 전달할 배포용 엑셀을 내려받는다.
+ *   ③ 참여자 명단 업로드 — 엑셀의 본부·실·팀 이름으로 조직이 자동으로 세팅되고 참여자마다 개인 참여 코드가 생긴다.
+ *      (조직만 따로 만들 때는 조직 코드 화면 /master/org)
+ *   ④ 개인 코드 엑셀 — 고객사에 전달할 참여자별 코드 엑셀을 내려받는다.
  *   ⑤ 진단 기간 설정.
+ * 'HR 화면 들어가기'는 그 고객사 HR 화면을 마스터 권한으로 열어 보고 고친다(유지보수).
  * 표의 '준비 상태'는 ②③⑤가 됐는지 한눈에 보여 준다.
  */
 
@@ -28,8 +31,8 @@ import adminApi, {
 const STEPS: { title: string; desc: string }[] = [
   { title: '고객사 등록', desc: '회사명과 회사 코드를 등록합니다.' },
   { title: 'HR 계정 발급', desc: '담당자 이메일로 계정과 임시 비밀번호를 만듭니다.' },
-  { title: '참여 코드 발급', desc: '본부·실·팀 이름만 넣으면 코드가 자동으로 정해집니다.' },
-  { title: '코드 엑셀 전달', desc: '배포용 엑셀을 내려받아 고객사에 전달합니다.' },
+  { title: '참여자 명단 업로드', desc: '엑셀을 올리면 조직과 개인 참여 코드가 자동으로 만들어집니다.' },
+  { title: '개인 코드 엑셀 전달', desc: '참여자별 코드 엑셀을 내려받아 고객사에 전달합니다.' },
   { title: '진단 기간 설정', desc: '시작일과 종료일을 정합니다. HR도 바꿀 수 있습니다.' },
 ];
 
@@ -87,6 +90,10 @@ export default function CompaniesPage() {
   const [adminError, setAdminError] = useState('');
   const [issued, setIssued] = useState<IssuedAdmin | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // 참여자 명단 업로드 모달 · 개인 코드 엑셀 내려받는 중인 고객사 id
+  const [rosterFor, setRosterFor] = useState<Company | null>(null);
+  const [rosterExporting, setRosterExporting] = useState<string | null>(null);
 
   // 진단 기간 설정 모달
   const [periodModal, setPeriodModal] = useState<Company | null>(null);
@@ -230,6 +237,30 @@ export default function CompaniesPage() {
     }
   };
 
+  // ── 개인 참여 코드 엑셀(참여자별, 고객사 전달용) ──
+  const handleRosterExport = async (company: Company) => {
+    setRosterExporting(company.id);
+    setError('');
+    try {
+      await downloadRosterExcel(company.id);
+    } catch (e: unknown) {
+      let msg = errDetail(e, '');
+      const data = (e as { response?: { data?: unknown } })?.response?.data;
+      if (!msg && data instanceof Blob) {
+        try { msg = (JSON.parse(await data.text()) as { detail?: string }).detail || ''; } catch { /* 무시 */ }
+      }
+      setError(msg || '개인 코드 엑셀을 내려받지 못했습니다.');
+    } finally {
+      setRosterExporting(null);
+    }
+  };
+
+  // ── 그 고객사 HR 화면으로 들어가기(마스터 권한으로 보고 고친다) ──
+  const enterHr = (company: Company) => {
+    startActing(company.id, company.name);
+    router.push('/admin/dashboard');
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -356,6 +387,25 @@ export default function CompaniesPage() {
                     {c.created_at ? new Date(c.created_at).toLocaleDateString('ko-KR') : '-'}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {/* 1줄: 고객사 운영(들어가기·명단·개인 코드) / 2줄: 준비(계정·조직 코드·기간) */}
+                    <div style={{ display: 'inline-flex', gap: 6, marginBottom: 6 }}>
+                      <button type="button" onClick={() => enterHr(c)} className="fa-btn sm primary" title="이 고객사 HR 화면을 마스터 권한으로 열어 보고 고칩니다">
+                        <LogIn size={13} /> HR 화면 들어가기
+                      </button>
+                      <button type="button" onClick={() => setRosterFor(c)} className="fa-btn sm">
+                        <Upload size={13} /> 명단 업로드
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRosterExport(c)}
+                        disabled={!c.participant_count || rosterExporting === c.id}
+                        title={c.participant_count ? '참여자별 개인 참여 코드 엑셀' : '명단을 먼저 올려 주세요'}
+                        className="fa-btn sm"
+                      >
+                        {rosterExporting === c.id ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} 개인 코드 엑셀
+                      </button>
+                    </div>
+                    <br />
                     <div style={{ display: 'inline-flex', gap: 6 }}>
                       <button type="button" onClick={() => openAdminModal(c)} className="fa-btn sm">
                         <UserPlus size={13} /> HR 계정 발급
@@ -460,6 +510,17 @@ export default function CompaniesPage() {
           </div>
         </form>
       </Modal>
+
+      {/* ── 모달: 참여자 명단 업로드(조직·개인 코드 자동) ── */}
+      {rosterFor && (
+        <RosterImport
+          open={!!rosterFor}
+          companyId={rosterFor.id}
+          companyName={rosterFor.name}
+          onClose={() => setRosterFor(null)}
+          onDone={() => { setRosterFor(null); load(); }}
+        />
+      )}
 
       {/* ── 모달 3: 진단 기간 설정 ── */}
       <Modal

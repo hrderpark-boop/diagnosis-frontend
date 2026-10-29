@@ -14,6 +14,9 @@ const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1
 
 export const ADMIN_TOKEN_KEY = 'admin_token';
 export const ADMIN_ROLE_KEY = 'admin_role';
+/** (2026-10-29) 마스터 '고객사로 들어가기': 대리 중인 고객사 id·이름(쿠키). /admin 화면에서만 헤더로 보낸다 */
+export const ACT_COMPANY_KEY = 'fm_act_company';
+export const ACT_COMPANY_NAME_KEY = 'fm_act_company_name';
 
 export type AdminRole = 'super_admin' | 'client_admin';
 
@@ -24,6 +27,8 @@ export interface AdminProfile {
   role: AdminRole;
   company_id: string | null;
   company_name: string | null;
+  /** (2026-10-29) 마스터가 고객사로 들어간 상태. company_* 는 그 고객사 */
+  acting?: boolean;
 }
 
 export interface Paginated<T = any> {
@@ -66,6 +71,11 @@ const adminApi = axios.create({
 adminApi.interceptors.request.use((config) => {
   const token = getCookie(ADMIN_TOKEN_KEY);
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // 마스터가 고객사로 들어간 상태: /admin(HR) 화면에서 보내는 요청만 그 고객사 범위로(백엔드는 super_admin 일 때만 따름)
+  const act = getCookie(ACT_COMPANY_KEY);
+  if (act && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+    config.headers['X-Act-As-Company'] = act;
+  }
   return config;
 });
 
@@ -88,6 +98,18 @@ adminApi.interceptors.response.use(
 export const clearAdminSession = () => {
   deleteCookie(ADMIN_TOKEN_KEY);
   deleteCookie(ADMIN_ROLE_KEY);
+  deleteCookie(ACT_COMPANY_KEY);
+  deleteCookie(ACT_COMPANY_NAME_KEY);
+};
+
+/** 마스터 → 고객사 HR 화면으로 들어가기(그 고객사 범위로 보고 고친다). 이동은 호출한 쪽에서 /admin/dashboard 로 */
+export const startActing = (companyId: string, companyName: string) => {
+  setCookie(ACT_COMPANY_KEY, companyId);
+  setCookie(ACT_COMPANY_NAME_KEY, companyName);
+};
+export const stopActing = () => {
+  deleteCookie(ACT_COMPANY_KEY);
+  deleteCookie(ACT_COMPANY_NAME_KEY);
 };
 
 // ---------------------------------------------------------------------------
@@ -575,4 +597,65 @@ export const downloadOrgCodesExcel = async (companyId: string) => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) 마스터 고객사별 현황 · 참여자 명단 업로드 · 개인 참여 코드
+// ---------------------------------------------------------------------------
+export interface CompanyOverviewRow {
+  id: string; name: string; code: string; org_prefix: string | null; is_active: boolean;
+  diagnosis_start: string | null; diagnosis_end: string | null;
+  registered: number; roster: number;
+  completed: number; in_progress: number; abandoned: number; not_started: number;
+  completion_rate: number; report_missing: number; last_activity: string | null;
+  hr_accounts: number; org_unit_count: number;
+}
+export const fetchCompaniesOverview = async (): Promise<CompanyOverviewRow[]> => {
+  const { data } = await adminApi.get('/admin/companies/overview');
+  return data.companies;
+};
+
+export interface RosterResult {
+  dry_run: boolean;
+  saved: boolean;
+  rows: number;
+  new: number;
+  updated: number;
+  org_units_created: { code: string; name: string; level: string }[];
+  errors: { row: number; reason: string }[];
+  preview: { row: number; name: string; email: string; action: string; org_code: string | null; org_path: string }[];
+}
+/** 명단 엑셀(이름·이메일·본부·실·팀) 업로드. dryRun=true 면 저장 없이 미리보기 */
+export const importRoster = async (companyId: string, file: File, dryRun: boolean): Promise<RosterResult> => {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await adminApi.post(`/admin/companies/${companyId}/roster`, form, {
+    params: { dry_run: dryRun },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
+const saveBlob = (data: BlobPart, cd: string, fallback: string) => {
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  const filename = m ? decodeURIComponent(m[1]) : fallback;
+  const url = URL.createObjectURL(new Blob([data]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+/** 참여자별 개인 참여 코드 엑셀(고객사 전달용) */
+export const downloadRosterExcel = async (companyId: string) => {
+  const res = await adminApi.get(`/admin/companies/${companyId}/roster/export`, { responseType: 'blob' });
+  saveBlob(res.data, res.headers['content-disposition'] || '', '개인참여코드.xlsx');
+};
+/** 명단 양식 */
+export const downloadRosterTemplate = async () => {
+  const res = await adminApi.get('/admin/roster/template', { responseType: 'blob' });
+  saveBlob(res.data, res.headers['content-disposition'] || '', '참여자_명단_양식.xlsx');
 };

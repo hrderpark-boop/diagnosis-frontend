@@ -206,3 +206,8 @@
   .fa-login-copy { left: 16px; }
   .fa-filters .fa-input { min-width: 0; flex: 1 1 100%; }
 }
+
+/* 마스터 대리(고객사로 들어가기) 안내 띠: 화면 위에 붙어 다닌다 */
+.fa-alert.fa-acting { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; background: var(--fa-navy); color: #fff; border-bottom: 0; }
+.fa-alert.fa-acting b { color: #fff; }
+.fa-alert.fa-acting .fa-btn { background: #fff; color: var(--fa-navy); border-color: #fff; }

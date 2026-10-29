@@ -72,7 +72,8 @@ export default function PeopleRecommendationPage() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
 
-  const isSuper = profile?.role === 'super_admin';
+  // 마스터라도 고객사로 들어간 상태(acting)면 그 고객사 HR 화면으로 본다(고객사 선택 없음, 범위는 백엔드가 고정)
+  const isSuper = profile?.role === 'super_admin' && !profile?.acting;
 
   // 내 권한 → HR 은 자사, 마스터는 고객사 목록
   useEffect(() => {
@@ -80,7 +81,7 @@ export default function PeopleRecommendationPage() {
     fetchMe().then(async (me) => {
       if (!alive) return;
       setProfile(me);
-      if (me.role === 'super_admin') {
+      if (me.role === 'super_admin' && !me.acting) {
         const list = ((await fetchCompanies()) as CompanyOption[]) || [];
         if (!alive) return;
         setCompanies(list);
@@ -99,7 +100,7 @@ export default function PeopleRecommendationPage() {
     setOrgUnitId('');
     setCourse('');
     fetchOrgUnits(companyId).then((t) => { if (alive) setTree(t); }).catch(() => { if (alive) setTree(null); });
-    fetchEducationSummary({ company_id: profile.role === 'super_admin' ? companyId : undefined })
+    fetchEducationSummary({ company_id: profile.role === 'super_admin' && !profile.acting ? companyId : undefined })
       .then((s) => { if (alive) setCourseOptions([...new Set(s.courses.map((c) => c.course))].sort((a, b) => a.localeCompare(b, 'ko'))); })
       .catch(() => { if (alive) setCourseOptions([]); });
     return () => { alive = false; };
