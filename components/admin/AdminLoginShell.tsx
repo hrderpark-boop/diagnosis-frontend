@@ -16,7 +16,7 @@ type Variant = 'hr' | 'master';
 const COPY: Record<Variant, { title: string; desc: string; lead: string; foot: string; role: AdminRole }> = {
   hr: {
     title: '관리자 콘솔',
-    desc: '진단 운영부터 결과에 따른 교육까지.',
+    desc: '진단 운영부터 체계적 분석·관리까지 One Stop Service',
     lead: '발급받은 HR 관리자 계정으로 접속하세요.',
     foot: '계정 발급·비밀번호 재설정은 커넥트앤컴퍼니에 문의하세요.',
     role: 'client_admin',
