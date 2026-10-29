@@ -659,3 +659,52 @@ export const downloadRosterTemplate = async () => {
   const res = await adminApi.get('/admin/roster/template', { responseType: 'blob' });
   saveBlob(res.data, res.headers['content-disposition'] || '', '참여자_명단_양식.xlsx');
 };
+
+// ---------------------------------------------------------------------------
+// (2026-10-29) 맞춤 교육체계도: 고른 범위(회사·본부·실·팀)의 진단 결과로 과정 Pool 에서 구성
+// ---------------------------------------------------------------------------
+export type CurriculumTier = 'required' | 'elective' | 'strength';
+export interface CurriculumItem {
+  tier: CurriculumTier;
+  track: string;
+  course: string;
+  goal: string;
+  format: string | null;
+  people: number;
+  reason: string;
+}
+export interface CurriculumRow {
+  sub: string;
+  measured: number;
+  dist: Record<string, number>;
+  avg_level: number;
+  items: CurriculumItem[];
+}
+export interface CurriculumCompetency {
+  key: string;
+  name: string;
+  avg: number | null;
+  baseline_avg: number | null;
+  priority: 'focus' | 'develop';
+  rows: CurriculumRow[];
+}
+export interface Curriculum {
+  status: 'ok' | 'insufficient';
+  n_reports: number;
+  min_reports: number;
+  tracks: { track: string; from_level: number | null; to_level: number | string | null; format: string | null }[];
+  rules: Record<string, number>;
+  competencies: CurriculumCompetency[];
+  summary: string | null;
+  counts?: { required: number; elective: number; strength: number };
+}
+export const fetchCurriculum = async (params: { company_id?: string; org_unit_id?: string } = {}): Promise<Curriculum> => {
+  const { data } = await adminApi.get('/admin/education/curriculum', { params });
+  return data;
+};
+
+/** 맞춤 교육체계도 엑셀(화면 포스터와 같은 디자인). 고른 회사·조직 기준 */
+export const downloadCurriculumExcel = async (params: { company_id?: string; org_unit_id?: string } = {}) => {
+  const res = await adminApi.get('/admin/education/curriculum/export', { params, responseType: 'blob' });
+  saveBlob(res.data, res.headers['content-disposition'] || '', '맞춤교육체계도.xlsx');
+};

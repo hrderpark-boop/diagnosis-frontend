@@ -131,3 +131,59 @@
 .fa-modal.fa-edu-detail dl { margin-top: 20px; grid-template-columns: 1fr; gap: 16px; padding-top: 18px; border-top: 1px solid var(--fa-line); }
 .fa-modal.fa-edu-detail dt { font-size: 12.5px; }
 .fa-modal.fa-edu-detail dd { font-size: 15px; line-height: 1.7; }
+
+/* ---------- 맞춤 체계도(진단 결과로 구성) ---------- */
+/* 보기 전환: 맞춤 체계도 / 전체 과정 Pool */
+.fa-edu-switch { display: inline-flex; padding: 4px; margin-bottom: 20px; background: var(--fa-mute); border-radius: 10px; gap: 4px; }
+.fa-edu-switch button { height: 38px; padding: 0 18px; border: 0; border-radius: 7px; background: transparent; color: var(--fa-gray); font-size: 14px; font-weight: 600; cursor: pointer; }
+.fa-edu-switch button.on { background: #fff; color: var(--fa-navy); box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+
+.fa-edu-cur-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -6px 0 14px; font-size: 13px; }
+.fa-edu-cur-meta .fa-muted { margin-left: 4px; }
+.fa-edu-cur-meta .fa-btn { margin-left: auto; }
+.fa-edu-chip-str { background: #EAF1FE; color: var(--fa-mid); box-shadow: inset 0 0 0 1px var(--fa-bright); }
+.fa-edu-rules { margin-bottom: 14px; }
+.fa-edu-rules ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.75; }
+
+/* 범례(맞춤) */
+.fa-edu-legend .lg.req { background: var(--fa-navy); border-color: var(--fa-navy); }
+.fa-edu-legend .lg.ele { background: var(--fa-tint); border-color: var(--fa-navy); }
+.fa-edu-legend .lg.str { background: #EAF1FE; border-color: var(--fa-bright); }
+
+/* 왼쪽 역량 칸: 가로 글자 + 집중 역량 배지 */
+.fa-edu-cur .ccomp { background: var(--fa-mid); color: #fff; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 12px 12px; }
+.fa-edu-cur .ccomp.focus { background: var(--fa-navy); }
+.fa-edu-cur .ccomp b { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.fa-edu-cur .ccomp > span { font: 500 12px var(--fm-font-wordmark); color: rgba(255,255,255,.72); }
+.fa-edu-cur .ccomp .badge { align-self: flex-start; font: 700 10.5px var(--fm-font-sans); padding: 2px 7px; border-radius: 4px; background: var(--fa-bright); color: #fff; }
+.fa-edu-cur .subname.with-bar { flex-direction: column; align-items: stretch; justify-content: center; gap: 6px; }
+.fa-edu-cur .subname.with-bar b { font-weight: 600; }
+.fa-edu-cur .cell { flex-direction: column; gap: 5px; }
+.fa-edu-cur .cell.empty { align-items: center; justify-content: center; color: var(--fa-gray); font-size: 12.5px; }
+
+/* 레벨 분포 막대 */
+.fa-edu-lvbar { display: flex; align-items: center; gap: 8px; }
+.fa-edu-lvbar .bar { flex: 1; height: 6px; border-radius: 3px; background: #fff; display: flex; overflow: hidden; }
+.fa-edu-lvbar .bar i { display: block; height: 100%; }
+.fa-edu-lvbar span { font: 500 11px var(--fm-font-wordmark); color: var(--fa-gray); white-space: nowrap; }
+.fa-modal .fa-edu-lvbar { margin-bottom: 6px; }
+.fa-modal .fa-edu-lvbar .bar { background: var(--fa-mute); height: 8px; }
+
+/* 맞춤 과정 알약: 필수(네이비) · 선택(연한 바탕+네이비 테두리) · 강점(밝은 파랑 테두리) */
+.fa-edu-pill.cur { color: var(--fa-ink); }
+.fa-edu-pill.cur .nm { font-weight: 600; }
+.fa-edu-pill.cur .tag { background: var(--fa-navy); }
+.fa-edu-pill.cur.required { background: var(--fa-navy); border-color: var(--fa-navy); color: #fff; }
+.fa-edu-pill.cur.required .n { color: #fff; }
+.fa-edu-pill.cur.required .tag { background: #fff; color: var(--fa-navy); }
+.fa-edu-pill.cur.elective { background: var(--fa-tint); border-color: var(--fa-navy); }
+.fa-edu-pill.cur.strength { background: #EAF1FE; border-color: var(--fa-bright); }
+.fa-edu-pill.cur.strength .tag { background: var(--fa-bright); }
+
+/* 팝업 안 구분 표시 */
+.fa-edu-tier { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; font-size: 11px; font-weight: 700; vertical-align: 1px; }
+.fa-edu-tier.required { background: var(--fa-navy); color: #fff; }
+.fa-edu-tier.elective { background: var(--fa-tint); color: var(--fa-navy); box-shadow: inset 0 0 0 1px var(--fa-navy); }
+.fa-edu-tier.strength { background: #EAF1FE; color: var(--fa-mid); box-shadow: inset 0 0 0 1px var(--fa-bright); }
+.fa-modal.fa-edu-detail .top .tt span.fa-edu-tier { display: inline-flex; margin: 0 6px 0 0; font-size: 11px; }
+.fa-edu-cur-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
