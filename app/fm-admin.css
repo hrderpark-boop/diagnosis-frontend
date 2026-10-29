@@ -211,3 +211,17 @@
 .fa-alert.fa-acting { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; background: var(--fa-navy); color: #fff; border-bottom: 0; }
 .fa-alert.fa-acting b { color: #fff; }
 .fa-alert.fa-acting .fa-btn { background: #fff; color: var(--fa-navy); border-color: #fff; }
+
+/* ---------- 남색 머리 면(fa-hero): 머리 + KPI 띠를 한 면으로, 오른쪽에 곡면·선 장식 ---------- */
+.fa-hero { position: relative; overflow: hidden; margin: 0 -48px 36px; background: var(--fa-navy); color: #fff; }
+.fa-hero.has-kpis { margin-bottom: 40px; }
+.fa-hero-art { position: absolute; top: 0; right: 0; height: 100%; width: min(64%, 820px); pointer-events: none; }
+.fa-hero > .fa-head, .fa-hero > .fa-kpis { position: relative; z-index: 1; margin: 0; background: transparent; }
+.fa-hero > .fa-head.has-kpis { margin-bottom: 0; }
+/* 장식 위에 놓이는 버튼·선택 상자는 살짝 비치는 남색 바탕으로 읽기 쉽게 */
+.fa-hero .fa-btn:not(.primary), .fa-hero .fa-select { background: rgba(28,43,74,.55); backdrop-filter: none; }
+.fa-hero .fa-kpi { border-left-color: rgba(255,255,255,.14); }
+@media (max-width: 860px) {
+  .fa-hero { margin: 0 -16px 28px; }
+  .fa-hero-art { width: 100%; opacity: .55; }
+}

@@ -1,0 +1,71 @@
+/* 마스터 · 새 고객사 시작하기 (fa-ob- 접두어). 색은 fm-admin.css 토큰만 쓴다 */
+.fa-ob { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px; align-items: start; }
+
+/* 왼쪽 단계표: 세로선으로 이어진 번호 */
+.fa-ob-steps { position: sticky; top: 24px; list-style: none; margin: 0; padding: 0; }
+.fa-ob-steps li { position: relative; }
+.fa-ob-steps li + li::before { content: ""; position: absolute; left: 17px; top: -14px; height: 14px; width: 2px; background: var(--fa-line); }
+.fa-ob-steps li.done + li::before { background: var(--fa-navy); }
+.fa-ob-steps button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px 0 20px; border: 0; background: none; text-align: left; cursor: pointer; }
+.fa-ob-steps button:disabled { cursor: default; opacity: .5; }
+.fa-ob-steps .no { flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--fa-line); background: #fff; color: var(--fa-gray); font: 600 13px var(--fm-font-wordmark); }
+.fa-ob-steps .no svg { width: 15px; height: 15px; }
+.fa-ob-steps li.done .no { background: var(--fa-navy); border-color: var(--fa-navy); color: #fff; }
+.fa-ob-steps li.on .no { border-color: var(--fa-bright); color: var(--fa-navy); box-shadow: 0 0 0 4px var(--fa-tint); }
+.fa-ob-steps .tt b { display: block; font-size: 14.5px; color: var(--fa-ink); }
+.fa-ob-steps .tt small { font-size: 12px; color: var(--fa-gray); }
+.fa-ob-steps li.on .tt small { color: var(--fa-mid); font-weight: 600; }
+
+/* 오른쪽 단계 카드 */
+.fa-ob-cards { display: grid; gap: 14px; }
+.fa-ob-card { padding: 20px 26px; transition: border-color .15s, box-shadow .15s; }
+.fa-ob-card header { display: flex; align-items: center; gap: 12px; }
+.fa-ob-card header .no { font: 600 13px var(--fm-font-wordmark); color: var(--fa-gray3); letter-spacing: .04em; }
+.fa-ob-card header h3 { margin: 0; font-size: 17px; }
+.fa-ob-card header .fa-btn { margin-left: auto; }
+.fa-ob-card header .fa-chip svg { width: 12px; height: 12px; }
+.fa-ob-card.on { border-color: var(--fa-navy); box-shadow: 0 10px 30px -18px rgba(28, 43, 74, .45); padding: 24px 28px 28px; }
+.fa-ob-card.on header .no { color: var(--fa-bright); }
+.fa-ob-card.off { background: var(--fa-soft); }
+.fa-ob-card.off h3 { color: var(--fa-gray3); }
+.fa-ob-card .sum { margin: 8px 0 0 32px; font-size: 13.5px; color: var(--fa-gray); word-break: keep-all; }
+.fa-ob-card .body { margin-top: 18px; }
+.fa-ob-lead { margin: 0 0 16px; font-size: 14px; line-height: 1.75; color: var(--fa-body); word-break: keep-all; }
+
+.fa-ob-form { max-width: 520px; }
+.fa-ob-form.inline { max-width: none; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.fa-ob-form.inline .fa-field { margin-bottom: 0; min-width: 200px; flex: 0 1 260px; }
+.fa-ob-form.inline .fa-btn { height: 44px; }
+
+.fa-ob-preview .codes { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* 조직도: 본부 › 실 › 팀 들여쓰기 */
+.fa-ob-tree { display: grid; gap: 12px; }
+.fa-ob-tree .div { border: 1px solid var(--fa-line); border-radius: 10px; padding: 8px 14px; }
+.fa-ob-tree .row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; }
+.fa-ob-tree .row .n { margin-left: auto; font-size: 12.5px; color: var(--fa-gray); }
+.fa-ob-tree .lv1 b { font-size: 15px; }
+.fa-ob-tree .off { margin-left: 18px; padding-left: 12px; border-left: 2px solid var(--fa-light); }
+.fa-ob-tree .lv3 { padding-left: 18px; color: var(--fa-body); }
+.fa-ob-tree .off .lv3 { padding-left: 14px; }
+
+/* 임시 비밀번호: 네이비 키 상자 */
+.fa-ob-key { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; padding: 16px 18px; border-radius: 12px; background: var(--fa-navy); color: #fff; }
+.fa-ob-key small { display: block; font-size: 12px; color: var(--fa-light); }
+.fa-ob-key b { font: 600 22px var(--fm-font-wordmark); letter-spacing: .06em; }
+.fa-ob-key .fa-btn { margin-left: auto; background: #fff; color: var(--fa-navy); border-color: #fff; }
+.fa-ob-key p { flex-basis: 100%; margin: 0; font-size: 12.5px; color: rgba(255, 255, 255, .72); }
+
+/* 안내문 */
+.fa-ob-guide { position: relative; border-radius: 10px; background: var(--fa-soft); border: 1px solid var(--fa-line); padding: 16px 18px; }
+.fa-ob-guide pre { margin: 0; white-space: pre-wrap; font: 400 13.5px/1.8 var(--fm-font-sans); color: var(--fa-body); }
+.fa-ob-guide .fa-btn { position: absolute; top: 12px; right: 12px; }
+
+@media (max-width: 960px) {
+  .fa-ob { grid-template-columns: 1fr; }
+  .fa-ob-steps { position: static; display: flex; overflow-x: auto; gap: 8px; }
+  .fa-ob-steps li + li::before { display: none; }
+  .fa-ob-steps button { padding: 4px 8px 8px 0; white-space: nowrap; }
+  .fa-ob-card .sum { margin-left: 0; }
+  .fa-ob-guide .fa-btn { position: static; margin-top: 10px; }
+}

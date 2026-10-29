@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout, { AdminPageHead } from '../../../components/layouts/AdminLayout';
 import Modal from '../../../components/admin/Modal';
-import { Plus, Loader2, RefreshCw, UserPlus, Copy, Check, CalendarDays, Network, Download, Upload, LogIn } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, UserPlus, Copy, Check, CalendarDays, Network, Download, Upload, LogIn, Play } from 'lucide-react';
 import RosterImport from '../../../components/admin/RosterImport';
 import adminApi, {
   fetchCompanies, createCompany, createAdminUser, fetchAdminUsers, IssuedAdmin, savePeriod,
@@ -294,8 +294,11 @@ export default function CompaniesPage() {
             {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
             소속 동기화
           </button>
-          <button type="button" onClick={openCompanyModal} className="fa-btn primary">
+          <button type="button" onClick={openCompanyModal} className="fa-btn">
             <Plus /> 고객사 등록
+          </button>
+          <button type="button" onClick={() => router.push('/master/onboarding')} className="fa-btn primary">
+            <Play /> 새 고객사 시작하기
           </button>
         </>}
         kpis={loading ? undefined : [
@@ -389,6 +392,9 @@ export default function CompaniesPage() {
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {/* 1줄: 고객사 운영(들어가기·명단·개인 코드) / 2줄: 준비(계정·조직 코드·기간) */}
                     <div style={{ display: 'inline-flex', gap: 6, marginBottom: 6 }}>
+                      <button type="button" onClick={() => router.push(`/master/onboarding?company=${c.id}`)} className="fa-btn sm" title="새 고객사 시작하기 화면에서 남은 준비 단계를 이어서 합니다">
+                        <Play size={13} /> 이어서 진행
+                      </button>
                       <button type="button" onClick={() => enterHr(c)} className="fa-btn sm primary" title="이 고객사 HR 화면을 마스터 권한으로 열어 보고 고칩니다">
                         <LogIn size={13} /> HR 화면 들어가기
                       </button>

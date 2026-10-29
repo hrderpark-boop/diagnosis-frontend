@@ -38,6 +38,7 @@ const HR_MENU: MenuGroup[] = [
 // 마스터 메뉴 — 전 고객사 + 시스템
 const MASTER_MENU: MenuGroup[] = [
   { group: '운영', items: [
+    { name: '새 고객사 시작하기', href: '/master/onboarding' },
     { name: '대시보드', href: '/master/dashboard' },
     { name: '고객사 관리', href: '/master/companies' },
     { name: '조직 코드', href: '/master/org' },
@@ -64,7 +65,8 @@ export function AdminPageHead({
   kpis?: Array<{ label: React.ReactNode; value: React.ReactNode; unit?: React.ReactNode; detail?: React.ReactNode }>;
 }) {
   return (
-    <>
+    <section className={`fa-hero${kpis?.length ? ' has-kpis' : ''}`}>
+      <HeroArt />
       <div className={`fa-head${kpis?.length ? ' has-kpis' : ''}`}>
         <div>
           {eyebrow && <div className="eyebrow">{eyebrow}</div>}
@@ -84,7 +86,34 @@ export function AdminPageHead({
           ))}
         </div>
       ) : null}
-    </>
+    </section>
+  );
+}
+
+/** 남색 머리 면 오른쪽 장식: 겹친 곡면 두 장 + 가는 선 세 줄(로그인 화면의 곡면 구성과 같은 언어, 흐림 없음) */
+function HeroArt() {
+  return (
+    <svg className="fa-hero-art" viewBox="0 0 640 320" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="faHeroA" x1="1" y1="0" x2="0.2" y2="1">
+          <stop offset="0" stopColor="#2E4A85" />
+          <stop offset="1" stopColor="#22365E" />
+        </linearGradient>
+        <linearGradient id="faHeroB" x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#4F86F7" stopOpacity=".55" />
+          <stop offset="1" stopColor="#2E4A85" stopOpacity=".2" />
+        </linearGradient>
+      </defs>
+      <path d="M640 0 V320 H210 C330 285 372 190 452 112 C518 48 580 14 640 0 Z" fill="url(#faHeroA)" />
+      <path d="M640 92 V320 H392 C470 286 512 220 556 162 C586 124 612 104 640 92 Z" fill="url(#faHeroB)" />
+      <g fill="none" stroke="#8FB2FB" strokeLinecap="round">
+        <path d="M120 320 C262 268 318 150 446 70 C520 24 584 6 640 0" strokeOpacity=".38" strokeWidth="1.4" />
+        <path d="M168 320 C300 276 360 172 478 102 C546 62 600 46 640 40" strokeOpacity=".22" strokeWidth="1.2" />
+        <path d="M70 320 C214 262 270 126 408 48 C470 14 546 -2 640 -12" strokeOpacity=".14" strokeWidth="1" />
+      </g>
+      <circle cx="446" cy="70" r="4" fill="#8FB2FB" />
+      <circle cx="478" cy="102" r="2.5" fill="#8FB2FB" fillOpacity=".7" />
+    </svg>
   );
 }
 
