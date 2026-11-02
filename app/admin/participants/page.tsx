@@ -516,6 +516,16 @@ const ParticipantsPage = () => {
                             리포트 미생성{p.last_analysis_status === 'failed' ? ' (실패 확정)' : ''}
                           </span>
                         )}
+                        {/* (2026-11-02 P2-3) 최근 리포트의 '사례 미확인' 칸 수 — 6건 이상이면 빨간 칩 */}
+                        {typeof p.unconfirmed_total === 'number' && p.unconfirmed_total > 0 && (
+                          <span
+                            title={`대화에서 사례가 확인되지 않아 1.0 으로 기록된 하위역량 ${p.unconfirmed_total}개${p.unconfirmed_banner ? ' (6개 이상 — 리포트 상단 안내 표시)' : ''}`}
+                            className={`fa-chip ${p.unconfirmed_banner ? 'danger' : 'off'}`}
+                            style={{ marginLeft: 6 }}
+                          >
+                            사례 미확인 {p.unconfirmed_total}
+                          </span>
+                        )}
                         {/* 4(b) 보관(abandoned) 세션 — 참가자가 "잘못 눌렀다" 고 하면 여기서 [복원] */}
                         {Array.isArray(p.abandoned_sessions) && p.abandoned_sessions.length > 0 && (
                           <ul className="mt-2 space-y-1">

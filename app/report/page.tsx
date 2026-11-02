@@ -464,13 +464,32 @@ const SubScoresTable = ({ subScores, subLedger, totalScore, maxScore }: { subSco
     return 'unexplored'; // ledger 없으면 보수적으로 미탐색
   };
 
+  const unconfirmedN = Object.values((subLedger || {}) as Record<string, { unconfirmed?: boolean }>).filter((r) => r?.unconfirmed).length;
   return (
     // A4 한 페이지를 채우는 여유로운 구성: 세로 간격 대폭 확대 + 역량명 폰트 상향
     <div className="mt-4 space-y-6">
+      <p className="fm-caption">하위역량은 행동 지표 Lv.1~4 를 점수 1.0~4.0 으로 표시합니다{unconfirmedN ? ` · 사례 미확인 ${unconfirmedN}건은 1.0 으로 기록` : ''}.</p>
       {entries.map(([label, score]) => {
+        const row = subLedger?.[label];
+        // (2026-11-02 P2-3) 근거 미확보 칸은 1.0 으로 기록되고 '사례 미확인' 으로 표시한다(빈칸 없음).
+        if (row?.unconfirmed) {
+          return (
+            <div key={label} className="flex items-center gap-4">
+              <span className="text-[15px] font-semibold min-w-[150px] flex-shrink-0 break-keep text-fm-gray-500">{label}</span>
+              <div className="flex-1 h-2.5 rounded-full overflow-hidden bg-fm-paper-mute">
+                <div className="h-full rounded-full bg-fm-gray-300" style={{ width: `${(1.0 / safeMax) * 100}%` }} />
+              </div>
+              <span className="text-right w-36 inline-flex justify-end items-center gap-2" title={row.unconfirmed_text || '사례가 확인되지 않아 최저 수준(1.0)으로 기록했습니다.'}>
+                <span className="rounded-md border border-fm-gray-100 bg-fm-paper-mute px-2 py-0.5 text-[11px] font-semibold text-fm-gray-500 cursor-help">사례 미확인</span>
+                <span className="text-sm fm-report-fig text-fm-gray-500">1.0</span>
+              </span>
+            </div>
+          );
+        }
         const scored = typeof score === 'number';
         const ds = scored ? 'measured' : dispStateOf(label);
         const measured = ds === 'measured' && scored;
+        const lvl: string | null = row?.level_label || null;
         const isHigh = measured && score === max;
         const isLow  = measured && score === min;
         const isEvMissing = ds === 'evidence_missing';
@@ -504,6 +523,8 @@ const SubScoresTable = ({ subScores, subLedger, totalScore, maxScore }: { subSco
               className={`text-right ${measured ? `w-14 text-lg fm-report-fig ${isHigh ? 'text-fm-accent' : isLow ? 'text-fm-gray-500' : 'text-fm-ink'}` : `w-24 inline-flex justify-end`}`}>
               {measured ? Number(score).toFixed(1) : <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold cursor-help ${valColor}`}>{stLabel}</span>}
             </span>
+            {/* (2026-11-02 P2-2) 레벨 라벨 — 점수 옆에 */}
+            {measured && lvl && <span className="fm-chip mute flex-shrink-0" style={{ height: 22, fontSize: 11 }}>{lvl}</span>}
           </div>
         );
       })}
@@ -532,6 +553,9 @@ function ReportContent() {
   // 기본 상태 '항상 펼침(Always Expanded)': 리포트 진입 즉시 5개 역량 상세가
   // 모두 열려 있어야 인쇄·PDF 저장 시 내용 누락 없이 전체가 출력된다.
   const [openDetail, setOpenDetail] = useState<string | null>("ALL");
+  // (2026-11-02 P2-B) PDF 저장 진행 표시 + 완료 토스트
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const [competencyLabels, setCompetencyLabels] = useState<Record<string, string>>({});
   const [subCompetencies, setSubCompetencies] = useState<Record<string, string[]>>({});
@@ -652,10 +676,15 @@ function ReportContent() {
   };
 
   const handleDownloadPDF = async () => {
-    if (!reportRef.current) return;
+    if (!reportRef.current || pdfBusy) return;
+    setPdfBusy(true);
+    const _t0 = performance.now();
     // 등장 효과가 진행 중이어도 PDF 는 마무리된 상태로: 즉시 최종 값으로 맞추고 두 프레임 기다린다
     finishReportMotion();
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // (2026-11-02 P2-B) 캡처에서 뺄 요소는 '제거'가 아니라 '숨김'으로 — 제거하면 복제 문서의 배치가 밀려 단일 캡처의 좌표가 어긋난다
+    const ignored = Array.from(reportRef.current.querySelectorAll<HTMLElement>('[data-html2canvas-ignore]'));
+    ignored.forEach((el) => { el.removeAttribute('data-html2canvas-ignore'); el.dataset.fmPdfHidden = '1'; el.style.visibility = 'hidden'; });
     try {
       // 블록 단위 독립 캡처(Block-by-Block Capture):
       // 거대 캔버스를 297mm 씩 기계적으로 자르던 방식은 중간 잘림·억지 여백을
@@ -686,13 +715,32 @@ function ReportContent() {
       // breaks: 이 단위를 나눠도 되는 지점(단위 위쪽에서의 mm). 평가 근거의 상황·행동·결과 사이
       const shots: { canvas: HTMLCanvasElement; w: number; h: number; keepNext: boolean; group: string; breaks: number[] }[] = [];
       try {
+        // (2026-11-02 P2-B) 단일 캡처 경로(선택): 리포트를 한 번만 캡처하고 단위별 좌표로 잘라 쓴다. 기본은 단위별 캡처(아래 주석의 실측 참고).
+        const rootBox = reportRef.current.getBoundingClientRect();
+        let rootCanvas: HTMLCanvasElement | null = null;
+        const CAPTURE_SCALE = (window as unknown as { __fmPdfScale?: number }).__fmPdfScale || 2;   // 측정용 오버라이드(window.__fmPdfScale)
+        // 실측(헤드리스 Chrome, 15단위): 단위별 캡처 7.6~8.0초 vs 단일 캡처 7.4~7.7초, 같은 탭에서 두 번째부터는 1.0초 — 시간은 캡처 횟수가 아니라
+        //   첫 실행의 폰트·이미지 적재에 들어간다. 단일 캡처는 좌표 어긋남 위험 대비 이득이 작아 기본은 예전 방식, window.__fmPdfSingle=true 로만 켠다.
+        if (rootBox.height * CAPTURE_SCALE < 30000 && (window as unknown as { __fmPdfSingle?: boolean }).__fmPdfSingle === true) {
+          try {
+            rootCanvas = await html2canvas(reportRef.current, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true, logging: false } as any);
+          } catch { rootCanvas = null; }
+        }
         for (const unit of units) {
-          const canvas = await html2canvas(unit, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            useCORS: true,
-            logging: false,
-          } as any);
+          let canvas: HTMLCanvasElement;
+          const ubox = unit.getBoundingClientRect();
+          if (rootCanvas) {
+            const k = rootCanvas.width / rootBox.width;
+            const sx = Math.max(0, Math.round((ubox.left - rootBox.left) * k));
+            const sy = Math.max(0, Math.round((ubox.top - rootBox.top) * k));
+            const sw = Math.min(rootCanvas.width - sx, Math.round(ubox.width * k));
+            const sh = Math.min(rootCanvas.height - sy, Math.round(ubox.height * k));
+            canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, sw); canvas.height = Math.max(1, sh);
+            canvas.getContext('2d')!.drawImage(rootCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+          } else {
+            canvas = await html2canvas(unit, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true, logging: false } as any);
+          }
           if (canvas.width === 0 || canvas.height === 0) continue;
           let w = contentWidth;
           let h = (canvas.height * contentWidth) / canvas.width;
@@ -788,9 +836,16 @@ function ReportContent() {
       });
 
       pdf.save('Leadership_Report.pdf');
+      const secs = ((performance.now() - _t0) / 1000).toFixed(1);
+      setToast(`PDF 저장이 완료되었습니다 (${secs}초)`);
+      setTimeout(() => setToast(null), 3500);
     } catch (error) {
       console.error('PDF 생성 실패:', error);
-      alert("PDF 저장 중 오류가 발생했습니다.");
+      setToast('PDF 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      ignored.forEach((el) => { el.setAttribute('data-html2canvas-ignore', 'true'); el.style.visibility = ''; delete el.dataset.fmPdfHidden; });
+      setPdfBusy(false);
     }
   };
 
@@ -884,14 +939,19 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
               <span className="user">{displayName} 님</span>
               <span className="sep" />
               <button type="button" onClick={() => window.print()} className="fm-btn sm secondary">인쇄</button>
-              <button type="button" onClick={handleDownloadPDF} className="fm-btn sm">
-                PDF 저장
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.5v8M4.5 7l3.5 3.5L11.5 7M3 13.5h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <button type="button" onClick={handleDownloadPDF} disabled={pdfBusy} aria-busy={pdfBusy} className="fm-btn sm">
+                {pdfBusy ? <><span className="fm-pdf-spin" aria-hidden="true" />PDF 생성 중…</> : <>
+                  PDF 저장
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.5v8M4.5 7l3.5 3.5L11.5 7M3 13.5h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </>}
               </button>
             </>
           }
         />
       </div>
+      {toast && (
+        <div role="status" aria-live="polite" className="fm-report-toast" data-html2canvas-ignore="true">{toast}</div>
+      )}
       <div data-html2canvas-ignore="true" className="fm-wrap-narrow print:hidden">
         <ParticipantMobileStep step={6} className="fm-report-mstep" />
       </div>
@@ -915,6 +975,22 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
           </div>
 
         </section>
+
+        {/* (2026-11-02 P2-3) 사례 미확인 ≥ 6: 대화에서 확인되지 않은 칸이 많다는 안내(1.0 기록, 약점 단정 아님) */}
+        {report.coverage?.unconfirmed_banner && (
+          <div className="print:break-inside-avoid mb-6 rounded-lg border border-fm-gray-100 bg-fm-paper-soft p-5">
+            <div className="flex items-start gap-3">
+              <span className="text-fm-ink text-lg font-bold">i</span>
+              <div>
+                <p className="text-sm font-bold text-fm-ink">사례 미확인 {report.coverage.unconfirmed_total}건</p>
+                <p className="mt-1 text-xs text-fm-ink-body leading-relaxed">
+                  26개 하위역량 중 {report.coverage.unconfirmed_total}개는 대화에서 구체적인 사례가 확인되지 않아 최저 수준(1.0)으로 기록했습니다.
+                  이는 <b>해당 역량이 낮다는 판정이 아니라 확인되지 않았다는 기록</b>입니다. 역량별 상세에서 '사례 미확인' 표시를 확인할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 🚧 T-A fail-closed: 레벨 게이트 검증 미완료 경고 (상단). 도구 상태이며
             대상자 역량과 무관 - 재생성 시 해소. 조용한 fail-open 을 막는 신호. */}
@@ -955,6 +1031,10 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
                       </div>
                       <div className="k fm-caption">
                         측정된 역량의 심층 평가 평균
+                        <span className="block mt-1">행동 지표 4.0 만점 + 가점(STAR 완성도·확신도) 최대 1.0 = 5.0</span>
+                        {typeof cov?.unconfirmed_total === 'number' && cov.unconfirmed_total > 0 && (
+                          <span className="block">사례 미확인 {cov.unconfirmed_total}건은 1.0 으로 계산</span>
+                        )}
                         {!official && <span className="fm-chip tint ml-2 align-middle">{cov?.composite_badge || '참고치'}</span>}
                         {cov && typeof cov.asked === 'number' && <span className="block mt-1">탐색 {cov.asked}/{cov.total} · 측정 {cov.measured}/{cov.total} 하위역량</span>}
                       </div>
@@ -1278,7 +1358,11 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
                     </span>
                     <span className="score">
                       {measured
-                        ? <><span className="fm-report-fig">{Number(score).toFixed(1)}</span><span className="fm-caption">/{maxScore.toFixed(1)}</span></>
+                        ? <>
+                            {typeof value === 'object' && value.level_label && <span className="lvl">{value.level_label}</span>}
+                            <span className="fm-report-fig">{Number(score).toFixed(1)}</span><span className="fm-caption">/{maxScore.toFixed(1)}</span>
+                            <span className="fm-caption sub">행동 지표 4.0 만점 + 가점</span>
+                          </>
                         : <span className="fm-chip mute">미측정</span>}
                     </span>
                     <ChevronIcon className={`chev transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />

@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';   // (2026-10-29) 참여자 토큰을 자동으로 붙인다
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
 import ParticipantFooter from '@/components/participant/ParticipantFooter';
+import { decideEntryAfterLogin } from '@/lib/resume';
+
+const TEMPLATE_ID = process.env.NEXT_PUBLIC_DEFAULT_TEMPLATE_ID || '10000000-0000-0000-0000-000000000008';
 import './home.css';
 
 // Find Me 라이트 리디자인 · 01 참여 확인(홈). 샘플: design/light-sample/b/home.html
@@ -90,15 +93,13 @@ export default function LoginPage() {
       // (2026-10-23 파일럿 전 1) 완주한 리더의 재로그인: 재개할 세션이 없고 completed 세션이 있으면
       //   새 진단을 만들지 않고 리포트 화면으로 보낸다(리포트 미생성이면 같은 화면이 안내를 보여 준다).
       //   "새 진단 시작" 은 리포트 화면 안의 버튼으로만.
-      try {
-        const act = await apiClient.get(`/diagnoses/active`, { params: { participant_id } });
-        const done = act.data?.has_active ? null : act.data?.completed;
-        if (done?.session_id) {
-          router.push(`/report?session_id=${done.session_id}`);
-          return;
-        }
-      } catch { /* 조회 실패면 기존 흐름(진단 소개)으로 */ }
-      router.push('/intro'); // (2026-10 리디자인) 로그인 뒤 진단 소개(02)를 거쳐 코치 선택으로
+      // (2026-11-02 P2-B 재접속) 진행 중 세션: 자가진단까지 끝났으면 채팅 직행, 아니면 소개를 건너뛰고 코치 선택.
+      //   진행 중이 없고 완주 세션이 있으면 리포트. 그 외(첫 방문)만 진단 소개.
+      const decision = await decideEntryAfterLogin(participant_id, TEMPLATE_ID);
+      if (decision.kind === 'chat') { router.push(`/chat?${decision.query}`); return; }
+      if (decision.kind === 'select-coach') { router.push('/start'); return; }
+      if (decision.kind === 'report') { router.push(`/report?session_id=${decision.sessionId}`); return; }
+      router.push('/intro'); // (2026-10 리디자인) 첫 방문은 진단 소개(02)를 거쳐 코치 선택으로
     } catch (error) {
       alert("접속에 실패했습니다. 입력 정보를 확인해주세요.");
       console.error(error);

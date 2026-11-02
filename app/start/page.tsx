@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import apiClient from '@/lib/api';   // (2026-10-29) 참여자 토큰을 자동으로 붙인다
 import { RESTORE_KEY, type RestoreCandidate } from '@/lib/restoreCandidate';
+import { localCoachImage, preloadCoachImages, COACH_IMAGE_FILES } from '@/lib/resume';
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
 import ParticipantFooter from '@/components/participant/ParticipantFooter';
 import './start.css';
@@ -30,6 +31,17 @@ const COACH_PROFILE: Record<string, { type: string; fit: string; intro: string }
   LUCAS: { type: '해결형', fit: '빠르게 핵심만 짚고 싶은 분', intro: '군더더기 없이 핵심만 묻는 코치입니다. 짧은 시간 안에 상황과 행동, 결과를 빠르게 정리하고 다음 단계로 넘어갑니다.' },
 };
 
+// (2026-11-02 P2-B) 코치 6명은 시드 고정값이라 API 응답 전에 먼저 그린다(Render 가 잠들어 있으면 /coaches 가 수십 초 걸려
+//   '불러오는 중' 스피너가 1분 가까이 떴다). API 가 오면 설명·태그만 덮어쓴다. 사진은 /images 로컬.
+const STATIC_COACHES: Coach[] = [
+  { id: '10000000-0000-0000-0000-000000000011', name: 'Ella (엘라)', description: '', avatar_url: '/images/female1.png', character_tags: '#공감 #경청 #따뜻함 #성찰' },
+  { id: '10000000-0000-0000-0000-000000000012', name: 'Jessica (제시카)', description: '', avatar_url: '/images/female2.png', character_tags: '#냉철함 #분석적 #직설적 #성장' },
+  { id: '10000000-0000-0000-0000-000000000013', name: 'Olivia (올리비아)', description: '', avatar_url: '/images/female3.png', character_tags: '#창의적 #자유로움 #영감 #비전' },
+  { id: '10000000-0000-0000-0000-000000000014', name: 'Daniel (다니엘)', description: '', avatar_url: '/images/male1.png', character_tags: '#신뢰 #든든함 #경험 #리더십' },
+  { id: '10000000-0000-0000-0000-000000000015', name: 'Michael (마이클)', description: '', avatar_url: '/images/male2.png', character_tags: '#열정 #동기부여 #에너지 #파이팅' },
+  { id: '10000000-0000-0000-0000-000000000016', name: 'Lucas (루카스)', description: '', avatar_url: '/images/male3.png', character_tags: '#스마트 #효율 #핵심 #솔루션' },
+];
+
 // FindME 리뉴얼 1B / SELECT COACH — 헤더(눈썹·제목·부제) + 3열 카드(번호·사진·
 // 영문/한글 이름·태그·인용 설명·버튼).
 //
@@ -40,8 +52,8 @@ const COACH_PROFILE: Record<string, { type: string; fit: string; intro: string }
 //      되돌리기용으로 방금 보관한 세션을 sessionStorage 에 남긴다(자가진단 상단 배너, 첫 메시지 전까지).
 export default function StartPage() {
   const router = useRouter();
-  const [coaches, setCoaches] = useState<Coach[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [coaches, setCoaches] = useState<Coach[]>(STATIC_COACHES);
+  const [isLoading, setIsLoading] = useState(false);   // 정적 목록을 먼저 그리므로 스피너 없음
   // 진행 중 세션(재개 대상) — 코치 id 로 같은/다른 코치를 가른다.
   const [active, setActive] = useState<ActiveSession | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
@@ -92,11 +104,17 @@ export default function StartPage() {
       .catch(() => {});
   }, []);
 
-  // 코치 목록 불러오기
+  // 코치 목록 불러오기 — 정적 목록 위에 API 의 설명·태그를 덮어쓴다(id 순서는 정적 목록 유지). 사진 6장은 미리 받아 둔다.
   useEffect(() => {
+    preloadCoachImages();
     apiClient.get(`/coaches`)
       .then(res => {
-        setCoaches(res.data);
+        const api: Coach[] = Array.isArray(res.data) ? res.data : [];
+        if (!api.length) return;
+        setCoaches(STATIC_COACHES.map((sc) => {
+          const a = api.find((c) => c.id === sc.id);
+          return a ? { ...sc, description: a.description || sc.description, character_tags: a.character_tags || sc.character_tags } : sc;
+        }).concat(api.filter((c) => !STATIC_COACHES.some((sc) => sc.id === c.id))));
       })
       .catch(err => console.error(err))
       .finally(() => setIsLoading(false));
@@ -141,7 +159,7 @@ export default function StartPage() {
       const finalMsg = (msgStr && msgStr.length > 5) ? msgStr : `안녕하세요. 오늘 진단을 함께할 ${effName.split('(')[0]} 코치입니다.`;
 
       const encodedMsg = encodeURIComponent(finalMsg);
-      const encodedImg = encodeURIComponent(effAvatar);
+      const encodedImg = encodeURIComponent(localCoachImage(effAvatar, effName));   // 채팅엔 항상 로컬 사진 경로
       const chatQuery = `diagnosis_id=${diagnosisId}&session_id=${sessionId}&coach_name=${effName}&coach_img=${encodedImg}&initial_message=${encodedMsg}`;
 
       if (isResume) {
@@ -238,8 +256,9 @@ export default function StartPage() {
     return '당신의 리더십 데이터를 분석하여 가장 개인화된 솔루션을 제공합니다.';
   };
 
-  // 코치 사진 경로(기존 규칙 그대로: 파일명만 떼어 /images 아래에서 찾는다)
-  const photoOf = (avatarUrl: string) => (avatarUrl ? `/images/${avatarUrl.split('/').pop()}` : "/images/default.png");
+  // 코치 사진 경로 — 항상 로컬(/images). 파일명이 없으면 코치 이름으로 찾는다.
+  const photoOf = (avatarUrl: string, name = '') => localCoachImage(avatarUrl, name);
+  void COACH_IMAGE_FILES;
 
   return (
     <div className="fm-app">
@@ -270,19 +289,28 @@ export default function StartPage() {
             <div className="fm-card fm-start-resume" role="status">
               <div className="fm-ph">
                 <img
-                  src={photoOf(avatarOf(active.coach_id))}
+                  src={photoOf(avatarOf(active.coach_id), active.coach_name)}
                   alt={`AI 코치 ${shortName(active.coach_name)}`}
                   onError={(e) => { e.currentTarget.src = "/images/default.png"; }}
                 />
               </div>
               <p className="txt">
-                <strong>{active.coach_name} 코치</strong>와 진행 중인 진단이 있습니다. 같은 코치를 고르면 바로 이어서 진행됩니다.
-                다른 코치를 고르시면 이어할지 새로 시작할지 여쭙습니다.
+                <strong>{active.coach_name} 코치</strong>와 진행 중인 진단이 있습니다. 이어서 진행하거나, 새로 시작할 수 있습니다.
               </p>
+              {/* (2026-11-02 P2-B) [이어서 진행] 주 버튼(채움, 왼쪽) + [새로 시작] 보조(아웃라인) */}
               <div className="acts">
                 <button
                   type="button"
+                  onClick={continueWithActive}
+                  disabled={!!startingId}
+                  className="fm-btn sm"
+                >
+                  {startingId ? '이어서 진행 준비 중…' : '이어서 진행'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => { setPendingCoach(null); setConfirmNew(true); }}
+                  disabled={!!startingId}
                   className="fm-btn sm secondary"
                 >
                   새로 시작
@@ -317,7 +345,7 @@ export default function StartPage() {
                     <div className="top">
                       <div className="fm-ph">
                         <img
-                          src={photoOf(coach.avatar_url)}
+                          src={photoOf(coach.avatar_url, coach.name)}
                           alt={coach.name}
                           onError={(e) => { e.currentTarget.src = "/images/default.png"; }}
                         />
@@ -395,7 +423,7 @@ export default function StartPage() {
             <h2 id="fresh-title">새로 시작하시겠습니까?</h2>
             <p>
               이전에 <b>{active ? shortName(active.coach_name) : '이전'}</b> 코치와 진행하던 진단이 있습니다.
-              지금까지의 대화는 보관되지만, 새로 시작하면 처음부터 다시 진행합니다.
+              새로 시작하면 처음부터 다시 진행합니다. <b>이전 대화는 보관되며, 관리자에게 복원을 요청할 수 있습니다.</b>
               {pendingCoach && <> 새 진단은 <b>{shortName(pendingCoach.name)}</b> 코치와 시작합니다.</>}
             </p>
             <div className="actions">

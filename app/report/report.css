@@ -230,3 +230,14 @@
    만들어 측정값이 줄 높이만큼 커지고, 캡처된 모든 글자가 그만큼 아래로 내려간다(상자 안 글자에서 두드러짐).
    측정용 img 만 다시 인라인으로 돌린다. 웹폰트(Pretendard) 기준이라 맥·윈도우 모두 같은 결과. */
 body > div[style*="visibility: hidden"][style*="nowrap"] > img[width="1"][height="1"] { display: inline !important; }
+
+
+/* (2026-11-02 P2-B) 대역량 레벨 라벨(점수 옆, 크게) + 만점 설명 */
+.fm-report-dhead .score { display: inline-flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 4px 8px; }
+.fm-report-dhead .score .lvl { font-size: 15px; font-weight: 700; color: var(--fm-ink); padding: 3px 10px; border: 1px solid var(--fm-ink); border-radius: 999px; line-height: 1.2; white-space: nowrap; }
+.fm-report-dhead .score .sub { flex-basis: 100%; text-align: right; font-size: 11px; color: var(--fm-gray-500); }
+/* PDF 저장 진행 표시·완료 토스트 */
+.fm-pdf-spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; animation: fmPdfSpin .8s linear infinite; }
+@keyframes fmPdfSpin { to { transform: rotate(360deg); } }
+.fm-report-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 60; padding: 12px 18px; border-radius: 10px; background: var(--fm-ink); color: var(--fm-paper); font-size: 13.5px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+@media (prefers-reduced-motion: reduce) { .fm-pdf-spin { animation: none; } }
