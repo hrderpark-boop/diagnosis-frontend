@@ -260,7 +260,8 @@ export default function MasterDashboard() {
   const totalDone = rows.reduce((a, r) => a + r.completed, 0);
   const totalRate = totalReg ? Math.round((totalDone / totalReg) * 100) : 0;
   const missing = rows.reduce((a, r) => a + r.report_missing, 0);
-  const notReady = rows.filter((r) => r.is_active && (r.hr_accounts === 0 || r.org_unit_count === 0)).length;
+  // (2026-11-03) 고객사 목록의 준비 상태 칩과 같은 3조건: HR 계정 · 참여 코드(조직 단위) · 진단 기간
+  const notReady = rows.filter((r) => r.is_active && (r.hr_accounts === 0 || r.org_unit_count === 0 || !r.diagnosis_start || !r.diagnosis_end)).length;
 
   const kpis = [
     { label: '고객사', value: rows.length, unit: '곳', detail: `운영 중 ${rows.filter((r) => r.is_active).length}곳` },

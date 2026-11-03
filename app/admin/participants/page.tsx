@@ -12,7 +12,7 @@ import {
 import RosterImport from '../../../components/admin/RosterImport';
 import ScopeFilter, { useScope } from '../../../components/admin/ScopeFilter';
 import {
-  fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, reanalyzeSession, Paginated,
+  fetchParticipants, downloadExcel, bulkDeleteParticipants, restoreSession, waitForAdminAnalysis, reanalyzeSession, Paginated,
   getCookie, ADMIN_ROLE_KEY, ParticipantStatusFilter, ProgressStatus,
   downloadOrgCodesExcel, downloadRosterExcel,
 } from '@/lib/adminApi';
@@ -129,19 +129,28 @@ const ParticipantsPage = () => {
   // 범위가 바뀌면 첫 페이지부터
   useEffect(() => { setPage(1); }, [masterScope, orgUnitId]);
   const [reanalyzingSid, setReanalyzingSid] = useState<string | null>(null);
+  const [reanalyzeLabel, setReanalyzeLabel] = useState<string>('');   // (2026-11-03) 진행 단계 라벨(폴링)
   const handleReanalyze = async (p: any) => {
     if (!p.last_session_id || reanalyzingSid) return;
     const why = p.report_missing
       ? `리포트 미생성(${p.last_analysis_status || '마커 없음'}${p.last_analysis_fail_count ? `, 실패 ${p.last_analysis_fail_count}회` : ''})`
       : '기존 리포트를 새 분석으로 교체(관리자 교정본은 보호됨)';
     if (!confirm(`${p.name} 님의 최근 세션을 재분석합니다.\n${why}\n\n실패 횟수를 0 으로 되돌리고 분석을 다시 돌립니다. 수 분 걸릴 수 있습니다.`)) return;
-    setReanalyzingSid(p.last_session_id);
+    const sid = p.last_session_id as string;
+    setReanalyzingSid(sid);
+    setReanalyzeLabel('시작 중…');
     try {
-      const r = await reanalyzeSession(p.last_session_id);
-      const a = r.analysis || {};
-      alert(a.skipped === 'human_edited'
-        ? '관리자 교정본이 있어 재분석하지 않았습니다. 기존 리포트를 유지합니다.'
-        : `재분석이 끝났습니다. (리포트 ${a.report_id || '-'})`);
+      const r = await reanalyzeSession(sid);
+      if (!r.started) {
+        alert(r.analysis?.message || '관리자 교정본이 있어 재분석하지 않았습니다. 기존 리포트를 유지합니다.');
+        return;
+      }
+      // (2026-11-03) 백엔드는 202 로 바로 돌아오고 분석은 백그라운드 — 리더 화면과 같은 진행 상태를 2초마다 폴링한다.
+      //   (전에는 수 분짜리 POST 를 기다려 중간 프록시가 끊으면 '실패' 로 보였다.)
+      const fin = await waitForAdminAnalysis(sid, setReanalyzeLabel);
+      if (fin?.stage === 'done') alert('재분석이 끝났습니다.');
+      else if (fin?.stage === 'failed') alert(`재분석 실패: ${fin.error || '운영 알림(/admin/alerts)에서 확인해 주세요.'}`);
+      else alert('재분석 상태를 끝까지 받지 못했습니다. 잠시 후 목록을 새로고침해 확인해 주세요.');
       await Promise.all([load(), loadCounts()]);
     } catch (e: any) {
       const d = e?.response?.data?.detail;
@@ -149,6 +158,7 @@ const ParticipantsPage = () => {
         (d?.analysis_status ? ` [${d.analysis_status}, ${d.fail_count ?? '-'}회]` : ''));
     } finally {
       setReanalyzingSid(null);
+      setReanalyzeLabel('');
     }
   };
   const handleRestore = async () => {
@@ -589,7 +599,7 @@ const ParticipantsPage = () => {
                               {reanalyzingSid === p.last_session_id
                                 ? <Loader2 size={13} className="animate-spin" />
                                 : <RefreshCw size={13} />}
-                              {reanalyzingSid === p.last_session_id ? '분석 중…' : '재분석'}
+                              {reanalyzingSid === p.last_session_id ? (reanalyzeLabel || '분석 중…') : '재분석'}
                             </button>
                           )}
                         </div>

@@ -155,10 +155,49 @@ export const fetchParticipants = async (params: {
 };
 
 /** 4(b) 관리자 복원: 보관(abandoned) 세션 → in_progress. 현재 진행 중 세션은 abandoned 로 */
-// (2026-10-23 파일럿 전 2) 관리자 재분석 — super_admin 전용. 실패 마커 초기화 + analyze 동기 실행(수 분 걸릴 수 있음).
+// (2026-10-23 파일럿 전 2) 관리자 재분석 — super_admin 전용. 실패 마커 초기화 + analyze.
+// (2026-11-03) 백엔드가 202 로 바로 돌려주고 분석은 백그라운드로 돈다(started=true). 교정본이면 started=false + analysis.skipped.
 export const reanalyzeSession = async (sessionId: string) => {
   const { data } = await adminApi.post(`/admin/sessions/${sessionId}/reanalyze`);
-  return data as { reset: { prev_status: string | null; prev_fail_count: number }; analysis: { status?: string; report_id?: string; skipped?: string } };
+  return data as {
+    reset: { prev_status: string | null; prev_fail_count: number } | null;
+    started: boolean; session_id: string; progress_path?: string;
+    analysis?: { status?: string; report_id?: string; skipped?: string; message?: string };
+  };
+};
+
+/** (2026-11-03) 관리자 토큰으로 분석 진행 상태 조회 — GET /reports/{sid}/progress (없으면 null). */
+export interface AdminAnalysisProgress { stage: string; label?: string; percent?: number; error?: string | null; elapsed_s?: number }
+export const fetchAdminAnalysisProgress = async (sessionId: string): Promise<AdminAnalysisProgress | null> => {
+  try {
+    const { data } = await adminApi.get(`/reports/${sessionId}/progress`);
+    return data as AdminAnalysisProgress;
+  } catch {
+    return null;
+  }
+};
+
+/** 재분석이 끝날 때까지 2초마다 진행 상태를 폴링한다(최대 maxMs). 끝 상태(done·failed)나 상태 유실(null 연속)이면 멈춘다. */
+export const waitForAdminAnalysis = async (
+  sessionId: string, onLabel?: (label: string) => void, maxMs = 20 * 60 * 1000,
+): Promise<AdminAnalysisProgress | null> => {
+  const t0 = Date.now();
+  let seen: AdminAnalysisProgress | null = null;
+  let nulls = 0;
+  while (Date.now() - t0 < maxMs) {
+    const p = await fetchAdminAnalysisProgress(sessionId);
+    if (p) {
+      seen = p; nulls = 0;
+      onLabel?.(p.label || p.stage);
+      if (p.stage === 'done' || p.stage === 'failed') return p;
+    } else {
+      nulls += 1;
+      // 시작 전이면 30초까지 기다리고, 돌던 상태가 사라졌으면(서버 재시작) 10초 뒤 포기
+      if ((seen && nulls >= 5) || (!seen && nulls >= 15)) return seen;
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return seen;
 };
 
 export const restoreSession = async (sessionId: string) => {

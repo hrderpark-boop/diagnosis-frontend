@@ -611,6 +611,11 @@ function ReportContent() {
     } catch (err: any) {
       const st = err.response?.status;
       const status = err.response?.data?.detail?.analysis_status;
+      if (st === 401) {
+        // (2026-11-03 파일럿 준비) 참여자 토큰 없음·만료(관리자 쿠키 재시도도 실패) → 첫 화면에서 다시 접속
+        router.replace('/');
+        return;
+      }
       if (st === 404 && status === "failed") {
         // (2026-10-22 P0) 서버가 3회 실패를 확정하고 운영자에게 알림. 더 이상 폴링·자동 재시도하지 않는다.
         setFailedFinal({ errorId: err.response?.data?.detail?.error_id });
