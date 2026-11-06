@@ -381,8 +381,8 @@ const ReasoningProcess = ({ reasoning, gapAnalysis, evidenceList }: { reasoning:
     const raw = reasoning[key];
     if (!raw) return null;
     if (typeof raw === "string") return { description: raw, evidence: [] as string[] };
-    // quotes(신규 스키마) 우선, evidence(구 필드) 폴백
-    const ev = (raw.quotes || raw.evidence || []) as string[];
+    // (2026-11-06 P6-3) quotes_display: 같은 인용이 다른 칸에 이미 나왔으면 "(위 사례와 동일) …" — 백엔드가 만든다. 없으면 quotes → evidence 폴백
+    const ev = (raw.quotes_display || raw.quotes || raw.evidence || []) as string[];
     return { description: raw.description || "", evidence: ev };
   };
 

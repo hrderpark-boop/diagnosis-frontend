@@ -66,6 +66,10 @@ const stepDescription = (rp: unknown, key: string): string => {
 const stepEvidence = (rp: unknown, key: string): string[] => {
   const step = stepOf(rp, key);
   if (!step || typeof step === 'string') return [];
+  // (2026-11-06 P6-3) 반복 인용은 "(위 사례와 동일)" 표시 필드를 우선 쓴다
+  const anyStep = step as { quotes_display?: string[]; quotes?: string[]; evidence?: string[] };
+  if (Array.isArray(anyStep.quotes_display)) return anyStep.quotes_display;
+  if (Array.isArray(anyStep.quotes)) return anyStep.quotes;
   return Array.isArray(step.evidence) ? step.evidence : [];
 };
 
