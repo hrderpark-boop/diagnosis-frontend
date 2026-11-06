@@ -1073,7 +1073,8 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
                           <span className="block">사례 미확인 {cov.unconfirmed_total}건은 1.0 으로 계산</span>
                         )}
                         {!official && <span className="fm-chip tint ml-2 align-middle">{cov?.composite_badge || '참고치'}</span>}
-                        {cov && typeof cov.asked === 'number' && <span className="block mt-1">탐색 {cov.asked}/{cov.total} · 측정 {cov.measured}/{cov.total} 하위역량</span>}
+                        {/* (2026-11-06 P7-2) 26칸 전부 점수 — '탐색 N/26' 표기 삭제, 측정만 */}
+                        {cov && typeof cov.measured === 'number' && <span className="block mt-1">측정 {cov.measured}/{cov.total} 하위역량</span>}
                       </div>
                     </div>
                     {report.archetype && (

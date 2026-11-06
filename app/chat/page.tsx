@@ -117,6 +117,9 @@ function ChatContent() {
   const [nextTopic, setNextTopic] = useState<string | null>(null);
   const [justCompletedTopic, setJustCompletedTopic] = useState(false);
   const [needsDecision, setNeedsDecision] = useState(false); // 코치의 조기 종료 '제안' — 선택 버튼
+  // (2026-11-06 P7-3) 선택 종류: null/'pause' = 쉬어가기 제안, 'finish_or_continue' = 리더가 그만하겠다 → 이어서 하기 / 지금 마치기
+  const [decisionKind, setDecisionKind] = useState<string | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
   const [connError, setConnError] = useState(false); // 네트워크 오류 → '다시 시도(Sync)'
   // (라이트) 모바일 바텀시트 열림 여부. 표시 전용 UI 상태
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -153,6 +156,7 @@ function ChatContent() {
       setHasNextChapter(!!d.has_next_chapter);
       setNextTopic(d.next_topic || null);
       setNeedsDecision(!!d.needs_user_decision);
+      setDecisionKind(d.decision_kind || null);
       setConnError(false); // 동기화 성공 → 오류 상태 해제
       return true;
     } catch (error: any) {
@@ -263,6 +267,7 @@ function ChatContent() {
       setNextTopic(res.data.next_topic || null);
       // 코치의 조기 종료 '제안' — '다음에 하기/계속 진행하기' 버튼 노출
       setNeedsDecision(res.data.needs_user_decision === true);
+      setDecisionKind(res.data.decision_kind || null);
       // 챕터를 방금 마쳤고(=전진 지점) 다음 역량이 남았으면 '다음 챕터로 이동' 노출
       setJustCompletedTopic(topicDone && nextExists && !sessionCompleted);
 
@@ -305,6 +310,28 @@ function ChatContent() {
   // (2026-09-17) 챕터 경계 '계속/휴식' 배너와 takeBreak 삭제 — 백엔드가 그 대기 마커를 어디서도
   //   세우지 않던 죽은 경로. PAUSE_MESSAGE 상수는 그대로 둔다(잠시 쉬기 문구의 단일 정의).
   void PAUSE_MESSAGE;
+
+  // (2026-11-06 P7-3) 지금 마치기 — 남은 항목은 1.0 '사례 미확인'으로 확정하고 리포트 생성
+  const handleFinishEarly = async () => {
+    if (!sessionId || isFinishing || isAnalyzing) return;
+    setIsFinishing(true);
+    setNeedsDecision(false);
+    try {
+      await apiClient.post(`/diagnoses/${sessionId}/finish`);
+      setSessionStatus('completed');
+      setIsAnalyzing(true);
+      setMessages(prev => [...prev, { role: 'model', content: "여기까지로 마치겠습니다. 리포트를 준비하고 있어요. 잠시만 기다려 주세요." }]);
+      await apiClient.post(`/reports/${sessionId}/analyze`);
+      router.push(`/report?session_id=${sessionId}`);
+    } catch (e) {
+      console.error('finish early failed', e);
+      setMessages(prev => [...prev, { role: 'model', content: "마치는 처리에 문제가 있었어요. 잠시 후 다시 시도해 주세요." }]);
+      setNeedsDecision(true);
+    } finally {
+      setIsFinishing(false);
+      setIsAnalyzing(false);
+    }
+  };
 
   // 5. 진단 종료
   const handleFinishDiagnosis = async () => {
@@ -572,7 +599,27 @@ function ChatContent() {
               </div>
             </div>
           )}
-          {!connError && sessionStatus !== 'paused' && needsDecision && (
+          {!connError && sessionStatus !== 'paused' && needsDecision && decisionKind === 'finish_or_continue' && (
+            <div className="fm-chat-status">
+              <div className="inner">
+                <span>이어서 하시면 남은 항목이 채워지고, 지금 마치면 남은 항목은 최저 수준으로 기록됩니다.</span>
+                <div className="btns">
+                  <button
+                    type="button"
+                    onClick={() => { setNeedsDecision(false); setDecisionKind(null); sendMessage("괜찮아요, 계속 진행할게요."); }}
+                    disabled={isLoading || isFinishing}
+                    className="fm-btn sm"
+                  >
+                    이어서 하기
+                  </button>
+                  <button type="button" onClick={handleFinishEarly} disabled={isLoading || isFinishing} className="fm-btn secondary sm">
+                    {isFinishing ? '마치는 중…' : '지금 마치기'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {!connError && sessionStatus !== 'paused' && needsDecision && decisionKind !== 'finish_or_continue' && (
             <div className="fm-chat-status">
               <div className="inner">
                 <span>코치가 오늘은 쉬어가는 것을 제안했어요. 어떻게 할까요?</span>
