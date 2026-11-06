@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ADMIN_COOKIE_DOMAIN, onOfficialHost } from './adminRoutes';
 
 /**
  * 어드민 전용 API 클라이언트.
@@ -42,11 +43,17 @@ export interface Paginated<T = any> {
 // ---------------------------------------------------------------------------
 // 쿠키 유틸 (미들웨어와 공유하기 위해 localStorage 대신 쿠키 사용)
 // ---------------------------------------------------------------------------
+// (2026-11-06) 공식 도메인에서는 Domain=.connectn.co.kr 로 저장해 fm·fm-hr·fm-ops 가 같은 관리자 쿠키를 읽는다 —
+//   '고객 화면 보기'(fm 새 탭)의 관리자 토큰 재시도(lib/api.ts)가 동작하려면 fm 에서도 admin_token 이 보여야 한다.
+//   로컬·미리보기 주소에서는 속성 없이(호스트 전용) 저장한다. 이전에 호스트 전용으로 저장된 같은 이름의 쿠키는 먼저 지운다(중복 방지).
+const cookieDomainAttr = () => (onOfficialHost() ? `; domain=${ADMIN_COOKIE_DOMAIN}; Secure` : '');
+
 export const setCookie = (name: string, value: string, days = 1) => {
   if (typeof document === 'undefined') return;
   const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  if (onOfficialHost()) document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;   // 옛 호스트 전용 쿠키 제거
   // SameSite=Lax: 일반적인 이동은 허용하되 크로스사이트 POST 는 차단(CSRF 완화)
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax${cookieDomainAttr()}`;
 };
 
 export const getCookie = (name: string): string | null => {
@@ -58,6 +65,7 @@ export const getCookie = (name: string): string | null => {
 export const deleteCookie = (name: string) => {
   if (typeof document === 'undefined') return;
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+  if (onOfficialHost()) document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${ADMIN_COOKIE_DOMAIN}`;
 };
 
 // ---------------------------------------------------------------------------

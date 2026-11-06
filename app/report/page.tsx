@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
+import { adminTokenFromCookie } from '@/lib/api';
 import { AnalysisProgress, fetchAnalysisProgress, isProgressRunning } from '@/lib/analysisProgress';
 import AnalysisChecklist from '@/components/AnalysisChecklist';
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
@@ -618,10 +619,18 @@ function ReportContent() {
     } catch (err: any) {
       const st = err.response?.status;
       const status = err.response?.data?.detail?.analysis_status;
-      if (st === 401) {
-        // (2026-11-03 파일럿 준비) 참여자 토큰 없음·만료(관리자 쿠키 재시도도 실패) → 첫 화면에서 다시 접속
-        router.replace('/');
-        return;
+      if (st === 401 || st === 403) {
+        if (adminTokenFromCookie()) {
+          // (2026-11-06) 관리자가 '고객 화면 보기'로 연 탭: 관리자 토큰 재시도까지 실패(권한 밖 고객사·만료) → 첫 화면으로 튕기지 않고 안내
+          setStatusMsg("관리자 권한으로 열 수 없는 리포트입니다. 관리자 콘솔에 다시 로그인한 뒤 '고객 화면 보기'를 눌러 주세요.");
+          setCanRetry(false);
+          return;
+        }
+        if (st === 401) {
+          // (2026-11-03 파일럿 준비) 참여자 토큰 없음·만료 → 첫 화면에서 다시 접속
+          router.replace('/');
+          return;
+        }
       }
       if (st === 404 && status === "failed") {
         // (2026-10-22 P0) 서버가 3회 실패를 확정하고 운영자에게 알림. 더 이상 폴링·자동 재시도하지 않는다.

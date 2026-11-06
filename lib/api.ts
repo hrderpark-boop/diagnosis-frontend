@@ -11,7 +11,7 @@ const api = axios.create({
 });
 
 /** 관리자 콘솔이 남긴 토큰 쿠키(lib/adminApi 의 ADMIN_TOKEN_KEY). */
-function adminTokenFromCookie(): string | null {
+export function adminTokenFromCookie(): string | null {
   if (typeof document === 'undefined') return null;
   const m = document.cookie.match(/(?:^|;\s*)admin_token=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : null;

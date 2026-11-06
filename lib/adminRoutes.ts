@@ -37,3 +37,17 @@ export const HR_URL = 'https://fm-hr.connectn.co.kr';
 export const OPS_URL = 'https://fm-ops.connectn.co.kr';
 export const HR_HOST = 'fm-hr.connectn.co.kr';
 export const OPS_HOST = 'fm-ops.connectn.co.kr';
+
+/** (2026-11-06) 공식 도메인(fm·fm-hr·fm-ops.connectn.co.kr)에서만 true. 로컬·Vercel 미리보기는 false. */
+export const onOfficialHost = () =>
+  typeof window !== 'undefined' && window.location.hostname.toLowerCase().endsWith('connectn.co.kr');
+
+/** 관리자 쿠키(admin_token 등)를 세 도메인이 함께 읽도록 하는 Domain 속성. '고객 화면 보기' 새 탭(fm)에서 관리자 토큰 재시도가 되려면 필요하다. */
+export const ADMIN_COOKIE_DOMAIN = '.connectn.co.kr';
+
+/**
+ * '고객 화면 보기' 링크. 관리자 도메인(fm-hr·fm-ops)에서 상대 경로 /report 를 열면 미들웨어가 콘솔 홈(/admin·/master)으로 돌려보낸다
+ * (2026-11-06 버그: 마스터 대리 보기에서 fm-ops.connectn.co.kr/master/dashboard 로 이동). 공식 도메인에서는 참여자 도메인 절대 주소로 연다.
+ */
+export const participantReportUrl = (sessionId: string) =>
+  `${onOfficialHost() ? PARTICIPANT_URL : ''}/report?session_id=${encodeURIComponent(sessionId)}`;

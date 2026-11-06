@@ -12,6 +12,7 @@ import {
   ReportDetail, ReportEditPayload,
 } from '@/lib/adminApi';
 import { toKoreanCompetency } from '@/lib/competencyLabels';
+import { participantReportUrl } from '@/lib/adminRoutes';
 
 /**
  * 리포트 상세 + AI 피드백 교정 (Human-in-the-Loop).
@@ -303,7 +304,7 @@ export default function ReportEditPage() {
             <button type="button" className="fa-btn" onClick={() => setTranscriptOpen(true)}>
               <MessageSquare /> 전체 대화 기록
             </button>
-            <a href={`/report?session_id=${report.session_id}`} target="_blank" rel="noreferrer" className="fa-btn" style={{ textDecoration: 'none' }}>
+            <a href={participantReportUrl(report.session_id)} target="_blank" rel="noreferrer" className="fa-btn" style={{ textDecoration: 'none' }}>
               <ExternalLink /> 고객 화면 보기
             </a>
             {report.has_ai_original && (
