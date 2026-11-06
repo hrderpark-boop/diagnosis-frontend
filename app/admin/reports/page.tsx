@@ -32,6 +32,8 @@ type Breakdown = {
   rubric_base?: number | null;
   star_depth_bonus?: number | null;
   confidence_adj?: number | null;
+  confidence_stars?: number | null;
+  confidence_label?: string | null;
   final?: number | null;
 };
 type CompetencyItem = {
@@ -462,7 +464,6 @@ const BreakdownBars = ({ breakdown }: { breakdown: Breakdown | null | undefined 
   const items = [
     { label: '행동 지표 평가', value: breakdown.rubric_base, max: 4.0, color: NAVY, prefix: '' },
     { label: 'STAR 깊이', value: breakdown.star_depth_bonus, max: 0.5, color: MID, prefix: '+' },
-    { label: '확신도', value: breakdown.confidence_adj, max: 0.5, color: BRIGHT, prefix: (breakdown.confidence_adj ?? 0) >= 0 ? '+' : '' },
   ].filter((i): i is { label: string; value: number; max: number; color: string; prefix: string } => typeof i.value === 'number');
 
   if (items.length === 0) {
@@ -470,6 +471,10 @@ const BreakdownBars = ({ breakdown }: { breakdown: Breakdown | null | undefined 
   }
 
   const ratio = (v: number, max: number) => Math.max(0, Math.min(100, (Math.abs(v) / max) * 100));
+  // (2026-11-06 P4-7) 확신도는 점수 미반영 — 전사 평균 adj 를 별(★ 1~3)로만 표시
+  const confAdj = Number(breakdown.confidence_adj ?? 0);
+  const confStars = typeof breakdown.confidence_stars === 'number' ? breakdown.confidence_stars : (confAdj >= 0.3 ? 3 : confAdj >= 0 ? 2 : 1);
+  const confLabel = breakdown.confidence_label || `AI 판정 확신도 ${'★'.repeat(confStars)}${'☆'.repeat(3 - confStars)}`;
 
   return (
     <div className="space-y-3">
@@ -482,6 +487,11 @@ const BreakdownBars = ({ breakdown }: { breakdown: Breakdown | null | undefined 
           </span>
         </div>
       ))}
+      {typeof breakdown.confidence_adj === 'number' && (
+        <div className="flex items-center gap-3">
+          <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.04em' }}>{confLabel}</span>
+        </div>
+      )}
       {typeof breakdown.final === 'number' && (
         <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--fa-line)' }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>전사 평균 최종 점수</span>
@@ -490,7 +500,7 @@ const BreakdownBars = ({ breakdown }: { breakdown: Breakdown | null | undefined 
       )}
       <p className="fa-muted pt-1" style={{ fontSize: 12, lineHeight: 1.7 }}>
         행동 지표 평가: 역량 발현이 행동으로 증명된 정도 (1.0~4.0) · STAR 깊이: 사례의 구체성 가산 (0~+0.5) ·
-        확신도: 근거 일관성에 따른 조정 (±0.5)
+        AI 판정 확신도: 근거 일관성 표시(★ 1~3, 점수 미반영)
         <br />※ 각 막대는 5.0 만점이 아닌 해당 항목의 최대치를 기준으로 표시됩니다.
       </p>
     </div>

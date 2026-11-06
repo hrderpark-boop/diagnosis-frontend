@@ -292,8 +292,12 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
   const items = [
     { label: "행동 지표 평가", value: breakdown.rubric_base, max: 4.0, color: "bg-fm-accent" },
     { label: "STAR 깊이",  value: breakdown.star_depth_bonus, max: 0.5, color: "bg-fm-accent", prefix: "+" },
-    { label: "확신도",     value: breakdown.confidence_adj, max: 0.5, color: breakdown.confidence_adj >= 0 ? "bg-fm-blue-mid" : "bg-fm-gray-300", prefix: breakdown.confidence_adj >= 0 ? "+" : "" },
   ];
+  // (2026-11-06 P4-7) 확신도는 점수에 들어가지 않는다 — 막대 대신 "AI 판정 확신도 ★★☆" 라벨만. 백엔드 confidence_label 이 없으면 adj 로 별을 센다.
+  const confStars: number = typeof breakdown.confidence_stars === 'number'
+    ? breakdown.confidence_stars
+    : (Number(breakdown.confidence_adj ?? 0) >= 0.3 ? 3 : Number(breakdown.confidence_adj ?? 0) >= 0 ? 2 : 1);
+  const confLabel: string = breakdown.confidence_label || `AI 판정 확신도 ${'★'.repeat(confStars)}${'☆'.repeat(3 - confStars)}`;
   return (
     <div className="print:break-inside-avoid mt-3 p-5 bg-fm-paper-soft rounded-lg border border-fm-gray-100">
       <div className="space-y-3">
@@ -308,6 +312,9 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
             </span>
           </div>
         ))}
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-semibold text-fm-ink tracking-wide" aria-label={confLabel}>{confLabel}</span>
+        </div>
         <div className="flex justify-between items-baseline pt-3 border-t border-fm-gray-100 mt-2">
           <span className="fm-eyebrow text-fm-gray-500">Final Score</span>
           <span className="text-xl fm-report-fig">{Number(breakdown.final).toFixed(1)} <span className="text-xs text-fm-gray-500">/ {safeMax.toFixed(1)}</span></span>
@@ -322,7 +329,7 @@ const ScoreBreakdown = ({ breakdown, maxScore }: { breakdown: any, maxScore: num
           <span className="font-semibold text-fm-ink">STAR 깊이</span> : 답변의 구조적 완성도에 따라 부여되는 가점을 나타냅니다. (최대 +0.5)
         </p>
         <p className="text-[13px] text-fm-gray-500 leading-relaxed">
-          <span className="font-semibold text-fm-ink">확신도</span> : AI의 평가 신뢰도에 따라 부여되는 가점을 나타냅니다. (최대 +0.5)
+          <span className="font-semibold text-fm-ink">AI 판정 확신도</span> : AI가 근거를 얼마나 일관되게 판정했는지를 별(★ 1~3)로 표시합니다. 점수에는 반영되지 않습니다.
         </p>
         <p className="text-[13px] text-fm-gray-300 leading-relaxed pt-1">
           ※ 각 막대는 5.0 만점이 아닌 해당 항목의 최대치를 기준으로 표시됩니다.
@@ -1036,7 +1043,7 @@ Array.isArray(report.idp) && report.idp.length > 0 ? (
                       </div>
                       <div className="k fm-caption">
                         측정된 역량의 심층 평가 평균
-                        <span className="block mt-1">행동 지표 4.0 만점 + 가점(STAR 완성도·확신도) 최대 1.0 = 5.0</span>
+                        <span className="block mt-1">행동 지표 4.0 만점 + 가점(STAR 완성도) 최대 0.5</span>
                         {typeof cov?.unconfirmed_total === 'number' && cov.unconfirmed_total > 0 && (
                           <span className="block">사례 미확인 {cov.unconfirmed_total}건은 1.0 으로 계산</span>
                         )}
