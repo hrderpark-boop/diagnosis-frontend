@@ -8,10 +8,11 @@ import {
 } from 'lucide-react';
 import TranscriptModal from '../../../../components/admin/TranscriptModal';
 import {
-  fetchReportDetail, updateReport, fetchAiOriginal,
+  fetchReportDetail, updateReport, fetchAiOriginal, issueReportViewToken,
   ReportDetail, ReportEditPayload,
 } from '@/lib/adminApi';
 import { toKoreanCompetency } from '@/lib/competencyLabels';
+import { participantReportUrl } from '@/lib/adminRoutes';
 
 /**
  * 리포트 상세 + AI 피드백 교정 (Human-in-the-Loop).
@@ -103,6 +104,23 @@ export default function ReportEditPage() {
 
   const [originalView, setOriginalView] = useState<OriginalView>(null);
   const [loadingOriginal, setLoadingOriginal] = useState(false);
+  const [openingView, setOpeningView] = useState(false);
+  // (2026-11-06 P5) '고객 화면 보기': 새 탭을 먼저 열어 두고(팝업 차단 회피) 1회용 토큰을 받아 주소를 넣는다
+  const openParticipantView = async () => {
+    if (!report) return;
+    const tab = window.open('', '_blank');
+    setOpeningView(true);
+    try {
+      const { view_token } = await issueReportViewToken(report.session_id);
+      const url = `${participantReportUrl(report.session_id)}#vt=${encodeURIComponent(view_token)}`;
+      if (tab) tab.location.href = url; else window.open(url, '_blank');
+    } catch {
+      if (tab) tab.close();
+      alert('고객 화면 열람 링크를 만들지 못했습니다. 다시 로그인한 뒤 시도해 주세요.');
+    } finally {
+      setOpeningView(false);
+    }
+  };
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   // 현재 리포트 값으로 편집 초안을 만든다.
@@ -303,9 +321,9 @@ export default function ReportEditPage() {
             <button type="button" className="fa-btn" onClick={() => setTranscriptOpen(true)}>
               <MessageSquare /> 전체 대화 기록
             </button>
-            {/* (2026-11-06) P5(1회용 서명 토큰) 전까지 비활성 — 관리자 쿠키를 fm 도메인에 넘기지 않기로 해 새 탭에서 열 수 없다 */}
-            <button type="button" className="fa-btn" disabled title="고객 화면 보기는 준비 중입니다 (P5)" style={{ opacity: 0.55, cursor: 'not-allowed' }}>
-              <ExternalLink /> 고객 화면 보기 (준비 중)
+            {/* (2026-11-06 P5) 1회용 열람 토큰(60초, 이 세션 한정)을 받아 참여자 도메인 새 탭의 URL 조각(#vt=)으로 넘긴다 — 관리자 쿠키는 fm 으로 가지 않는다 */}
+            <button type="button" className="fa-btn" onClick={openParticipantView} disabled={openingView}>
+              {openingView ? <Loader2 className="animate-spin" /> : <ExternalLink />} 고객 화면 보기
             </button>
             {report.has_ai_original && (
               <button type="button" className="fa-btn" onClick={toggleOriginal} disabled={loadingOriginal}>

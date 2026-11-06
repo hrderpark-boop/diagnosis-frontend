@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
-import { adminTokenFromCookie } from '@/lib/api';
+import { adminTokenFromCookie, exchangeViewToken, getViewerToken } from '@/lib/api';
 import { AnalysisProgress, fetchAnalysisProgress, isProgressRunning } from '@/lib/analysisProgress';
 import AnalysisChecklist from '@/components/AnalysisChecklist';
 import ParticipantHeader, { ParticipantMobileStep } from '@/components/participant/ParticipantHeader';
@@ -590,6 +590,16 @@ function ReportContent() {
 
   useEffect(() => {
     if (!sessionId) return setStatusMsg("세션 정보가 없습니다.");
+    // (2026-11-06 P5) 관리자 '고객 화면 보기': URL 조각 #vt= 의 1회용 토큰을 세션 전용 열람 토큰으로 바꾸고 주소창에서 즉시 지운다(조각은 서버로 가지 않는다)
+    const vt = (() => { const m = window.location.hash.match(/(?:^#|&)vt=([^&]+)/); return m ? decodeURIComponent(m[1]) : null; })();
+    if (vt) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      exchangeViewToken(sessionId, vt).then((ok) => {
+        if (ok) loadReport();
+        else { setStatusMsg("열람 링크가 만료되었거나 이미 사용되었습니다. 관리자 콘솔에서 [고객 화면 보기]를 다시 눌러 주세요."); setCanRetry(false); }
+      });
+      return;
+    }
     loadReport();
   }, [sessionId]);
 
@@ -620,6 +630,12 @@ function ReportContent() {
       const st = err.response?.status;
       const status = err.response?.data?.detail?.analysis_status;
       if (st === 401 || st === 403) {
+        if (getViewerToken(sessionId) || window.sessionStorage.getItem('fm_report_viewer')) {
+          // (P5) 열람 토큰 만료(30분)·권한 밖 → 첫 화면으로 튕기지 않고 안내
+          setStatusMsg("열람 시간이 끝났거나 권한이 없는 리포트입니다. 관리자 콘솔에서 [고객 화면 보기]를 다시 눌러 주세요.");
+          setCanRetry(false);
+          return;
+        }
         if (adminTokenFromCookie()) {
           // (2026-11-06) 관리자가 '고객 화면 보기'로 연 탭: 관리자 토큰 재시도까지 실패(권한 밖 고객사·만료) → 첫 화면으로 튕기지 않고 안내
           setStatusMsg("관리자 권한으로 열 수 없는 리포트입니다. 관리자 콘솔에 다시 로그인한 뒤 '고객 화면 보기'를 눌러 주세요.");

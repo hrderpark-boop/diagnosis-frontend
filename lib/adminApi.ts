@@ -167,6 +167,12 @@ export const fetchParticipants = async (params: {
 /** 4(b) 관리자 복원: 보관(abandoned) 세션 → in_progress. 현재 진행 중 세션은 abandoned 로 */
 // (2026-10-23 파일럿 전 2) 관리자 재분석 — super_admin 전용. 실패 마커 초기화 + analyze.
 // (2026-11-03) 백엔드가 202 로 바로 돌려주고 분석은 백그라운드로 돈다(started=true). 교정본이면 started=false + analysis.skipped.
+/** (2026-11-06 P5) '고객 화면 보기' 1회용 토큰(60초, 이 세션 한정). fm 새 탭 URL 조각(#vt=)에 실어 보낸다 — 서버 로그에 남지 않는다. */
+export const issueReportViewToken = async (sessionId: string): Promise<{ view_token: string; expires_in: number; session_id: string }> => {
+  const { data } = await adminApi.post(`/admin/sessions/${sessionId}/view-token`);
+  return data;
+};
+
 export const reanalyzeSession = async (sessionId: string) => {
   const { data } = await adminApi.post(`/admin/sessions/${sessionId}/reanalyze`);
   return data as {
