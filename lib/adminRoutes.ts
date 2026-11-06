@@ -42,7 +42,7 @@ export const OPS_HOST = 'fm-ops.connectn.co.kr';
 export const onOfficialHost = () =>
   typeof window !== 'undefined' && window.location.hostname.toLowerCase().endsWith('connectn.co.kr');
 
-/** 관리자 쿠키(admin_token 등)를 세 도메인이 함께 읽도록 하는 Domain 속성. '고객 화면 보기' 새 탭(fm)에서 관리자 토큰 재시도가 되려면 필요하다. */
+/** (2026-11-06) 잠시 관리자 쿠키에 썼던 Domain 속성 — 형제 앱 노출 때문에 되돌렸고, 지금은 그때 저장된 쿠키를 지우는 데만 쓴다. */
 export const ADMIN_COOKIE_DOMAIN = '.connectn.co.kr';
 
 /**

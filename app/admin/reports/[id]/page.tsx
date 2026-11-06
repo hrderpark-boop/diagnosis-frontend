@@ -12,7 +12,6 @@ import {
   ReportDetail, ReportEditPayload,
 } from '@/lib/adminApi';
 import { toKoreanCompetency } from '@/lib/competencyLabels';
-import { participantReportUrl } from '@/lib/adminRoutes';
 
 /**
  * 리포트 상세 + AI 피드백 교정 (Human-in-the-Loop).
@@ -304,9 +303,10 @@ export default function ReportEditPage() {
             <button type="button" className="fa-btn" onClick={() => setTranscriptOpen(true)}>
               <MessageSquare /> 전체 대화 기록
             </button>
-            <a href={participantReportUrl(report.session_id)} target="_blank" rel="noreferrer" className="fa-btn" style={{ textDecoration: 'none' }}>
-              <ExternalLink /> 고객 화면 보기
-            </a>
+            {/* (2026-11-06) P5(1회용 서명 토큰) 전까지 비활성 — 관리자 쿠키를 fm 도메인에 넘기지 않기로 해 새 탭에서 열 수 없다 */}
+            <button type="button" className="fa-btn" disabled title="고객 화면 보기는 준비 중입니다 (P5)" style={{ opacity: 0.55, cursor: 'not-allowed' }}>
+              <ExternalLink /> 고객 화면 보기 (준비 중)
+            </button>
             {report.has_ai_original && (
               <button type="button" className="fa-btn" onClick={toggleOriginal} disabled={loadingOriginal}>
                 {loadingOriginal ? <Loader2 className="animate-spin" /> : <History />}
