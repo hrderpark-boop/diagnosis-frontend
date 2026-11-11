@@ -7,6 +7,7 @@ import apiClient from '@/lib/api';
 import { getTopicNames } from '@/lib/framework';
 import { useAnalysisProgress, fetchAnalysisEstimate, AnalysisEstimate } from '@/lib/analysisProgress';
 import AnalysisChecklist from '@/components/AnalysisChecklist';
+import { useTurnStage } from '@/lib/turnStage';
 import ParticipantHeader from '@/components/participant/ParticipantHeader';
 import './chat.css';
 
@@ -97,6 +98,9 @@ function ChatContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // 답을 보내고 코치 응답을 기다리는 동안만 true — 단계 문구 폴링의 스위치(상태 동기화 로딩과 구분)
+  const [isSending, setIsSending] = useState(false);
+  const turnStageLabel = useTurnStage(sessionId, isSending);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   // item6: 분석(수 분) 중 단계 라벨 폴링 — 스피너만 보여 멈춘 것처럼 보이던 문제
   const analysisProgress = useAnalysisProgress(sessionId, isAnalyzing);
@@ -212,6 +216,7 @@ function ChatContent() {
     setResumedNotice(false);
     clearRestoreCandidate();
     setIsLoading(true);
+    setIsSending(true);
     setConnError(false);
     setJustCompletedTopic(false);
     setNeedsDecision(false);
@@ -294,6 +299,7 @@ function ChatContent() {
       setConnError(true);
     } finally {
       setIsLoading(false);
+      setIsSending(false);
     }
   };
 
@@ -568,6 +574,7 @@ function ChatContent() {
                   <div className="fm-chat-typing" aria-label="코치가 답변을 작성하고 있습니다">
                     <span /><span /><span />
                   </div>
+                  {turnStageLabel && <p className="fm-chat-stage" aria-live="polite">{turnStageLabel}</p>}
                 </div>
               )}
               <div ref={messagesEndRef} />

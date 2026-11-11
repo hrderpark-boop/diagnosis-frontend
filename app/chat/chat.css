@@ -80,6 +80,8 @@
 .fm-chat-typing span { width: 5px; height: 5px; border-radius: 50%; background: var(--fm-gray-300); animation: wave 1.4s ease-in-out infinite; }
 .fm-chat-typing span:nth-child(2) { animation-delay: .2s; }
 .fm-chat-typing span:nth-child(3) { animation-delay: .4s; }
+/* 대기 중 단계 문구(답변을 읽고 있어요 → 질문을 고르고 있어요 → 문장을 다듬고 있어요) — 점 세 개 아래 한 줄 */
+.fm-chat-stage { margin: 0; font-size: 12px; line-height: 1.6; color: var(--fm-gray-500); }
 .fm-chat-indent { padding-left: 44px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 
 /* 시스템 행(재개 안내 · 코치 응답 실패 안내): 양옆 선 + 가운데 칩 */
