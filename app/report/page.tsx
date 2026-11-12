@@ -763,8 +763,16 @@ function ReportContent() {
             rootCanvas = await html2canvas(reportRef.current, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true, logging: false } as any);
           } catch { rootCanvas = null; }
         }
+        // (2026-11-12 P11b-9) 캡처 폭 고정 — 창 크기와 무관하게 같은 쪽수가 나오게 한다.
+        //   종전에는 지금 창의 배치를 그대로 찍어서, 창이 좁으면(767px 이하 한 단 배치) 글자가 상대적으로 커지고 단위가 길어져 쪽이 늘었다
+        //   (11/12 운영: 캡처 폭 712px → 27쪽, 976px 일 때 19~20쪽 · 1쪽에 표지 두 칸만 · 제목만 있는 쪽).
+        //   html2canvas 는 문서를 복제해 windowWidth 폭의 가상 창에서 다시 배치한다 — 1280px 창에서 리포트 본문(.fm-wrap-narrow: 최대 1120 − 여백 72×2)은 976px.
+        //   나눌 지점(data-pdf-break)과 단위 높이도 복제본에서 잰다(지금 창의 좌표는 배치가 달라 쓸 수 없다).
+        const PDF_CAPTURE_WINDOW_WIDTH = 1280;
         for (const unit of units) {
           let canvas: HTMLCanvasElement;
+          let cloneHeight = 0;
+          let cloneBreakTops: number[] | null = null;
           const ubox = unit.getBoundingClientRect();
           if (rootCanvas) {
             const k = rootCanvas.width / rootBox.width;
@@ -776,16 +784,26 @@ function ReportContent() {
             canvas.width = Math.max(1, sw); canvas.height = Math.max(1, sh);
             canvas.getContext('2d')!.drawImage(rootCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
           } else {
-            canvas = await html2canvas(unit, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true, logging: false } as any);
+            canvas = await html2canvas(unit, {
+              scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true, logging: false,
+              windowWidth: PDF_CAPTURE_WINDOW_WIDTH, windowHeight: Math.max(window.innerHeight, 900),
+              onclone: (_doc: Document, el: HTMLElement) => {
+                const cb = el.getBoundingClientRect();
+                cloneHeight = cb.height;
+                cloneBreakTops = Array.from(el.querySelectorAll<HTMLElement>('[data-pdf-break]')).map((b) => b.getBoundingClientRect().top - cb.top);
+              },
+            } as any);
           }
           if (canvas.width === 0 || canvas.height === 0) continue;
           let w = contentWidth;
           let h = (canvas.height * contentWidth) / canvas.width;
           const box = unit.getBoundingClientRect();
-          const mmPerPx = h / box.height;
-          // 블록 위쪽 12px(블록 사이 여백의 가운데)에서 자른다
-          const breaks = Array.from(unit.querySelectorAll<HTMLElement>('[data-pdf-break]'))
-            .map((el) => (el.getBoundingClientRect().top - box.top - 12) * mmPerPx)
+          const mmPerPx = h / (cloneHeight || box.height);
+          // 블록 위쪽 12px(블록 사이 여백의 가운데)에서 자른다 — 복제본(고정 폭 배치)에서 잰 위치를 쓴다. 단일 캡처 경로는 지금 창의 좌표 그대로
+          const breakTops: number[] = cloneBreakTops
+            ?? Array.from(unit.querySelectorAll<HTMLElement>('[data-pdf-break]')).map((el) => el.getBoundingClientRect().top - box.top);
+          const breaks = breakTops
+            .map((top) => (top - 12) * mmPerPx)
             .filter((b) => b > 0 && b < h - 20)
             // 첫 블록 앞에서는 자르지 않는다(제목이 혼자 남지 않게)
             .slice(1);
